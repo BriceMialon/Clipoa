@@ -439,7 +439,7 @@ class TestSocialOAuthAndDirectPublish(unittest.TestCase):
 
             # Verify Dark Liquid Glass sidebar, 9:16 style plaques, Theater modal & Connexions bento render
             html = self.client.get("/").get_data(as_text=True)
-            for marker in ("sidebar-nav-wrap", "style-plaques-strip", "conn-claude-hero", "modal-theater", 'data-theme="dark"'):
+            for marker in ("sidebar-nav-wrap", "style-plaques-strip", "conn-opt-plaque", "modal-theater", 'data-theme="dark"'):
                 self.assertIn(marker, html)
         finally:
             if uploaded_id:

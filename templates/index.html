@@ -116,18 +116,34 @@
           <button type="button" data-theme="dark" onclick="applyTheme('dark')"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Sombre</button>
         </div>
         <div class="sidebar-quota-card" onclick="showView('reglages')" title="Gérer tes moteurs IA & quotas">
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; color:var(--ink);">
+          <!-- Claude Opus 5.5 -->
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
             <span style="display:flex; align-items:center; gap:6px;">
               <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="side-claude-dot"></span>
-              <span>Claude {{ (claude_status.model or 'opus')|capitalize }}</span>
+              <span>Claude Opus 5.5</span>
             </span>
             <span id="side-claude-pct" style="color:var(--muted);">{{ claude_status.quota.remaining_pct }}%</span>
           </div>
-          <div class="progress-track" style="margin-top:7px; height:4px;">
+          <div class="progress-track" style="margin-top:5px; height:4px;">
             <div class="progress-fill" id="side-claude-bar" style="width:{{ claude_status.quota.remaining_pct }}%; animation:none;"></div>
           </div>
-          <div style="font-size:11px; color:var(--muted); margin-top:5px;">
-            Antigravity : <b style="color:{{ 'var(--ok)' if agy_status.connected else 'var(--ink-2)' }};">{{ 'Connecté' if agy_status.connected else 'À connecter' }}</b>
+
+          <!-- Antigravity Neon -->
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); margin-top:10px;">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span class="dot {{ 'ok' if agy_status.connected else 'warn' }}" id="side-agy-dot"></span>
+              <span>Antigravity Neon</span>
+            </span>
+            <span id="side-agy-pct" style="color:var(--muted);">
+              {% if agy_status.connected %}
+              {{ agy_status.quota.remaining_pct }}% · {{ (agy_status.quota.tokens_left_5h // 1000) }}k tok
+              {% else %}
+              Off
+              {% endif %}
+            </span>
+          </div>
+          <div class="progress-track" style="margin-top:5px; height:4px;">
+            <div class="progress-fill" id="side-agy-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; animation:none;"></div>
           </div>
         </div>
       </div>
@@ -1131,117 +1147,147 @@
             </div>
           </div>
 
-          <!-- Grande Plaque Héro : Claude -->
-          <div class="conn-claude-hero lg-sheen" style="margin-bottom:18px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-              <div class="conn-spark-badge">✳</div>
-              <span style="font-size:12.5px; font-weight:700; color:{{ 'var(--ok)' if claude_status.connected else 'var(--accent)' }};">
-                {{ '✓ Branché' if claude_status.connected else '● À brancher' }}
-              </span>
-            </div>
+          <!-- Grille uniforme 2×2 : toutes les cartes ont exactement la même taille -->
+          <div class="conn-opt-grid" style="grid-template-columns:repeat(auto-fit, minmax(290px, 1fr));">
 
-            <div>
-              <h2 style="font-family:var(--font-display); font-size:22px; font-weight:800; color:var(--ink); letter-spacing:-0.025em;">
-                {{ 'Claude est branché' if claude_status.connected else 'Connecter ton compte Claude' }}
-              </h2>
-              <p style="font-size:13.5px; color:var(--muted); margin-top:4px; line-height:1.45;">
-                {{ claude_status.message }} · Modèle par défaut : <b>Opus 5.5 (Medium)</b>.
-              </p>
-
-              <!-- Jauge quota réel 5h / 7j -->
-              <div style="margin-top:14px;">
-                <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--ink); font-weight:600;">
-                  <span id="reg-quota-left">Quota réel Anthropic (5h) {{ ('· reset à ' ~ claude_status.quota.resets_at) if claude_status.quota.resets_at else '' }}</span>
-                  <span id="reg-quota-right">{{ claude_status.quota.remaining_pct }}% restant (~{{ claude_status.quota.est_videos_left }} vidéos)</span>
-                </div>
-                <div class="progress-track"><div class="progress-fill" id="reg-quota-bar" style="width:{{ claude_status.quota.remaining_pct }}%; animation:none;"></div></div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:5px;" id="reg-quota-sub">
-                  {% if claude_status.quota.seven_day_remaining_pct is not none %}
-                  Fenêtre 7 jours : {{ claude_status.quota.seven_day_remaining_pct }}% restant ·
-                  {% endif %}
-                  ~{{ claude_status.quota.est_pct_per_video }}% / vidéo · {{ claude_status.quota.calls_5h }} appels Clipoa
-                </div>
-              </div>
-            </div>
-
-            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding-top:10px; border-top:1px solid var(--stroke-subtle);">
-              <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; color:var(--muted); cursor:pointer; user-select:none;">
-                <input type="checkbox" id="claude-adv-toggle" onchange="document.getElementById('claude-adv-drawer').style.display = this.checked ? 'flex' : 'none';" style="accent-color:var(--accent); width:14px; height:14px;">
-                <span>Paramètres avancés</span>
-              </label>
-              <div style="display:flex; gap:6px;">
-                <button type="button" class="btn btn-ghost btn-xs" onclick="syncRealClaudeQuota()">Synchro quota</button>
-                <button type="button" class="btn btn-ghost btn-xs" onclick="switchClaudeAccount()">Changer</button>
-              </div>
-            </div>
-
-            <div id="claude-adv-drawer" style="display:none; gap:6px; align-items:center; flex-wrap:wrap; padding-top:8px;">
-              <select id="claude-model-select" class="input-sm" style="width:auto; padding:5px 9px; font-size:12px;" onchange="updateClaudeModel()">
-                <option value="opus" {{ 'selected' if claude_status.model == 'opus' else '' }}>Opus 5.5</option>
-                <option value="sonnet" {{ 'selected' if claude_status.model == 'sonnet' else '' }}>Sonnet</option>
-                <option value="haiku" {{ 'selected' if claude_status.model == 'haiku' else '' }}>Haiku</option>
-              </select>
-              <select id="claude-effort-select" class="input-sm" style="width:auto; padding:5px 9px; font-size:12px;" onchange="updateClaudeModel()">
-                <option value="low" {{ 'selected' if claude_status.effort == 'low' else '' }}>Effort Low</option>
-                <option value="medium" {{ 'selected' if claude_status.effort == 'medium' else '' }}>Effort Medium</option>
-                <option value="high" {{ 'selected' if claude_status.effort == 'high' else '' }}>Effort High</option>
-              </select>
-              <select id="claude-plan-select" class="input-sm" style="width:auto; padding:5px 9px; font-size:12px;" onchange="updateClaudePlan()">
-                {% for pk, pv in claude_plans.items() %}
-                <option value="{{ pk }}" {{ 'selected' if claude_status.quota.plan == pk else '' }}>{{ pv.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div id="claude-login-box" style="display:none; font-size:12px; color:var(--accent);"></div>
-          </div>
-
-          <!-- Section "Autres connexions" : Antigravity, ElevenLabs (crédits en direct), Blender 3D -->
-          <div class="conn-opt-grid" style="grid-template-columns:repeat(auto-fit, minmax(250px, 1fr));">
-            <!-- Antigravity CLI (agy) -->
+            <!-- Carte 1 : Claude -->
             <div class="conn-opt-plaque lg-sheen">
               <div>
-                <div class="conn-mini-ico" style="margin-bottom:12px;">🪐</div>
-                <div style="font-weight:700; font-size:14.5px; color:var(--ink);">Antigravity (agy)</div>
-                <div style="font-size:12px; color:var(--muted); margin-top:5px; line-height:1.4;">Gemini 4 Neon (Medium) par défaut · scripts, scènes 3D Blender & aide IA.</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <div class="conn-mini-ico" style="margin-bottom:0;">✳</div>
+                  <span style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if claude_status.connected else 'var(--accent)' }};">
+                    {{ '✓ Branché' if claude_status.connected else '● À brancher' }}
+                  </span>
+                </div>
+                <div style="font-weight:700; font-size:15px; color:var(--ink);">Claude</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+                  Modèle par défaut : <b style="color:var(--ink);">Opus 5.5 (Medium)</b>.
+                </div>
+
+                <div style="margin-top:10px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink); font-weight:600;">
+                    <span id="reg-quota-left">Quota 5h {{ ('· reset ' ~ claude_status.quota.resets_at) if claude_status.quota.resets_at else '' }}</span>
+                    <span id="reg-quota-right">{{ claude_status.quota.remaining_pct }}% (~{{ claude_status.quota.est_videos_left }} vid.)</span>
+                  </div>
+                  <div class="progress-track" style="margin-top:5px; height:5px;"><div class="progress-fill" id="reg-quota-bar" style="width:{{ claude_status.quota.remaining_pct }}%; animation:none;"></div></div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:4px;" id="reg-quota-sub">
+                    {% if claude_status.quota.seven_day_remaining_pct is not none %}
+                    7 jours : {{ claude_status.quota.seven_day_remaining_pct }}% ·
+                    {% endif %}
+                    {{ claude_status.quota.calls_5h }} appels Clipoa
+                  </div>
+                </div>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-                <span id="reg-agy-status" style="font-size:12px; color:{{ 'var(--ok)' if agy_status.connected else 'var(--muted)' }}; font-weight:600;">{{ '✓ Connecté' if agy_status.connected else 'À connecter' }}</span>
-                <div style="display:flex; gap:6px;">
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">{{ 'Reconnecter' if agy_status.connected else 'Connecter' }}</button>
+
+              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+                  <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); cursor:pointer;">
+                    <input type="checkbox" id="claude-adv-toggle" onchange="document.getElementById('claude-adv-drawer').style.display = this.checked ? 'flex' : 'none';" style="accent-color:var(--accent); width:13px; height:13px;">
+                    <span>Paramètres avancés</span>
+                  </label>
+                  <div style="display:flex; gap:5px;">
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="syncRealClaudeQuota()" title="Synchroniser quota">↻</button>
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="switchClaudeAccount()">Changer</button>
+                  </div>
+                </div>
+                <div id="claude-adv-drawer" style="display:none; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                  <select id="claude-model-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudeModel()">
+                    <option value="opus" {{ 'selected' if claude_status.model == 'opus' else '' }}>Opus 5.5</option>
+                    <option value="sonnet" {{ 'selected' if claude_status.model == 'sonnet' else '' }}>Sonnet</option>
+                    <option value="haiku" {{ 'selected' if claude_status.model == 'haiku' else '' }}>Haiku</option>
+                  </select>
+                  <select id="claude-effort-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudeModel()">
+                    <option value="low" {{ 'selected' if claude_status.effort == 'low' else '' }}>Effort Low</option>
+                    <option value="medium" {{ 'selected' if claude_status.effort == 'medium' else '' }}>Effort Medium</option>
+                    <option value="high" {{ 'selected' if claude_status.effort == 'high' else '' }}>Effort High</option>
+                  </select>
+                  <select id="claude-plan-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudePlan()">
+                    {% for pk, pv in claude_plans.items() %}
+                    <option value="{{ pk }}" {{ 'selected' if claude_status.quota.plan == pk else '' }}>{{ pv.label }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div id="claude-login-box" style="display:none; font-size:11.5px; color:var(--accent); margin-top:6px;"></div>
+              </div>
+            </div>
+
+            <!-- Carte 2 : Antigravity (agy) -->
+            <div class="conn-opt-plaque lg-sheen">
+              <div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <div class="conn-mini-ico" style="margin-bottom:0;">🪐</div>
+                  <span id="reg-agy-status" style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if agy_status.connected else 'var(--muted)' }};">
+                    {{ '✓ Connecté' if agy_status.connected else 'À connecter' }}
+                  </span>
+                </div>
+                <div style="font-weight:700; font-size:15px; color:var(--ink);">Antigravity (agy)</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+                  Modèle par défaut : <b style="color:var(--ink);">Gemini 4 Neon (Medium)</b>.
+                </div>
+
+                <div style="margin-top:10px;">
+                  <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink); font-weight:600;">
+                    <span>Tokens restants (5h)</span>
+                    <span id="reg-agy-quota-right">
+                      {% if agy_status.connected %}
+                      {{ agy_status.quota.remaining_pct }}% (~{{ (agy_status.quota.tokens_left_5h // 1000) }}k tok)
+                      {% else %}
+                      Non connecté
+                      {% endif %}
+                    </span>
+                  </div>
+                  <div class="progress-track" style="margin-top:5px; height:5px;"><div class="progress-fill" id="reg-agy-quota-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; animation:none;"></div></div>
+                  <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+                    {{ agy_status.models|length }} modèles disponibles · {{ agy_status.quota.calls_5h }} appels Clipoa
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+                <span style="font-size:11.5px; color:var(--muted);">Scripts, 3D Blender & Aide IA</span>
+                <div style="display:flex; gap:5px;">
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">{{ 'Reconnecter' if agy_status.connected else 'Connecter' }}</button>
                 </div>
               </div>
             </div>
 
-            <!-- ElevenLabs avec solde de crédits en direct + paramètres avancés -->
+            <!-- Carte 3 : ElevenLabs (crédits en direct) -->
             <div class="conn-opt-plaque lg-sheen">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                   <div class="conn-mini-ico" style="margin-bottom:0;">🎙️</div>
-                  <span id="reg-el-status" style="font-size:12px; color:{{ 'var(--ok)' if el_status.connected else 'var(--muted)' }}; font-weight:600;">{{ '✓ Branché' if el_status.connected else 'Pas branché' }}</span>
+                  <span id="reg-el-status" style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if el_status.connected else 'var(--muted)' }};">
+                    {{ '✓ Branché' if el_status.connected else 'Pas branché' }}
+                  </span>
                 </div>
-                <div style="font-weight:700; font-size:14.5px; color:var(--ink);">ElevenLabs</div>
-                <div id="reg-el-credits-text" style="font-size:12px; color:var(--muted); margin-top:5px; line-height:1.4;">
-                  {% if el_status.connected and el_status.character_limit %}
-                  <b style="color:var(--ink);">{{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }}</b> / {{ '{:,}'.format(el_status.character_limit).replace(',', ' ') }} crédits restants (~{{ el_status.est_videos_left }} shorts)
-                  {% elif el_status.connected %}
-                  {{ el_status.message }}
-                  {% else %}
-                  Ta propre voix clonée ou voix studio.
-                  {% endif %}
+                <div style="font-weight:700; font-size:15px; color:var(--ink);">ElevenLabs</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+                  Voix clonée ou voix studio premium.
                 </div>
-                {% if el_status.connected and el_status.character_limit %}
-                <div class="progress-track" style="margin-top:8px; height:5px;">
-                  <div class="progress-fill" id="reg-el-credits-bar" style="width:{{ (100 - (el_status.used_pct or 0))|round(1) }}%; animation:none;"></div>
+
+                <div style="margin-top:10px;">
+                  <div id="reg-el-credits-text" style="font-size:11.5px; color:var(--ink); font-weight:600; line-height:1.4;">
+                    {% if el_status.connected and el_status.character_limit %}
+                    {{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }} / {{ '{:,}'.format(el_status.character_limit).replace(',', ' ') }} crédits (~{{ el_status.est_videos_left }} shorts)
+                    {% elif el_status.connected %}
+                    {{ el_status.message }}
+                    {% else %}
+                    Non connecté
+                    {% endif %}
+                  </div>
+                  <div class="progress-track" style="margin-top:5px; height:5px;">
+                    <div class="progress-fill" id="reg-el-credits-bar" style="width:{{ (100 - (el_status.used_pct or 0))|round(1) if (el_status.connected and el_status.character_limit) else 0 }}%; animation:none;"></div>
+                  </div>
                 </div>
-                {% endif %}
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:8px;">
+
+              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
                 <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); cursor:pointer;">
                   <input type="checkbox" id="el-adv-toggle" onchange="document.getElementById('el-adv-btn').style.display = this.checked ? 'inline-flex' : 'none';" style="accent-color:var(--accent); width:13px; height:13px;">
                   <span>Paramètres avancés</span>
                 </label>
-                <div style="display:flex; gap:6px;">
+                <div style="display:flex; gap:5px;">
                   {% if el_status.connected %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshElevenLabsCredits()" title="Actualiser les crédits en direct">↻</button>
                   <button type="button" class="btn btn-ghost btn-xs" id="el-adv-btn" style="display:none;" onclick="openModal('modal-el-connect')">Configurer</button>
@@ -1252,15 +1298,23 @@
               </div>
             </div>
 
-            <!-- La 3D sur ton Mac (Blender) -->
+            <!-- Carte 4 : La 3D sur ton Mac (Blender) -->
             <div class="conn-opt-plaque lg-sheen">
               <div>
-                <div class="conn-mini-ico" style="margin-bottom:12px;">🧊</div>
-                <div style="font-weight:700; font-size:14.5px; color:var(--ink);">La 3D sur ton Mac</div>
-                <div style="font-size:12px; color:var(--muted); margin-top:5px; line-height:1.4;">Blender, gratuit. Pour des scènes en vraie 3D.</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                  <div class="conn-mini-ico" style="margin-bottom:0;">🧊</div>
+                  <span style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if blender_available else 'var(--muted)' }};">
+                    {{ '✓ Installé' if blender_available else 'Non installé' }}
+                  </span>
+                </div>
+                <div style="font-weight:700; font-size:15px; color:var(--ink);">Blender 3D</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
+                  Rendu 3D local gratuit sur ton Mac (scènes générées par Claude ou Antigravity).
+                </div>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-                <span style="font-size:12px; color:{{ 'var(--ok)' if blender_available else 'var(--muted)' }}; font-weight:600;">{{ '✓ Installée' if blender_available else 'Pas installée' }}</span>
+
+              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px;">
+                <span style="font-size:11.5px; color:var(--muted);">100 % local · 0 token rendu</span>
                 {% if blender_available %}
                 <button type="button" class="btn btn-ghost btn-xs" onclick="showView('creer'); selectStylePlaque('3d')">Utiliser</button>
                 {% else %}
@@ -1268,6 +1322,7 @@
                 {% endif %}
               </div>
             </div>
+
           </div>
 
           <!-- Barre inférieure Réseaux Sociaux + Réglages avancés OAuth -->
@@ -2491,6 +2546,19 @@
         regSt.textContent = ok ? '✓ Connecté' : 'À connecter';
         regSt.style.color = ok ? 'var(--ok)' : 'var(--muted)';
       }
+      const aq = st.quota || {};
+      const remPct = aq.remaining_pct ?? 100;
+      const tokK = Math.floor((aq.tokens_left_5h ?? 250000) / 1000);
+      const sDot = document.getElementById('side-agy-dot');
+      if (sDot) sDot.className = 'dot ' + (ok ? 'ok' : 'warn');
+      const sPct = document.getElementById('side-agy-pct');
+      if (sPct) sPct.textContent = ok ? `${remPct}% · ${tokK}k tok` : 'Off';
+      const sBar = document.getElementById('side-agy-bar');
+      if (sBar) sBar.style.width = `${ok ? remPct : 0}%`;
+      const rRight = document.getElementById('reg-agy-quota-right');
+      if (rRight) rRight.textContent = ok ? `${remPct}% (~${tokK}k tok)` : 'Non connecté';
+      const rBar = document.getElementById('reg-agy-quota-bar');
+      if (rBar) rBar.style.width = `${ok ? remPct : 0}%`;
       if (Array.isArray(st.models) && st.models.length) {
         const sel = document.getElementById('agy-model');
         if (sel) {

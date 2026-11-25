@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -11,6 +13,9 @@ from config import STORAGE_DIR
 from core.settings_store import load_settings, save_settings
 
 logger = logging.getLogger("AntigravityBridge")
+AGY_USAGE_FILE = STORAGE_DIR / "antigravity_usage.json"
+_AGY_LOCK = threading.Lock()
+AGY_WINDOW_BUDGET_TOKENS = 250_000  # ~250k tokens / 5h rolling estimate for Antigravity CLI
 
 DEFAULT_AGY_CANDIDATES = [
     "/Applications/Gemini.app/Contents/Helpers/agy",
@@ -153,7 +158,64 @@ class AntigravityBridge:
             "cli_path": cli_path,
             "model": active_model,
             "models": models,
+            "quota": cls.get_quota_summary(),
             "message": message,
+        }
+
+    @classmethod
+    def _record_usage(cls, model: str, input_chars: int, output_chars: int) -> None:
+        in_tok = max(1, int(round(input_chars / 3.8)))
+        out_tok = max(1, int(round(output_chars / 3.8)))
+        entry = {
+            "ts": time.time(),
+            "model": model or "gemini-4-neon-medium",
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
+            "total_tokens": in_tok + out_tok,
+        }
+        with _AGY_LOCK:
+            history: List[Dict[str, Any]] = []
+            if AGY_USAGE_FILE.exists():
+                try:
+                    history = json.loads(AGY_USAGE_FILE.read_text(encoding="utf-8"))
+                    if not isinstance(history, list):
+                        history = []
+                except Exception:
+                    history = []
+            history.append(entry)
+            cutoff = time.time() - 7 * 86400
+            history = [h for h in history if h.get("ts", 0) >= cutoff][-300:]
+            try:
+                AGY_USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                AGY_USAGE_FILE.write_text(json.dumps(history, indent=2), encoding="utf-8")
+            except Exception:
+                pass
+
+    @classmethod
+    def get_quota_summary(cls) -> Dict[str, Any]:
+        window_5h = time.time() - 5 * 3600
+        history: List[Dict[str, Any]] = []
+        with _AGY_LOCK:
+            if AGY_USAGE_FILE.exists():
+                try:
+                    history = json.loads(AGY_USAGE_FILE.read_text(encoding="utf-8"))
+                    if not isinstance(history, list):
+                        history = []
+                except Exception:
+                    history = []
+        recent = [h for h in history if h.get("ts", 0) >= window_5h]
+        tokens_used = sum(int(h.get("total_tokens", 0)) for h in recent)
+        tokens_left = max(0, AGY_WINDOW_BUDGET_TOKENS - tokens_used)
+        used_pct = min(100.0, round((tokens_used / max(1, AGY_WINDOW_BUDGET_TOKENS)) * 100.0, 1))
+        remaining_pct = max(0.0, round(100.0 - used_pct, 1))
+        return {
+            "calls_5h": len(recent),
+            "tokens_used_5h": tokens_used,
+            "tokens_left_5h": tokens_left,
+            "budget_tokens_5h": AGY_WINDOW_BUDGET_TOKENS,
+            "used_pct": used_pct,
+            "remaining_pct": remaining_pct,
+            "est_videos_left": max(0, tokens_left // 4500),
         }
 
     @classmethod
@@ -225,7 +287,9 @@ class AntigravityBridge:
             raise RuntimeError(f"Erreur Antigravity CLI : {combined[:220]}")
 
         cls._cached_connected = True
-        return res.stdout.strip()
+        out_txt = res.stdout.strip()
+        cls._record_usage(chosen_model, len(full_prompt), len(out_txt))
+        return out_txt
 
     @staticmethod
     def extract_python_code(raw: str) -> str:
