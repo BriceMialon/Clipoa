@@ -252,6 +252,23 @@ class AntigravityBridge:
         }
 
     @classmethod
+    def _empty_cwd(cls) -> str:
+        """Dossier vide dédié pour lancer `agy -p` sans charger le repo ni déclencher d'outils."""
+        d = STORAGE_DIR / "_agy_sandbox"
+        d.mkdir(parents=True, exist_ok=True)
+        return str(d)
+
+    @staticmethod
+    def _wrap_no_tools_prompt(prompt: str, system_prompt: Optional[str] = None) -> str:
+        guard = (
+            "RÈGLE ABSOLUE : N'UTILISE AUCUN OUTIL (aucune lecture/écriture de fichier, aucune commande terminal, aucune recherche). "
+            "Réponds directement et uniquement en texte.\n\n"
+        )
+        if system_prompt:
+            return f"{guard}{system_prompt.strip()}\n\n{prompt.strip()}"
+        return f"{guard}{prompt.strip()}"
+
+    @classmethod
     def query(
         cls,
         prompt: str,
@@ -263,8 +280,8 @@ class AntigravityBridge:
         if not cli_path:
             raise RuntimeError("Antigravity CLI (agy) introuvable sur ce Mac.")
 
-        full_prompt = f"{system_prompt.strip()}\n\n{prompt.strip()}" if system_prompt else prompt.strip()
-        chosen_model = (model or load_settings().get("antigravity", {}).get("model") or "").strip()
+        full_prompt = cls._wrap_no_tools_prompt(prompt, system_prompt)
+        chosen_model = (model or load_settings().get("antigravity", {}).get("model") or "gemini-4-neon-medium").strip()
 
         cmd = [
             cli_path,
@@ -277,7 +294,7 @@ class AntigravityBridge:
         if chosen_model:
             cmd.extend(["--model", chosen_model])
 
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cls._empty_cwd())
         combined = (res.stdout + "\n" + res.stderr).strip()
         low = combined.lower()
         if "please sign in" in low or "not logged in" in low:
@@ -307,7 +324,7 @@ class AntigravityBridge:
         if not cli_path:
             raise RuntimeError("Antigravity CLI (agy) introuvable sur ce Mac.")
 
-        full_prompt = f"{system_prompt.strip()}\n\n{prompt.strip()}" if system_prompt else prompt.strip()
+        full_prompt = cls._wrap_no_tools_prompt(prompt, system_prompt)
         chosen_model = (model or load_settings().get("antigravity", {}).get("model") or "gemini-4-neon-medium").strip()
 
         cmd = [
@@ -327,6 +344,7 @@ class AntigravityBridge:
             stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
+            cwd=cls._empty_cwd(),
         )
         full_chunks: List[str] = []
         started = time.time()
