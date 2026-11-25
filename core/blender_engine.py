@@ -18,6 +18,36 @@ class BlenderEngine:
         return os.path.exists(BLENDER_PATH)
 
     @classmethod
+    def _patch_blender5_compat(cls, python_script_path: str) -> None:
+        """
+        Ensures any generated bpy script works on Blender 5.x (where image_settings.media_type = 'VIDEO'
+        must be set before file_format = 'FFMPEG', and BLENDER_EEVEE_NEXT may not exist).
+        """
+        try:
+            p = Path(python_script_path)
+            code = p.read_text(encoding="utf-8")
+            patched = code
+            if "media_type" not in patched and "FFMPEG" in patched:
+                patched = patched.replace(
+                    "image_settings.file_format = 'FFMPEG'",
+                    "image_settings.media_type = 'VIDEO' if hasattr(bpy.context.scene.render.image_settings, 'media_type') else None; bpy.context.scene.render.image_settings.file_format = 'FFMPEG'",
+                ).replace(
+                    'image_settings.file_format = "FFMPEG"',
+                    'image_settings.media_type = "VIDEO" if hasattr(bpy.context.scene.render.image_settings, "media_type") else None; bpy.context.scene.render.image_settings.file_format = "FFMPEG"',
+                )
+            # Cleanly handle media_type assignment without None error on Blender 3/4
+            patched = patched.replace(
+                "image_settings.media_type = 'VIDEO' if hasattr(bpy.context.scene.render.image_settings, 'media_type') else None; ",
+                "image_settings.media_type = 'VIDEO'\n" if True else "",
+            )
+            if "BLENDER_EEVEE_NEXT" in patched:
+                patched = patched.replace("'BLENDER_EEVEE_NEXT'", "'BLENDER_EEVEE'").replace('"BLENDER_EEVEE_NEXT"', '"BLENDER_EEVEE"')
+            if patched != code:
+                p.write_text(patched, encoding="utf-8")
+        except Exception as e:
+            logger.warning(f"Blender 5 compat patch skipped: {e}")
+
+    @classmethod
     def render_script(cls, python_script_path: str, output_path: str, frames: int = 150) -> bool:
         """
         Runs Blender in background mode with the specified python script.
@@ -27,6 +57,8 @@ class BlenderEngine:
                 f"Blender non trouvé au chemin : {BLENDER_PATH}.\n"
                 "Pour activer la 3D gratuite, télécharge Blender sur blender.org et installe-le dans /Applications."
             )
+
+        cls._patch_blender5_compat(python_script_path)
 
         cmd = [
             BLENDER_PATH,
@@ -41,14 +73,17 @@ class BlenderEngine:
         logger.info(f"Rendering 3D scene with Blender CLI ({frames} frames)...")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
         if result.returncode != 0:
-            logger.error(f"Blender render error: {result.stderr}")
+            logger.error(f"Blender render error: {result.stderr[-600:]}")
             return False
-        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+        if not (os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+            logger.error(f"Blender finished but output missing: {output_path}. stderr={result.stderr[-400:]}")
+            return False
+        return True
 
     @classmethod
     def create_sample_3d_script(cls, title_text: str, script_save_path: str):
         """
-        Generates a sample procedural Blender python script:
+        Generates a sample procedural Blender python script (Blender 3.x/4.x/5.x compatible):
         Dark moody studio lighting, 3D extruded text, vertical camera, slight rotation.
         Configures FFMPEG/MPEG4 output so `-o output.mp4 -a` writes a real MP4 file.
         """
@@ -60,7 +95,7 @@ import math
 # Clear existing objects
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
-# Scene settings for vertical video (9:16) -> real H.264 MP4 output
+# Scene settings for vertical video (9:16) -> real H.264 MP4 output (Blender 3/4/5 compatible)
 scene = bpy.context.scene
 scene.render.resolution_x = 1080
 scene.render.resolution_y = 1920
@@ -68,11 +103,15 @@ scene.render.resolution_percentage = 100
 scene.render.fps = 30
 scene.frame_start = 1
 scene.frame_end = 150
+if hasattr(scene.render.image_settings, 'media_type'):
+    scene.render.image_settings.media_type = 'VIDEO'
 scene.render.image_settings.file_format = 'FFMPEG'
 scene.render.ffmpeg.format = 'MPEG4'
 scene.render.ffmpeg.codec = 'H264'
 scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
 scene.render.use_file_extension = False
+if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
+    scene.eevee.taa_render_samples = 16
 
 # Camera
 cam_data = bpy.data.cameras.new("Camera")

@@ -322,32 +322,52 @@ class AntigravityBridge:
         spoken_script: str,
         script_save_path: str,
         da_context: str = "",
+        visual_storyboard: Optional[List[Dict[str, Any]]] = None,
         frames: int = 150,
         engine: str = "antigravity",
         model: Optional[str] = None,
     ) -> bool:
         """
         Demande à Antigravity (ou Claude / Gemini) d'écrire un vrai script Python Blender (`bpy`)
-        adapté au sujet et à la Direction Artistique choisie (ex. 3D Roblox, 2D×3D, Fête en folie).
+        compatible Blender 5.x, adapté au sujet, au storyboard et à la Direction Artistique choisie
+        (ex. 3D Roblox, 2D×Monde 3D).
         Retourne True si un script valide a été écrit, False sinon (le pipeline utilise alors le fallback).
         """
         sys_prompt = (
-            "Tu es un artiste technique Blender 3D expert (bpy Python API, Blender 4.x).\n"
+            "Tu es un artiste technique Blender 3D expert (bpy Python API, compatible Blender 4.x et 5.3).\n"
             "Écris UNIQUEMENT un script Python complet et autonome (sans texte autour, dans un bloc ```python```) "
-            "qui construit une scène 3D verticale 9:16 animée correspondant au sujet et à la Direction Artistique.\n"
-            "Contraintes STRICTES :\n"
+            "qui construit une vraie scène 3D verticale 9:16 animée correspondant au sujet, au storyboard et à la Direction Artistique.\n"
+            "Contraintes STRICTES Blender 5.3 :\n"
             "1. Commence par `import bpy`, `import math` (et `import random` si utile). Aucun import réseau/système (`os`, `subprocess`, `socket`, `requests`).\n"
             "2. Réinitialise la scène avec `bpy.ops.wm.read_factory_settings(use_empty=True)`.\n"
-            f"3. Configure le rendu vertical 9:16 H.264 MP4 : resolution_x=1080, resolution_y=1920, resolution_percentage=100, fps=30, frame_start=1, frame_end={int(frames)}, "
-            "image_settings.file_format='FFMPEG', ffmpeg.format='MPEG4', ffmpeg.codec='H264', use_file_extension=False, engine='BLENDER_EEVEE_NEXT' (ou fallback 'BLENDER_EEVEE').\n"
-            "4. Crée une vraie scène 3D visuelle riche (personnages/objets géométriques stylisés, décor coloré, éclairage soigné, caméra en mouvement fluide avec keyframes de frame 1 à frame_end).\n"
-            "5. N'utilise aucun fichier externe (textures/HDRI/meshes externes interdits) : tout doit être procédural en `bpy`."
+            f"3. Configure le rendu vertical 9:16 H.264 MP4 EXACTEMENT ainsi :\n"
+            "   scene = bpy.context.scene\n"
+            "   scene.render.engine = 'BLENDER_EEVEE'\n"
+            "   scene.render.resolution_x = 1080\n"
+            "   scene.render.resolution_y = 1920\n"
+            "   scene.render.resolution_percentage = 100\n"
+            "   scene.render.fps = 30\n"
+            f"   scene.frame_start = 1; scene.frame_end = {int(frames)}\n"
+            "   if hasattr(scene.render.image_settings, 'media_type'): scene.render.image_settings.media_type = 'VIDEO'\n"
+            "   scene.render.image_settings.file_format = 'FFMPEG'\n"
+            "   scene.render.ffmpeg.format = 'MPEG4'; scene.render.ffmpeg.codec = 'H264'\n"
+            "   scene.render.use_file_extension = False\n"
+            "   if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'): scene.eevee.taa_render_samples = 16\n"
+            "4. Crée une VRAIE scène 3D visuelle fidèle au style (ex : pour 3D Roblox → avatars R6 en blocs + rue/maisons low-poly + ciel bleu ; pour 2D×Monde 3D → village/décor 3D low-poly atmosphérique + personnages stylisés + objet lumineux), avec éclairage soigné et caméra en mouvement fluide (keyframes de frame 1 à frame_end).\n"
+            "5. N'utilise aucun fichier externe (textures/HDRI/meshes externes interdits) : tout doit être 100% procédural en `bpy`."
         )
         da_snippet = (da_context or "")[:2400]
         da_block = f"Direction Artistique à respecter :\n{da_snippet}\n" if da_snippet else ""
+        sb_lines = []
+        if isinstance(visual_storyboard, list):
+            for s in visual_storyboard[:6]:
+                if isinstance(s, dict) and s.get("visual"):
+                    sb_lines.append(f"- {s.get('timestamp_approx', '')}: {str(s.get('visual'))[:220]}")
+        sb_block = ("Storyboard des plans clés :\n" + "\n".join(sb_lines) + "\n") if sb_lines else ""
         user_prompt = (
             f"Sujet : {topic}\n"
             f"Script parlé (extrait) : {(spoken_script or '')[:600]}\n"
+            f"{sb_block}"
             f"{da_block}"
             f"Durée : {int(frames)} frames à 30 fps.\n"
             "Retourne uniquement le script Python Blender complet."
@@ -368,15 +388,20 @@ class AntigravityBridge:
             if not cls.validate_blender_script(code):
                 return False
 
-            # Safe EEVEE engine compatibility shim (Blender 4.2+ uses BLENDER_EEVEE_NEXT, 3.x/4.0 uses BLENDER_EEVEE)
+            # Safe Blender 3/4/5 EEVEE + MP4 compatibility guard
             shim = (
-                "\n# Clipoa EEVEE compatibility guard\n"
+                "\n# Clipoa Blender 5.x compatibility guard\n"
                 "try:\n"
                 "    import bpy as _cbpy\n"
-                "    _cbpy.context.scene.render.image_settings.file_format = 'FFMPEG'\n"
-                "    _cbpy.context.scene.render.ffmpeg.format = 'MPEG4'\n"
-                "    _cbpy.context.scene.render.ffmpeg.codec = 'H264'\n"
-                "    _cbpy.context.scene.render.use_file_extension = False\n"
+                "    _sc = _cbpy.context.scene\n"
+                "    if hasattr(_sc.render.image_settings, 'media_type'):\n"
+                "        _sc.render.image_settings.media_type = 'VIDEO'\n"
+                "    _sc.render.image_settings.file_format = 'FFMPEG'\n"
+                "    _sc.render.ffmpeg.format = 'MPEG4'\n"
+                "    _sc.render.ffmpeg.codec = 'H264'\n"
+                "    _sc.render.use_file_extension = False\n"
+                "    if hasattr(_sc, 'eevee') and hasattr(_sc.eevee, 'taa_render_samples'):\n"
+                "        _sc.eevee.taa_render_samples = min(24, getattr(_sc.eevee, 'taa_render_samples', 16) or 16)\n"
                 "except Exception:\n"
                 "    pass\n"
             )

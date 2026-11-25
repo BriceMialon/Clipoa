@@ -476,6 +476,8 @@ class GeminiStudio:
         session_id = f"gemini_{int(time.time())}_{uuid.uuid4().hex[:6]}"
         chosen_model = model or cls.get_best_available_model()
         plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=True) if plugin_id else None
+        if plugin and plugin.get("render_mode") == "blender3d":
+            use_blender_3d = True
         is_custom_script = bool((custom_script or "").strip())
         da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=is_custom_script) if plugin else ""
         final_theme = theme or (plugin.get("theme") if plugin else DEFAULT_THEME) or DEFAULT_THEME
