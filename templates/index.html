@@ -449,6 +449,7 @@
             <div class="step-block" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
               <div class="step-label">
                 <span>2 · Moteur de rendu 9:16</span>
+                <span id="render-lock-hint" style="text-transform:none; letter-spacing:0; font-weight:600; color:var(--accent);"></span>
               </div>
               <div class="pick-grid">
                 <button type="button" class="pick-card actif" id="rend-card-motion" onclick="selectRenderType('motion')">
@@ -2457,14 +2458,14 @@
           labelName = pl.name;
           if (th && pl.theme) th.value = pl.theme;
           if (sb && pl.subtitle_style) sb.value = pl.subtitle_style;
-          if (pl.render_mode === 'blender3d' && BLENDER_AVAILABLE) selectRenderType('blender3d');
-          else if (pl.render_mode === 'ai_video' && VIDEO_AI_UNLOCKED) selectRenderType('ai_video');
-          else if (pl.render_mode === 'broll') selectRenderType('broll');
-          else selectRenderType('motion');
-          hintTxt = `Plugin DA « ${pl.name} » · ⏱ ${pl.est_time_label || '~1 min'} · 🪙 ${pl.est_tokens_label || '~2k tokens'}`;
+          const adapted = (pl.render_mode === 'blender3d') ? 'blender3d' : (pl.render_mode === 'broll' ? 'broll' : 'motion');
+          selectRenderType(adapted, true);
+          syncRenderLocksForStyle(pl, adapted);
+          hintTxt = `${pl.name} · ⏱ ${pl.est_time_label || '~1 min'} · 🪙 ${pl.est_tokens_label || '~2k tokens'}`;
         }
       } else {
         activePluginId = '';
+        syncRenderLocksForStyle(null, null);
         if (key === 'auto') {
           if (th) th.value = 'dark_luxury';
           if (sb) sb.value = 'submagic_yellow';
@@ -2635,7 +2636,28 @@
       toast(ok ? `✓ Antigravity connecté (${(st.models || []).length} modèles)` : 'Antigravity pas encore connecté — valide dans le Terminal.');
     }
 
-    function selectRenderType(rt) {
+    let lockedRenderType = null;
+
+    function syncRenderLocksForStyle(pl, adaptedRt) {
+      lockedRenderType = pl ? adaptedRt : null;
+      const hint = document.getElementById('render-lock-hint');
+      if (hint) {
+        const names = { motion: 'Fond animé', broll: 'Ta vidéo (B-roll)', blender3d: 'Scène 3D (Blender)' };
+        hint.textContent = pl ? `Adapté à « ${pl.name} » : ${names[adaptedRt] || adaptedRt}` : '';
+      }
+      ['motion', 'broll', 'blender3d'].forEach(k => {
+        const card = document.getElementById('rend-card-' + k);
+        if (!card) return;
+        const isLockedByStyle = !!(lockedRenderType && k !== lockedRenderType);
+        card.disabled = isLockedByStyle;
+        card.style.opacity = isLockedByStyle ? '0.35' : '';
+        card.style.pointerEvents = isLockedByStyle ? 'none' : '';
+        card.classList.toggle('locked', isLockedByStyle || (k === 'blender3d' && !BLENDER_AVAILABLE));
+      });
+    }
+
+    function selectRenderType(rt, force = false) {
+      if (lockedRenderType && !force && rt !== lockedRenderType) return;
       selectedRenderType = (rt === 'broll' || rt === 'blender3d') ? rt : 'motion';
       ['motion', 'broll', 'blender3d'].forEach(k => {
         document.getElementById('rend-card-' + k)?.classList.toggle('actif', k === selectedRenderType);
