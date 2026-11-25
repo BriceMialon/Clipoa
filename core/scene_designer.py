@@ -18,8 +18,11 @@ PROP_KINDS = (
     "house", "townhall", "tree", "pine", "lamp", "car", "fountain", "castle", "mountain", "market", "gate",
     "table", "bed", "door", "sign", "fence", "rock", "box", "bench", "tv", "fridge", "coins", "ladder", "stage",
     "moon", "monitor", "desk", "shelf", "umbrella", "star", "tower", "stock_screen", "price_sign", "subscribe",
+    "sofa", "armchair", "pancakes", "plate", "mug", "frame", "window", "rug", "bus", "snowman", "bookshelf", "mirror", "lamp_floor",
 )
-CAMERAS = ("drone", "wide", "medium", "close", "low", "pov", "tilt")
+CAMERAS = ("drone", "wide", "medium", "close", "face", "low", "pov", "tilt", "back", "high")
+EMOTIONS = ("neutral", "happy", "sad", "cry", "surprised", "scared", "angry", "smirk")
+WEATHERS = ("none", "snow", "rain")
 ACTIONS = ("idle", "walk", "run", "jump", "point", "fall", "sit")
 CHAR_MODELS = {
     "villageois_01": "garçon, cheveux bruns, sweat orange, jean",
@@ -79,15 +82,20 @@ Plans de la vidéo (déjà calés sur la voix) :
 Décris le décor de CETTE histoire (pas un décor générique). Réponds UNIQUEMENT avec un JSON valide :
 {{
   "time_of_day": "day|sunset|night",
+  "weather": "{'|'.join(WEATHERS)}",
   "palette": {{"sky": "#RRGGBB", "ground": "#RRGGBB", "accent": "#RRGGBB"}},
   "characters": [{{"id": "hero", "name": "prénom", "model": "un id de la liste", "shirt": "#RRGGBB", "pants": "#RRGGBB", "hat": "#RRGGBB ou none", "hair": "#RRGGBB", "scale": 1.0}}],
   "locations": [{{"id": "court_id", "type": "{'|'.join(LOCATION_TYPES)}", "ground": "#RRGGBB", "wall": "#RRGGBB", "sign_text": "texte court ou vide",
                  "props": [{{"kind": "{'|'.join(PROP_KINDS)}", "count": 1, "color": "#RRGGBB", "text": "pour sign"}}]}}],
-  "shots": [{{"i": 0, "location": "id d'un lieu", "camera": "{'|'.join(CAMERAS)}", "focus": "id perso", "others": ["id perso"], "action": "{'|'.join(ACTIONS)}"}}]
+  "shots": [{{"i": 0, "location": "id d'un lieu", "camera": "{'|'.join(CAMERAS)}", "focus": "id perso", "others": ["id perso"], "action": "{'|'.join(ACTIONS)}", "emotion": "{'|'.join(EMOTIONS)}"}}]
 }}
 Règles : 2 à 5 lieux qui correspondent à l'histoire ; 1 à 5 personnages ; un objet ou panneau qui montre ce que dit chaque phrase
 (panneaux en majuscules, 3 mots max) ; exactement un élément « shots » par plan listé (même numéro i) ; ne jamais enchaîner deux
-fois le même cadrage ; premier plan en « drone » ou « wide » ; gros plan « close » sur les émotions et la révélation.
+fois le même cadrage ; premier plan en « drone » ou « wide » ; gros plan « close » ou très gros plan visage « face » sur les émotions
+et la révélation ; « back » = vu de dos (le perso regarde un objet : télé, porte, lac) ; « high » = plongée.
+Chaque plan a une « emotion » lisible sur le visage du perso (sourire, larmes « cry », peur, surprise…) : c'est ce qui rend la vidéo vivante.
+Intérieurs meublés comme une vraie maison (sofa, tv, rug, frame, window, bookshelf, table + pancakes/plate/mug…) ;
+extérieurs avec de la profondeur (plusieurs maisons, sapins, lampadaires, voitures, bus) ; « weather » = snow si l'histoire se passe en hiver.
 Modèles de personnages disponibles :
 {models}"""
 
@@ -97,6 +105,7 @@ def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
         return None
     out: Dict[str, Any] = {
         "time_of_day": raw.get("time_of_day") if raw.get("time_of_day") in ("day", "sunset", "night") else "day",
+        "weather": raw.get("weather") if raw.get("weather") in WEATHERS else "none",
         "palette": {k: _hex((raw.get("palette") or {}).get(k)) for k in ("sky", "ground", "accent")},
         "characters": [],
         "locations": [],
@@ -132,6 +141,7 @@ def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
             "id": lid, "type": L.get("type") if L.get("type") in LOCATION_TYPES else "street",
             "ground": _hex(L.get("ground")), "wall": _hex(L.get("wall")),
             "sign_text": str(L.get("sign_text") or "")[:24], "props": props,
+            "time_of_day": L.get("time_of_day") if L.get("time_of_day") in ("day", "sunset", "night") else None,
         })
     if not out["characters"] or not out["locations"]:
         return None
@@ -157,6 +167,7 @@ def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
             "i": i, "location": s.get("location") if s.get("location") in loc_ids else loc_ids[min(i * len(loc_ids) // max(1, n_shots), len(loc_ids) - 1)],
             "camera": cam, "focus": focus, "others": others,
             "action": s.get("action") if s.get("action") in ACTIONS else "idle",
+            "emotion": s.get("emotion") if s.get("emotion") in EMOTIONS else "neutral",
         })
     return out
 
@@ -170,6 +181,20 @@ _KW_LOC = (
     (("riche", "tour", "haut", "étage"), "vertical_city"), (("ville", "immeuble"), "city"), (("village",), "village"),
     (("rue", "route"), "street"),
 )
+
+
+_KW_EMO = (
+    (("pleur", "larme", "sanglot"), "cry"), (("peur", "terrifi", "effray", "cri", "hurl", "monstre"), "scared"),
+    (("triste", "seul", "mort", "perdu", "manque", "jamais revu"), "sad"), (("colère", "colere", "furieux", "énerv"), "angry"),
+    (("soudain", "choc", "incroyable", "découvr", "decouvr", "réalis", "comprend"), "surprised"),
+    (("rire", "souri", "heureux", "joie", "adore", "blague", "content"), "happy"),
+)
+_KW_SNOW = ("neige", "hiver", "glace", "gel", "noël", "noel", "flocon", "sapin")
+
+
+def emotion_for_text(text: str) -> str:
+    low = (text or "").lower()
+    return next((emo for kws, emo in _KW_EMO if any(k in low for k in kws)), "neutral")
 
 
 def heuristic_spec(script: Dict[str, Any], plan: Dict[str, Any], style: str) -> Dict[str, Any]:
@@ -198,6 +223,7 @@ def heuristic_spec(script: Dict[str, Any], plan: Dict[str, Any], style: str) -> 
     }
     raw = {
         "time_of_day": "night" if dark else "day",
+        "weather": "snow" if any(k in text for k in _KW_SNOW) else "none",
         "palette": palettes.get(style, palettes["roblox"]),
         "characters": [{"id": "hero", "model": "villageois_10" if " elle " in f" {text} " else "villageois_01",
                         "shirt": "#FF7A1A", "pants": "#2E3A4F", "hair": "#3B2A20"},
@@ -209,9 +235,10 @@ def heuristic_spec(script: Dict[str, Any], plan: Dict[str, Any], style: str) -> 
     for i, s in enumerate(shots):
         loc_type = per_shot[i] or types[min(i * len(types) // len(shots), len(types) - 1)]
         raw["shots"].append({"i": i, "location": f"l{types.index(loc_type)}" if loc_type in types else "l0",
-                             "camera": "drone" if i == 0 else ["medium", "close", "wide", "low", "medium", "close"][i % 6],
+                             "camera": "drone" if i == 0 else ["medium", "face", "wide", "back", "close", "low", "medium", "high"][i % 8],
                              "focus": "hero", "others": ["proche"] if i % 3 == 1 else [],
-                             "action": "walk" if i % 4 == 0 else "idle"})
+                             "action": "walk" if i % 4 == 0 else "idle",
+                             "emotion": emotion_for_text(str(s.get("desc") or "") + " " + str(s.get("text") or ""))})
     return _sanitize(raw, len(shots)) or {}
 
 

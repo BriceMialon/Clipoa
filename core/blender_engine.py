@@ -80,7 +80,8 @@ class BlenderEngine:
             f1 = total_frames if i == len(timed_shots) - 1 else max(f0 + 2, int(round(float(ts.get("end", dur)) * fps)))
             sp = spec_shots[i] if i < len(spec_shots) else (spec_shots[-1] if spec_shots else {})
             shots.append({"f0": f0, "f1": min(f1, total_frames), "location": sp.get("location"), "camera": sp.get("camera", "medium"),
-                          "focus": sp.get("focus"), "others": sp.get("others") or [], "action": sp.get("action", "idle")})
+                          "focus": sp.get("focus"), "others": sp.get("others") or [], "action": sp.get("action", "idle"),
+                          "emotion": sp.get("emotion", "neutral")})
         full_spec = dict(spec)
         full_spec["_style"] = style if style in ("roblox", "paper2d", "flat_vector", "explainer2d") else "roblox"
         header = f"""
