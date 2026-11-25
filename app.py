@@ -71,6 +71,7 @@ from core.script_template import (
     list_script_templates,
     save_custom_script_template,
     delete_custom_script_template,
+    recent_video_titles,
 )
 from core.timing_tracker import (
     get_learned_estimates,
@@ -2194,7 +2195,7 @@ def api_fabrique_generate_script():
         target_duration_sec=target_dur,
         da_context=da_ctx,
         template_id=template_id,
-        avoid_titles=_recent_video_titles(),
+        avoid_titles=_recent_video_titles() or recent_video_titles(),
     )
 
     t0 = time.time()
@@ -2254,7 +2255,7 @@ def api_fabrique_generate_script_stream():
         target_duration_sec=target_dur,
         da_context=da_ctx,
         template_id=template_id,
-        avoid_titles=_recent_video_titles(),
+        avoid_titles=_recent_video_titles() or recent_video_titles(),
     )
 
     def _sse(ev_name: str, payload: dict) -> str:

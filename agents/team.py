@@ -72,6 +72,12 @@ class LeScenariste:
             prompt += f"\nRecette virale à appliquer impérativement :\n{json.dumps(recipe, ensure_ascii=False, indent=2)}\n"
         if user_style:
             prompt += f"\nStyle et façon de parler de l'utilisateur :\n{user_style}\n"
+        from core.script_template import recent_video_titles, avoid_titles_block
+        prompt += avoid_titles_block(recent_video_titles())
+        prompt += (
+            "\nL'histoire part de ce sujet et de rien d'autre : invente des personnages, un objet-clé, des lieux et un "
+            "retournement propres à ce sujet (les exemples de la DA sont du style, pas des sujets).\n"
+        )
         prompt += "\nRédige le script final prêt à être synthétisé ainsi que le visual_storyboard dans la DA demandée, au format JSON strict."
 
         raw = ClaudeBridge.query(prompt, system_prompt=PROMPT_SCENARISTE)

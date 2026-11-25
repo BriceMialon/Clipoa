@@ -289,3 +289,19 @@ class TestLegacyEngineParams(unittest.TestCase):
         html = client.get("/").get_data(as_text=True)
         self.assertIn("stale-build-banner", html)
         self.assertIn(clipoa_app.APP_BUILD, html)
+
+
+class TestScriptOriginality(unittest.TestCase):
+    def test_da_context_and_write_script_anti_repetition(self):
+        from unittest.mock import patch
+        from core.style_plugins import StylePluginStore
+        from agents.team import LeScenariste
+        ctx = StylePluginStore.build_da_context("roblox_3d")
+        if ctx:
+            self.assertIn("RÈGLE D'ORIGINALITÉ", ctx)
+        with patch("core.script_template.recent_video_titles", return_value=["Dans ma ville, on couvre les miroirs quand il neige"]), \
+             patch("agents.team.ClaudeBridge.query", return_value='{"title": "x", "full_spoken_script": "y"}') as cq:
+            LeScenariste.write_script(topic="vidéo qui fait peur", da_context=ctx or None)
+            sent = cq.call_args.args[0]
+            self.assertIn("on couvre les miroirs quand il neige", sent)
+            self.assertIn("NE PAS les refaire", sent)

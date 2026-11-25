@@ -46,6 +46,8 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
    - Scripts Blender écrits par l'IA : `_patch_blender5_compat` corrige `primitive_cone_add(radius=)` → `radius1=` ; `enforce_render_settings` impose 540×960 @ 12 fps, durée de la voix, jamais Cycles.
    - **Aiguillage IA** : choisir « Claude » = toujours le **Claude CLI** (modèle `opus/sonnet/haiku` déduit du nom, `_claude_family`), jamais Antigravity. Antigravity seulement si choisi explicitement (avant : `claude-opus-5-5-medium` partait sur agy et vidait son quota).
    - **Anciennes tâches / anciens onglets** : `_normalize_engine_params` repasse sur Claude toute tâche `engine=antigravity` + modèle `claude-…` sans `engine_choice` explicite (cas du bouton « Reprendre »). Bandeau « Clipoa a été mis à jour » quand `/api/build` change (onglet resté ouvert sur une ancienne version).
+   - **Anti-répétition partout** : `build_da_context` ajoute une RÈGLE D'ORIGINALITÉ (la DA Roblox vient de la vidéo « miroirs couverts / neige », ses exemples ne sont pas des sujets) ; `recent_video_titles()` (core/script_template.py) donne les titres récents à éviter à LeScenariste, Antigravity et Gemini.
+   - **Limite connue (non réglée)** : le rendu Blender Roblox est UN décor fixe (village enneigé, chambre au miroir, lac gelé, sous la glace) issu de la même référence, identique pour toutes les vidéos ; les vidéos de référence sont faites avec des images IA (prompts « phrases-ancres » des DA), pas des primitives Blender.
    - **Script IA original** : la DA n'est plus coupée à 3 000 caractères (12 000), consigne « les exemples de la DA sont du style, pas des sujets », et les titres des 12 dernières vidéos/jobs sont donnés à éviter (`_recent_video_titles`) ; plans de 2 à 4 s.
 5. **Interface épurée** :
    - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
@@ -69,13 +71,13 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
-| `tests/` | 70 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
+| `tests/` | 71 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
 ## 4. Tester et redémarrer
 
-### Lancer la suite complète de tests (70 tests)
+### Lancer la suite complète de tests (71 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v

@@ -908,6 +908,15 @@ class StylePluginStore:
         if not preserve_user_script and plugin.get("narrative_rules"):
             parts.append(f"Règles narratives :\n{plugin['narrative_rules']}")
 
+        # Cette DA vient souvent d'une vidéo de référence précise : ses décors, objets et exemples (ex. « neige,
+        # miroirs couverts ») décrivent un STYLE. Sans cette règle, l'IA refait l'histoire de la référence à chaque fois.
+        parts.append(
+            "RÈGLE D'ORIGINALITÉ : les décors, objets, gimmicks, personnages et exemples cités dans cette DA "
+            "décrivent un STYLE (rendu, cadrage, rythme, ton), pas le sujet. L'histoire, son objet-clé, ses lieux et "
+            "son retournement viennent UNIQUEMENT de l'idée de l'utilisateur. Ne reprends un élément cité en exemple "
+            "que si l'idée le demande explicitement."
+        )
+
         if preserve_user_script:
             parts.append(
                 "RÈGLE IMPÉRATIVE : L'utilisateur fournit SON PROPRE SCRIPT parlé. "

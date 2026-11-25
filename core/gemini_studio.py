@@ -516,7 +516,8 @@ class GeminiStudio:
             )
             if plugin:
                 _prog(15, f"🎨 [1/4] {chosen_model} applique la DA « {plugin['name']} » & écrit ton script (~{dur['duration_sec']}s)...")
-                prompt = f"{da_ctx}\n\n{dur_line}Sujet à traiter : {topic}\nRédige le script complet et le visual_storyboard dans cette DA au format JSON strict."
+                from core.script_template import recent_video_titles, avoid_titles_block
+                prompt = f"{da_ctx}\n\n{dur_line}Sujet à traiter : {topic}\n{avoid_titles_block(recent_video_titles())}Rédige le script complet et le visual_storyboard dans cette DA au format JSON strict."
             else:
                 _prog(15, f"✨ [1/4] {chosen_model} écrit ton script viral (~{dur['duration_sec']}s)...")
                 prompt = f"{dur_line}Sujet à traiter : {topic}\nRédige le script final prêt à être synthétisé au format JSON strict."

@@ -94,6 +94,36 @@ D'abord la liste récapitulative de tous les `SFX-xx` (et les `Silence`), puis u
 """
 
 
+def recent_video_titles(limit: int = 12) -> List[str]:
+    """Titres des dernières vidéos rendues (pour que l'IA ne refasse pas la même histoire)."""
+    from config import RENDERS_DIR
+    titles: List[str] = []
+    try:
+        metas = sorted(RENDERS_DIR.glob("*/metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for mf in metas[: limit * 2]:
+            try:
+                t = str((json.loads(mf.read_text(encoding="utf-8")).get("script") or {}).get("title") or "").strip()
+            except Exception:
+                continue
+            if t and t not in titles:
+                titles.append(t[:90])
+            if len(titles) >= limit:
+                break
+    except Exception:
+        pass
+    return titles
+
+
+def avoid_titles_block(titles: Optional[List[str]]) -> str:
+    recent = [t.strip() for t in (titles or []) if t and t.strip()][:12]
+    if not recent:
+        return ""
+    return (
+        "\nHistoires déjà faites récemment (NE PAS les refaire, ni leur objet central, ni leur retournement) :\n- "
+        + "\n- ".join(recent) + "\n"
+    )
+
+
 def _format_mmss(seconds: int) -> str:
     sec = max(15, int(seconds or 60))
     m, s = divmod(sec, 60)
@@ -214,11 +244,7 @@ def build_script_generation_prompt(
         + tpl_body
     )
     da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:12000]}\n" if da_context else ""
-    recent = [t.strip() for t in (avoid_titles or []) if t and t.strip()][:12]
-    avoid_block = (
-        "\nHistoires déjà faites récemment (NE PAS les refaire, ni leur objet central, ni leur retournement) :\n- "
-        + "\n- ".join(recent) + "\n"
-    ) if recent else ""
+    avoid_block = avoid_titles_block(avoid_titles)
     extra_note = (
         "Adapte exactement la structure et les colonnes du modèle personnalisé fourni ci-dessus."
         if is_custom_tpl

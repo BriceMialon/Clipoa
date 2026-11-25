@@ -19,6 +19,7 @@ from core.antigravity_bridge import AntigravityBridge
 from core.sound_designer import SoundDesigner, get_wav_duration
 from core.timing_tracker import record_actual_timing
 from core import production_method as pm
+from core.script_template import recent_video_titles, avoid_titles_block
 from agents.team import LeCloneur, LeScenariste, LeStratege, LeControleur
 from agents.prompts import PROMPT_SCENARISTE
 from config import STORAGE_DIR, DEFAULT_THEME, DEFAULT_SUBTITLE_STYLE
@@ -289,6 +290,7 @@ class ShortCrewPipeline:
                         f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
                         f"{('Style demandé : ' + user_style + chr(10)) if user_style else ''}"
                         f"{da_ctx}\n"
+                        f"{avoid_titles_block(recent_video_titles())}"
                         "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, twist_text, caption_keywords, on_screen_notes, social_caption."
                     )
                 raw_ag = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=engine_model)
