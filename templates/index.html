@@ -608,6 +608,14 @@
                     <div class="pick-sub">Ton abonnement Pro / Max · qualité éditoriale</div>
                   </button>
 
+                  <button type="button" class="pick-card" id="eng-card-antigravity" onclick="selectEngine('antigravity')">
+                    <div class="pick-top">
+                      <span class="pick-title">Antigravity (agy)</span>
+                      <span class="pick-badge">{{ 'Connecté' if agy_status.connected else 'À connecter' }}</span>
+                    </div>
+                    <div class="pick-sub">Scripts + scènes 3D Blender sur mesure · choix du modèle</div>
+                  </button>
+
                   <button type="button" class="pick-card" id="eng-card-gemini" onclick="selectEngine('gemini')">
                     <div class="pick-top">
                       <span class="pick-title">Google Gemini</span>
@@ -615,6 +623,18 @@
                     </div>
                     <div class="pick-sub">Clé Google AI Studio · {{ gemini_status.quota.remaining_pct }}% jour</div>
                   </button>
+                </div>
+
+                <div id="agy-model-row" style="display:none; margin-top:10px; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <select id="agy-model" class="input-sm" style="flex:1; min-width:200px;" onchange="saveAntigravityModel(this.value); updateCreateCTA()">
+                    {% for am in agy_status.models %}
+                      <option value="{{ am.id }}" {{ 'selected' if agy_status.model == am.id else '' }}>{{ am.label }}</option>
+                    {% endfor %}
+                  </select>
+                  {% if not agy_status.connected %}
+                  <button type="button" class="btn btn-coral btn-sm" onclick="startAntigravityLogin()">Connecter Antigravity</button>
+                  {% endif %}
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="refreshAntigravityStatus(true)">↻ Modèles</button>
                 </div>
 
                 <div id="gemini-model-row" style="display:none; margin-top:10px; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -1557,6 +1577,22 @@
           </div>
 
           <div class="conn-opt-grid">
+            <!-- Option 0 : Antigravity CLI (agy) -->
+            <div class="conn-opt-plaque lg-sheen">
+              <div>
+                <div class="conn-mini-ico" style="margin-bottom:12px;">🪐</div>
+                <div style="font-weight:700; font-size:14.5px; color:var(--ink);">Antigravity (agy)</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:5px; line-height:1.4;">Pilote scripts, scènes 3D Blender et aide IA avec ton modèle Antigravity.</div>
+              </div>
+              <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+                <span id="reg-agy-status" style="font-size:12px; color:{{ 'var(--ok)' if agy_status.connected else 'var(--muted)' }}; font-weight:600;">{{ '✓ Connecté' if agy_status.connected else 'À connecter' }}</span>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">{{ 'Reconnecter' if agy_status.connected else 'Connecter' }}</button>
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
+                </div>
+              </div>
+            </div>
+
             <!-- Option 1 : La 3D sur ton Mac (Blender) -->
             <div class="conn-opt-plaque lg-sheen">
               <div>
@@ -1734,8 +1770,13 @@
           <option value="claude:opus" {{ 'selected' if claude_status.connected and (claude_status.model or 'opus') == 'opus' else '' }}>Claude Opus</option>
           <option value="claude:haiku" {{ 'selected' if claude_status.connected and (claude_status.model or 'opus') == 'haiku' else '' }}>Claude Haiku</option>
         </optgroup>
+        <optgroup label="Antigravity {{ '✓' if agy_status.connected else '(non connecté)' }}" id="ai-tb-agy-group">
+          {% for am in agy_status.models %}
+          <option value="antigravity:{{ am.id }}" {{ 'selected' if (not claude_status.connected) and agy_status.connected and agy_status.model == am.id else '' }}>{{ am.label }}</option>
+          {% endfor %}
+        </optgroup>
         <optgroup label="Gemini {{ '✓' if gemini_status.connected else '(non connecté)' }}">
-          <option value="gemini:gemini-3-flash-preview" {{ 'selected' if (not claude_status.connected) and gemini_status.connected else '' }}>Gemini 3 Flash</option>
+          <option value="gemini:gemini-3-flash-preview" {{ 'selected' if (not claude_status.connected) and (not agy_status.connected) and gemini_status.connected else '' }}>Gemini 3 Flash</option>
           <option value="gemini:gemini-3.8-flash">Gemini 3.8 Flash</option>
           <option value="gemini:gemini-3.1-pro-preview">Gemini 3.1 Pro</option>
         </optgroup>
@@ -2725,13 +2766,61 @@
 
     // ===== Moteurs, Rendu & Navigation Spatiale =====
     function selectEngine(eng) {
-      createEngine = eng === 'gemini' ? 'gemini' : 'claude';
+      createEngine = (eng === 'gemini' || eng === 'antigravity') ? eng : 'claude';
       document.getElementById('eng-card-claude')?.classList.toggle('actif', createEngine === 'claude');
+      document.getElementById('eng-card-antigravity')?.classList.toggle('actif', createEngine === 'antigravity');
       document.getElementById('eng-card-gemini')?.classList.toggle('actif', createEngine === 'gemini');
-      const row = document.getElementById('gemini-model-row');
-      if (row) row.style.display = createEngine === 'gemini' ? 'flex' : 'none';
+      const gemRow = document.getElementById('gemini-model-row');
+      if (gemRow) gemRow.style.display = createEngine === 'gemini' ? 'flex' : 'none';
+      const agyRow = document.getElementById('agy-model-row');
+      if (agyRow) agyRow.style.display = createEngine === 'antigravity' ? 'flex' : 'none';
       renderActivePluginBar();
       updateCreateCTA();
+    }
+
+    async function startAntigravityLogin() {
+      const res = await apiJson('/api/antigravity/login', { method: 'POST' });
+      toast(res.message || res.error || 'Terminal Antigravity ouvert');
+    }
+
+    async function saveAntigravityModel(mid) {
+      if (!mid) return;
+      await apiJson('/api/antigravity/model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: mid }),
+      });
+    }
+
+    async function refreshAntigravityStatus(probe = true) {
+      toast('Vérification Antigravity CLI…');
+      const st = await apiJson('/api/antigravity/status?probe=' + (probe ? '1' : '0'));
+      const ok = !!st.connected;
+      AI_CONNECTED_PROVIDERS.antigravity = ok;
+      const badge = document.querySelector('#eng-card-antigravity .pick-badge');
+      if (badge) badge.textContent = ok ? 'Connecté' : 'À connecter';
+      const regSt = document.getElementById('reg-agy-status');
+      if (regSt) {
+        regSt.textContent = ok ? '✓ Connecté' : 'À connecter';
+        regSt.style.color = ok ? 'var(--ok)' : 'var(--muted)';
+      }
+      if (Array.isArray(st.models) && st.models.length) {
+        const sel = document.getElementById('agy-model');
+        if (sel) {
+          sel.innerHTML = st.models.map(m =>
+            `<option value="${escHtml(m.id)}" ${st.model === m.id ? 'selected' : ''}>${escHtml(m.label)}</option>`
+          ).join('');
+        }
+        const grp = document.getElementById('ai-tb-agy-group');
+        if (grp) {
+          grp.label = 'Antigravity ' + (ok ? '✓' : '(non connecté)');
+          grp.innerHTML = st.models.map(m =>
+            `<option value="antigravity:${escHtml(m.id)}">${escHtml(m.label)}</option>`
+          ).join('');
+        }
+      }
+      updateCreateCTA();
+      toast(ok ? `✓ Antigravity connecté (${(st.models || []).length} modèles)` : 'Antigravity pas encore connecté — valide dans le Terminal.');
     }
 
     function selectRenderType(rt) {
@@ -2786,7 +2875,11 @@
       const activePl = STYLE_PLUGINS.find(p => p.id === activePluginId);
       const gemSel = document.getElementById('gem-model');
       const gemLabel = gemSel && gemSel.selectedOptions[0] ? gemSel.selectedOptions[0].textContent.split('(')[0].trim() : 'Gemini Flash';
-      const engLabel = createEngine === 'gemini' ? gemLabel : `Claude ${CLAUDE_MODEL_NAME}`;
+      const agySel = document.getElementById('agy-model');
+      const agyLabel = agySel && agySel.selectedOptions[0] ? agySel.selectedOptions[0].textContent.split('(')[0].trim() : 'Antigravity';
+      const engLabel = createEngine === 'gemini'
+        ? gemLabel
+        : (createEngine === 'antigravity' ? `Antigravity · ${agyLabel}` : `Claude ${CLAUDE_MODEL_NAME}`);
       if (hint) hint.textContent = engLabel;
 
       const renderLabels = {
@@ -3564,7 +3657,10 @@
       const q = latestClaudeQuota || {};
       const rem = typeof q.remaining_pct === 'number' ? q.remaining_pct : 100;
       const need = needPct ?? (typeof q.est_pct_per_video === 'number' ? q.est_pct_per_video : 8);
-      const rem7d = (q.seven_day_remaining_pct !== undefined && q.seven_day_remaining_pct !== null) ? q.seven_day_remaining_pct : 100;
+      const isLive = q.source === 'anthropic_live';
+      const rem7d = (isLive && q.seven_day_remaining_pct !== undefined && q.seven_day_remaining_pct !== null)
+        ? q.seven_day_remaining_pct
+        : 100;
       if (rem < need || rem7d <= 0) {
         pendingQuotaContext = context;
         const canUseGemini = (context === 'create' || context === 'lab') && {{ 'true' if gemini_status.connected else 'false' }};
@@ -3572,10 +3668,11 @@
         if (gemBtn) gemBtn.style.display = canUseGemini ? 'block' : 'none';
         const resetTxt = q.resets_at ? ` (reset prévu à ${q.resets_at})` : '';
         const actionHint = canUseGemini
-          ? 'Bascule sur Gemini Flash (gratuit) ou change de compte Claude.'
-          : 'Cette fonction utilise Claude : attends le reset ou change de compte dans Connexions.';
-        document.getElementById('cq-msg').textContent =
-          `Il ne reste que ${rem}% de quota Claude (5h)${resetTxt}, alors qu'il faut environ ~${need}% pour terminer cette action. ${actionHint}`;
+          ? 'Bascule sur Gemini Flash (gratuit), Antigravity ou change de compte Claude.'
+          : 'Attends le reset ou change de compte dans Connexions.';
+        document.getElementById('cq-msg').textContent = (rem < need)
+          ? `Il ne reste que ${rem}% de quota Claude (5h)${resetTxt}, alors qu'il faut environ ~${need}% pour terminer cette action. ${actionHint}`
+          : `Ta limite hebdomadaire (7 jours) Claude est atteinte (0% restant). ${actionHint}`;
         openModal('modal-claude-quota');
         return false;
       }
@@ -3712,6 +3809,8 @@
         if (customTitle) fd.append('custom_title', customTitle);
         if (pluginId) fd.append('plugin_id', pluginId);
         fd.append('target_duration_sec', String(targetDurationSec));
+        fd.append('engine', createEngine);
+        if (createEngine === 'antigravity') fd.append('engine_model', val('agy-model') || '');
         fd.append('voice', voice);
         fd.append('theme', theme); fd.append('subtitle_style', sub);
         fd.append('retention_boost', retention_boost ? 'true' : 'false');
@@ -3726,6 +3825,8 @@
             custom_title: customTitle,
             plugin_id: pluginId,
             target_duration_sec: targetDurationSec,
+            engine: createEngine,
+            engine_model: createEngine === 'antigravity' ? (val('agy-model') || '') : '',
             voice, theme, subtitle_style: sub,
             use_blender_3d: selectedRenderType === 'blender3d',
             retention_boost
@@ -4832,6 +4933,7 @@
     let aiHelpHistory = [];
     const AI_CONNECTED_PROVIDERS = {
       claude: {{ 'true' if claude_status.connected else 'false' }},
+      antigravity: {{ 'true' if agy_status.connected else 'false' }},
       gemini: {{ 'true' if gemini_status.connected else 'false' }},
     };
 

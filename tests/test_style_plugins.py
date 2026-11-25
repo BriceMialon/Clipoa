@@ -127,6 +127,35 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("Plugins DA", data["reply"])
         mock_gq.assert_called_once()
 
+    def test_antigravity_bridge_blender_validation_and_routes(self):
+        from core.antigravity_bridge import AntigravityBridge
+
+        good_bpy = "import bpy\nimport math\nbpy.ops.wm.read_factory_settings(use_empty=True)\n"
+        bad_bpy = "import bpy\nimport subprocess\nsubprocess.run(['id'])\n"
+        self.assertTrue(AntigravityBridge.validate_blender_script(good_bpy))
+        self.assertFalse(AntigravityBridge.validate_blender_script(bad_bpy))
+        self.assertFalse(AntigravityBridge.validate_blender_script("print('no bpy')"))
+
+        r_st = self.client.get("/api/antigravity/status")
+        self.assertEqual(r_st.status_code, 200)
+        st = r_st.get_json()
+        self.assertIn("models", st)
+        self.assertTrue(len(st["models"]) >= 1)
+
+        with patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": True, "model": "gemini-3.1-pro-preview", "models": []}), patch(
+            "core.antigravity_bridge.AntigravityBridge.query", return_value="Sélectionne Antigravity et 3D Blender dans la Fabrique."
+        ) as mock_aq:
+            r_help = self.client.post(
+                "/api/assistant/help",
+                json={"message": "Comment faire une scène Blender ?", "provider": "antigravity", "model": "gemini-3.1-pro-preview"},
+            )
+        self.assertEqual(r_help.status_code, 200)
+        hdata = r_help.get_json()
+        self.assertTrue(hdata["ok"])
+        self.assertEqual(hdata["provider"], "antigravity")
+        self.assertIn("Blender", hdata["reply"])
+        mock_aq.assert_called_once()
+
     def test_plugins_crud_sheets_and_script_upload_isolated(self):
         with tempfile.TemporaryDirectory() as td:
             pdir = Path(td) / "plugins"

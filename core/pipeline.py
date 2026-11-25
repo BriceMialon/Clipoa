@@ -14,8 +14,10 @@ from core.quality_controller import QualityController
 from core.blender_engine import BlenderEngine
 from core.postiz_client import PostizClient
 from core.checkpoints import load_checkpoint, save_checkpoint, clear_checkpoint
-from core.style_plugins import StylePluginStore
+from core.style_plugins import StylePluginStore, duration_to_word_range
+from core.antigravity_bridge import AntigravityBridge
 from agents.team import LeCloneur, LeScenariste, LeStratege, LeControleur
+from agents.prompts import PROMPT_SCENARISTE
 from config import STORAGE_DIR, DEFAULT_THEME, DEFAULT_SUBTITLE_STYLE
 
 
@@ -155,17 +157,25 @@ class ShortCrewPipeline:
         custom_script: Optional[str] = None,
         custom_title: Optional[str] = None,
         target_duration_sec: int = 60,
+        engine: str = "claude",
+        engine_model: Optional[str] = None,
         progress_cb: Optional[Callable[[int, str], None]] = None,
         resume_session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Creates a short directly from an idea OR a user's own script ('La Fabrique'),
-        optionally applying a Style Plugin's Art Direction (DA) via Claude, with checkpoint resume support.
+        optionally applying a Style Plugin's Art Direction (DA) via Claude or Antigravity,
+        with AI-generated Blender 3D scenes and checkpoint resume support.
         """
         def _prog(pct: int, msg: str):
             print(msg)
             if progress_cb:
                 progress_cb(pct, msg)
+
+        active_engine = (engine or "claude").strip().lower()
+        if active_engine not in ("claude", "antigravity"):
+            active_engine = "claude"
+        eng_name = "Antigravity" if active_engine == "antigravity" else "Claude"
 
         plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=True) if plugin_id else None
         is_custom_script = bool((custom_script or "").strip())
@@ -173,13 +183,53 @@ class ShortCrewPipeline:
         effective_theme = theme or (plugin.get("theme") if plugin else DEFAULT_THEME) or DEFAULT_THEME
         effective_sub = subtitle_style or (plugin.get("subtitle_style") if plugin else DEFAULT_SUBTITLE_STYLE) or DEFAULT_SUBTITLE_STYLE
 
-        session_id = resume_session_id or f"{'plugin' if plugin else ('custom' if is_custom_script else 'direct')}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        session_id = resume_session_id or f"{'agy' if active_engine == 'antigravity' else ('plugin' if plugin else ('custom' if is_custom_script else 'direct'))}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
         cp = load_checkpoint(session_id)
 
         if "script" not in cp:
-            if is_custom_script:
+            if active_engine == "antigravity":
+                dur_info = duration_to_word_range(target_duration_sec)
+                if is_custom_script:
+                    _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) prépare la mise en scène sur ton script...")
+                    ag_prompt = (
+                        f"Script exact de l'utilisateur à conserver MOT POUR MOT dans `full_spoken_script` :\n{custom_script}\n\n"
+                        f"Titre optionnel : {(custom_title or topic or '').strip()}\n"
+                        f"{da_ctx}\n"
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), social_caption."
+                    )
+                else:
+                    _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) écrit ton script (~{dur_info['duration_sec']}s)...")
+                    ag_prompt = (
+                        f"Sujet : {topic}\n"
+                        f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
+                        f"{('Style demandé : ' + user_style + chr(10)) if user_style else ''}"
+                        f"{da_ctx}\n"
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, social_caption."
+                    )
+                raw_ag = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=engine_model)
+                parsed_ag = None
+                try:
+                    m = raw_ag.strip()
+                    if "```" in m:
+                        import re as _re
+                        blk = _re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", m)
+                        if blk:
+                            m = blk.group(1).strip()
+                    parsed_ag = json.loads(m[m.find("{") : m.rfind("}") + 1])
+                except Exception:
+                    parsed_ag = {
+                        "title": (custom_title or topic or "Mon Short")[:60],
+                        "hook_screen_text": (custom_title or topic or "Mon Short")[:45],
+                        "full_spoken_script": (custom_script or raw_ag).strip(),
+                        "visual_storyboard": [],
+                        "social_caption": f"{(custom_title or topic or 'Short')[:80]} #Shorts",
+                    }
+                if is_custom_script:
+                    parsed_ag["full_spoken_script"] = (custom_script or "").strip()
+                cp["script"] = parsed_ag
+            elif is_custom_script:
                 if plugin:
-                    _prog(15, f"🎨 [1/4] Claude applique la DA « {plugin['name']} » sur ton script perso...")
+                    _prog(15, f"🎨 [1/4] {eng_name} applique la DA « {plugin['name']} » sur ton script perso...")
                 else:
                     _prog(15, "✍️ [1/4] Préparation de ton script personnalisé...")
                 cp["script"] = LeScenariste.direct_custom_script(
@@ -189,9 +239,9 @@ class ShortCrewPipeline:
                 )
             else:
                 if plugin:
-                    _prog(15, f"🎨 [1/4] Claude écrit le script dans la DA « {plugin['name']} »...")
+                    _prog(15, f"🎨 [1/4] {eng_name} écrit le script dans la DA « {plugin['name']} »...")
                 else:
-                    _prog(15, "✍️ [1/4] Le Scénariste écrit ton script avec Claude...")
+                    _prog(15, f"✍️ [1/4] Le Scénariste écrit ton script avec {eng_name}...")
                 cp["script"] = LeScenariste.write_script(
                     topic=topic,
                     user_style=user_style,
@@ -216,13 +266,29 @@ class ShortCrewPipeline:
         if "video_path" not in cp or not os.path.exists(cp["video_path"]):
             effective_bg = background_video
             if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-                _prog(58, "🧊 [3/4] Rendu 3D Blender headless...")
+                _prog(55, f"🧊 [3/4] {eng_name} génère la scène 3D Blender...")
                 try:
                     out_dir = Path(voice_res["audio_wav"]).parent
                     py_script = str(out_dir / "scene_3d.py")
                     bg_out = str(out_dir / "blender_bg.mp4")
-                    BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
-                    if BlenderEngine.render_script(py_script, bg_out, frames=150):
+                    frames = max(120, min(300, int(min(10, target_duration_sec or 60) * 30)))
+                    ai_ok = AntigravityBridge.generate_blender_script(
+                        topic=topic or script.get("title") or "Short 3D",
+                        spoken_script=script.get("full_spoken_script", ""),
+                        script_save_path=py_script,
+                        da_context=da_ctx,
+                        frames=frames,
+                        engine=active_engine,
+                        model=engine_model,
+                    )
+                    rendered = False
+                    if ai_ok:
+                        _prog(62, f"🧊 [3/4] Rendu 3D Blender ({frames} frames)...")
+                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=frames)
+                    if not rendered:
+                        BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
+                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=150)
+                    if rendered:
                         effective_bg = bg_out
                 except Exception as e:
                     print(f"⚠️ Rendu Blender ignoré ({e}).")

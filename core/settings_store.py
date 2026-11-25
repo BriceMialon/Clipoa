@@ -54,6 +54,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "credit_budget_usd": 10.0,
         "credit_reset_ts": 0.0,
     },
+    "antigravity": {
+        "model": "",
+    },
     "elevenlabs": {
         "api_key": "",
         "enabled": True,
@@ -271,7 +274,14 @@ def get_claude_quota_summary() -> Dict[str, Any]:
     if live.get("resets_5h") and live["resets_5h"] > now:
         resets_str = time.strftime("%H:%M", time.localtime(live["resets_5h"]))
 
-    util_7d_pct = round(float(live["util_7d"]) * 100.0, 1) if live.get("util_7d") is not None else None
+    live_7d_valid = (
+        live.get("util_7d") is not None
+        and (
+            (live.get("resets_7d") and live.get("resets_7d", 0) > now)
+            or (not live.get("resets_7d") and live_valid)
+        )
+    )
+    util_7d_pct = round(float(live["util_7d"]) * 100.0, 1) if live_7d_valid else None
     rem_7d_pct = max(0.0, round(100.0 - util_7d_pct, 1)) if util_7d_pct is not None else None
 
     return {

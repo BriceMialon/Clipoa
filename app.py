@@ -61,6 +61,7 @@ from core.style_plugins import (
     SHEET_ROLES,
 )
 from core.gemini_studio import GeminiStudio, GEMINI_MODELS
+from core.antigravity_bridge import AntigravityBridge
 from core.social_publisher import FreeSocialPublisher, PLATFORMS
 from core.browser_auth import BrowserPortalAuth
 from core.analytics_engine import AnalyticsEngine, PRESET_NICHES
@@ -589,6 +590,7 @@ def index():
         claude_status=claude_status,
         claude_plans=CLAUDE_PLAN_BUDGETS,
         gemini_status=GeminiStudio.get_status(),
+        agy_status=AntigravityBridge.check_status(live_probe=False),
         el_status=el_status,
         drive_status=drive_status,
         social_accounts=social_accounts,
@@ -1053,6 +1055,8 @@ def _launch_pipeline_job(job_id: str):
                     custom_script=params.get("custom_script") or None,
                     custom_title=params.get("custom_title") or None,
                     target_duration_sec=int(params.get("target_duration_sec") or 60),
+                    engine=params.get("engine") or "claude",
+                    engine_model=params.get("engine_model") or None,
                     progress_cb=cb,
                     resume_session_id=sess,
                 )
@@ -1867,6 +1871,8 @@ def api_make():
         voice = request.form.get("voice") or None
         use_blender_3d = request.form.get("use_blender_3d", "false").lower() in ("1", "true", "yes", "on")
         retention_boost = request.form.get("retention_boost", "true").lower() in ("1", "true", "yes", "on")
+        engine = (request.form.get("engine") or "claude").strip().lower()
+        engine_model = (request.form.get("engine_model") or "").strip() or None
         bg_video = (request.form.get("background_video") or "").strip() or None
         uploaded_bg = request.files.get("bg_file")
         if uploaded_bg and uploaded_bg.filename:
@@ -1893,6 +1899,8 @@ def api_make():
         voice = data.get("voice") or None
         use_blender_3d = bool(data.get("use_blender_3d", False))
         retention_boost = bool(data.get("retention_boost", True))
+        engine = (data.get("engine") or "claude").strip().lower()
+        engine_model = (data.get("engine_model") or "").strip() or None
         bg_video = (data.get("background_video") or "").strip() or None
 
     if bg_video:
@@ -1926,6 +1934,8 @@ def api_make():
         "voice": voice,
         "use_blender_3d": use_blender_3d,
         "retention_boost": retention_boost,
+        "engine": engine if engine in ("claude", "antigravity") else "claude",
+        "engine_model": engine_model,
     }
     job_id = _create_job("make", job_label, params=params)
     _launch_pipeline_job(job_id)
@@ -2049,11 +2059,31 @@ def api_revise():
     return jsonify({"job_id": job_id})
 
 
+@app.route("/api/antigravity/status", methods=["GET"])
+def api_antigravity_status():
+    probe = request.args.get("probe", "0") in ("1", "true", "yes")
+    return jsonify(AntigravityBridge.check_status(live_probe=probe))
+
+
+@app.route("/api/antigravity/login", methods=["POST"])
+def api_antigravity_login():
+    return jsonify(AntigravityBridge.start_cli_login())
+
+
+@app.route("/api/antigravity/model", methods=["POST"])
+def api_antigravity_model():
+    data = request.json or {}
+    mid = (data.get("model") or "").strip()
+    if not mid:
+        return jsonify({"error": "Modèle manquant"}), 400
+    return jsonify(AntigravityBridge.set_model(mid))
+
+
 @app.route("/api/assistant/help", methods=["POST"])
 def api_assistant_help():
     """
     Assistant d'aide IA intégré à la barre des tâches Clipoa.
-    Utilise le modèle Claude ou Gemini choisi par l'utilisateur s'il est connecté.
+    Utilise le modèle Claude, Antigravity ou Gemini choisi par l'utilisateur s'il est connecté.
     """
     data = request.json or {}
     message = (data.get("message") or "").strip()
@@ -2069,14 +2099,19 @@ def api_assistant_help():
 
     claude_st = ClaudeBridge.check_status()
     gemini_st = GeminiStudio.get_status()
+    agy_st = AntigravityBridge.check_status()
     claude_ok = bool(claude_st.get("connected"))
     gemini_ok = bool(gemini_st.get("connected"))
+    agy_ok = bool(agy_st.get("connected"))
+    conn_map = {"claude": claude_ok, "gemini": gemini_ok, "antigravity": agy_ok}
 
     # Sélection du fournisseur
     chosen_provider = provider_req
     if chosen_provider == "auto":
         if claude_ok:
             chosen_provider = "claude"
+        elif agy_ok:
+            chosen_provider = "antigravity"
         elif gemini_ok:
             chosen_provider = "gemini"
         else:
@@ -2086,22 +2121,29 @@ def api_assistant_help():
         return jsonify({
             "ok": False,
             "needs_connection": True,
-            "connected_providers": {"claude": claude_ok, "gemini": gemini_ok},
-            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude (ou choisis Gemini dans le sélecteur de la barre).",
+            "connected_providers": conn_map,
+            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude (ou choisis Antigravity / Gemini dans le sélecteur).",
+        }), 200
+    if chosen_provider == "antigravity" and not agy_ok:
+        return jsonify({
+            "ok": False,
+            "needs_connection": True,
+            "connected_providers": conn_map,
+            "reply": "Antigravity CLI n'est pas encore connecté. Clique sur « Connexions » → « Connecter Antigravity » pour te connecter une seule fois.",
         }), 200
     if chosen_provider == "gemini" and not gemini_ok:
         return jsonify({
             "ok": False,
             "needs_connection": True,
-            "connected_providers": {"claude": claude_ok, "gemini": gemini_ok},
-            "reply": "Ta clé Gemini n'est pas encore branchée. Clique sur « Connexions » pour coller ta clé gratuite Google AI Studio (ou choisis Claude dans la barre).",
+            "connected_providers": conn_map,
+            "reply": "Ta clé Gemini n'est pas encore branchée. Clique sur « Connexions » pour coller ta clé gratuite Google AI Studio (ou choisis Claude / Antigravity).",
         }), 200
     if chosen_provider == "none":
         return jsonify({
             "ok": False,
             "needs_connection": True,
-            "connected_providers": {"claude": False, "gemini": False},
-            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
+            "connected_providers": conn_map,
+            "reply": "Connecte Claude, Antigravity ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
         }), 200
 
     plugins = StylePluginStore.list_plugins(include_script_body=False)
@@ -2113,14 +2155,14 @@ def api_assistant_help():
         "Guide l'utilisateur uniquement sur les vraies fonctionnalités de Clipoa :\n"
         "- Accueil : vue rapide, shorts à valider, boîte de création rapide.\n"
         "- Fabrique : créer un short à partir d'une idée OU coller son propre script mot pour mot (« J'ai mon script »), "
-        "choisir la durée cible (30s, 45s, 1 min, 1m30, 2 min), choisir un style DA, un moteur (Claude ou Gemini), la voix, les sous-titres Submagic, et le Mode Nuit.\n"
-        f"- Plugins DA (Styles disponibles : {styles_str}) : chaque style a une image d'aperçu, une Direction Artistique (DA) que Claude applique, "
+        "choisir la durée cible (30s, 45s, 1 min, 1m30, 2 min), choisir un style DA, un moteur (Claude, Antigravity ou Gemini), la 3D Blender, la voix, les sous-titres Submagic, et le Mode Nuit.\n"
+        f"- Plugins DA (Styles disponibles : {styles_str}) : chaque style a une image d'aperçu, une Direction Artistique (DA), "
         "une estimation temps + tokens/quota (calibrée sur 1 min et ajustée selon la durée), et on peut créer ses propres plugins avec planches de modèles et scripts.\n"
         "- Montage : découper une vidéo longue (YouTube ou fichier) en shorts 9:16.\n"
         "- Concurrents : coller un lien TikTok/Short ou @compte pour analyser et copier la structure.\n"
         "- Mes vidéos : visionner, valider en 1 clic, retoucher avec ses mots, télécharger MP4.\n"
         "- Publier : programmer et auto-publier sur YouTube, TikTok, Instagram, Facebook.\n"
-        "- Connexions : brancher Claude Pro/Max, Gemini gratuit (Google AI Studio), ElevenLabs, Blender 3D et réseaux sociaux.\n"
+        "- Connexions : brancher Claude Pro/Max, Antigravity CLI (agy), Gemini gratuit (Google AI Studio), ElevenLabs, Blender 3D et réseaux sociaux.\n"
         "Ne mentionne jamais de fonctions qui n'existent pas. Si l'utilisateur demande comment faire une action, indique le nom exact de l'onglet et du bouton."
     )
 
@@ -2143,6 +2185,11 @@ def api_assistant_help():
             reply = ClaudeBridge.query(user_prompt, system_prompt=system_prompt, action="help_assistant", model=c_model)
             label = f"Claude {c_model.capitalize()}"
             used_model = c_model
+        elif chosen_provider == "antigravity":
+            a_model = model_req or agy_st.get("model") or ""
+            reply = AntigravityBridge.query(user_prompt, system_prompt=system_prompt, model=a_model or None, timeout=90)
+            label = f"Antigravity ({a_model})" if a_model else "Antigravity"
+            used_model = a_model
         else:
             g_model = model_req or gemini_st.get("model") or "gemini-3-flash-preview"
             reply = GeminiStudio.chat_text(user_prompt, system_prompt=system_prompt, model=g_model)
@@ -2155,19 +2202,19 @@ def api_assistant_help():
             "provider": chosen_provider,
             "model": used_model,
             "model_label": label,
-            "connected_providers": {"claude": claude_ok, "gemini": gemini_ok},
+            "connected_providers": conn_map,
         })
     except ClaudeQuotaExceededError as qe:
         return jsonify({
             "ok": False,
-            "error": f"Quota Claude atteint ({qe}). Bascule sur Gemini dans la barre !",
-            "connected_providers": {"claude": claude_ok, "gemini": gemini_ok},
+            "error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity ou Gemini dans la barre !",
+            "connected_providers": conn_map,
         }), 429
     except Exception as e:
         return jsonify({
             "ok": False,
             "error": str(e),
-            "connected_providers": {"claude": claude_ok, "gemini": gemini_ok},
+            "connected_providers": conn_map,
         }), 500
 
 
