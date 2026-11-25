@@ -5,7 +5,7 @@ import logging
 import re
 import threading
 from typing import Optional, Dict, Any
-from config import CLAUDE_CLI_PATH, ANTHROPIC_API_KEY, USE_CLAUDE_CLI
+from config import CLAUDE_CLI_PATH, ANTHROPIC_API_KEY, USE_CLAUDE_CLI, STORAGE_DIR
 from core.settings_store import load_settings, record_claude_usage, get_claude_quota_summary, reset_claude_quota_counter, save_live_claude_quota
 
 logger = logging.getLogger("ClaudeBridge")
@@ -205,18 +205,22 @@ class ClaudeBridge:
                 if chosen_model not in ("opus", "sonnet", "haiku"):
                     chosen_model = c_cfg.get("model", "opus")
                 chosen_effort = c_cfg.get("effort", "medium")
+                sandbox_dir = STORAGE_DIR / "_claude_sandbox"
+                sandbox_dir.mkdir(parents=True, exist_ok=True)
                 cmd = [
                     CLAUDE_CLI_PATH, "-p", prompt,
                     "--output-format", "stream-json",
                     "--verbose",
                     "--no-session-persistence",
+                    "--tools", "",
+                    "--strict-mcp-config",
                     "--model", chosen_model,
                     "--effort", chosen_effort,
                 ]
                 if system_prompt:
                     cmd.extend(["--system-prompt", system_prompt])
 
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=150)
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=240, cwd=str(sandbox_dir))
                 combined_err = (result.stderr + "\n" + result.stdout).strip()
                 if result.returncode == 0 and result.stdout.strip() and "Not logged in" not in result.stdout:
                     cls._last_mode = "claude_cli"
