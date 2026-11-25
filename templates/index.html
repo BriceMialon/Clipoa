@@ -450,7 +450,7 @@
               <div id="fab-review-formatted" class="script-formatted-view"></div>
               <textarea id="fab-review-text" class="code-editor" rows="14" style="display:none; width:100%; font-size:12.5px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()"></textarea>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-                <input type="text" id="fab-refine-input" class="input-sm" style="flex:1; min-width:200px;" placeholder="Que veux-tu changer ? (ex : une fin plus triste, un perso en plus…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
+                <input type="text" id="fab-refine-input" class="input-sm" autocomplete="off" style="flex:1; min-width:200px;" placeholder="Que veux-tu changer ? (ex : une fin plus triste, un perso en plus…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
                 <button type="button" class="btn btn-primary btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Changer avec l’IA</button>
               </div>
             </div>
@@ -553,7 +553,7 @@
             <div class="step-block" style="margin-top:14px;">
               <div class="step-label">
                 <span>2 · IA qui génère</span>
-                <span id="engine-active-hint" style="text-transform:none; letter-spacing:0; font-weight:600; color:var(--ink);"></span>
+                <span id="engine-active-hint" style="display:none; text-transform:none; letter-spacing:0; font-weight:600; color:var(--ink);"></span>
               </div>
               <div class="pick-grid">
                 {% if claude_status.connected %}
@@ -562,7 +562,6 @@
                     <span class="pick-title">Claude Opus 5.5 (Medium)</span>
                     <span class="pick-badge">Par défaut</span>
                   </div>
-                  <div class="pick-sub">Qualité éditoriale & scènes 3D</div>
                 </button>
                 {% endif %}
 
@@ -572,7 +571,6 @@
                     <span class="pick-title">Antigravity · Neon (Medium)</span>
                     <span class="pick-badge">Connecté</span>
                   </div>
-                  <div class="pick-sub">Gemini 4 Neon · rapide & créatif</div>
                 </button>
                 {% endif %}
               </div>
@@ -601,7 +599,7 @@
               <div class="pick-grid">
                 <button type="button" class="pick-card actif" id="vprov-free" onclick="selectVoiceProvider('free')">
                   <div class="pick-top"><span class="pick-title">Voix Studio</span><span class="pick-badge">Incluse</span></div>
-                  <div class="pick-sub" id="vprov-free-sub">{{ 'Voix HD naturelle · illimitée' if local_voices.auto_default else 'Français naturel illimité' }}</div>
+                  <div class="pick-sub" id="vprov-free-sub"><span style="color:var(--danger, #d9534f);">▲</span> Gratuit, moins bien qu’ElevenLabs</div>
                 </button>
                 <button type="button" class="pick-card {{ '' if el_status.connected else 'locked' }}" id="vprov-el" onclick="selectVoiceProvider('el')">
                   <div class="pick-top"><span class="pick-title">ElevenLabs</span><span class="pick-badge {{ '' if el_status.connected else 'lock' }}">{{ 'Branché' if el_status.connected else 'Optionnel' }}</span></div>
@@ -610,14 +608,14 @@
               </div>
               <div id="voice-hd-box" style="margin-top:8px; padding:9px 11px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12px; color:var(--muted); display:{{ 'none' if local_voices.ready else 'block' }};">
                 <div style="display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
-                  <span id="voice-hd-text">{% if local_voices.installing %}⏳ {{ local_voices.step }}{% elif local_voices.error %}⚠️ {{ local_voices.error }}{% else %}✨ <b style="color:var(--ink);">Voix HD gratuite</b> : bien plus naturelle, illimitée, calculée sur ton ordinateur (installation unique, ≈ 4 Go).{% endif %}</span>
+                  <span id="voice-hd-text">{% if local_voices.installing %}⏳ {{ local_voices.step }}{% elif local_voices.error %}⚠️ {{ local_voices.error }}{% else %}✨ <b style="color:var(--ink);">Voix HD gratuite</b> : plus naturelle (≈ 4 Go à installer).{% endif %}</span>
                   <button type="button" class="btn btn-primary btn-xs" id="voice-hd-btn" onclick="installLocalVoice()" {{ 'disabled' if local_voices.installing else '' }}>{{ 'Installation…' if local_voices.installing else 'Installer la voix HD' }}</button>
                 </div>
               </div>
               {% if local_voices.ready %}
               <label style="display:flex; gap:7px; align-items:center; margin-top:8px; font-size:12px; color:var(--muted); cursor:pointer;">
                 <input type="checkbox" id="voice-hd-auto" {{ 'checked' if local_voices.auto_default else '' }} onchange="apiJson('/api/voice/local/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({on: this.checked})}).then(() => toast(this.checked ? 'Voix HD utilisée par défaut' : 'Voix rapide par défaut'))" style="accent-color:var(--accent);">
-                <span>Utiliser la <b style="color:var(--ink);">voix HD</b> par défaut <span style="opacity:.8;">({{ local_voices.speed_note }})</span></span>
+                <span><b style="color:var(--ink);">Voix HD</b> par défaut <span style="opacity:.8;">({{ local_voices.speed_note }})</span></span>
               </label>
               {% endif %}
               <div id="voice-manual-box" style="display:none; margin-top:8px;">
@@ -646,11 +644,11 @@
               <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border);">
                 <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
                   <input type="checkbox" id="fab-enable-music" checked style="accent-color:var(--accent); width:14px; height:14px;">
-                  <span>🎵 Musique d'ambiance adaptée aux scènes</span>
+                  <span>🎵 Musique</span>
                 </label>
                 <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
                   <input type="checkbox" id="fab-enable-sfx" checked style="accent-color:var(--accent); width:14px; height:14px;">
-                  <span>🔊 Bruits & effets sonores (SFX)</span>
+                  <span>🔊 Effets sonores</span>
                 </label>
               </div>
             </div>
@@ -2527,6 +2525,9 @@
       if (box) box.style.display = 'block';
       if (ta) ta.value = '';
       if (ti) ti.value = topic.slice(0, 60);
+      // Le champ « Que veux-tu changer ? » repart vide (le navigateur y restaurait parfois un identifiant interne)
+      const refineInp = document.getElementById('fab-refine-input');
+      if (refineInp) refineInp.value = '';
       setFabScriptViewMode('pretty');
       setFabGenProgress(5, 'Connexion au modèle IA…');
 
@@ -4025,7 +4026,7 @@
       }
       box.style.display = 'block';
       if (st.installing) {
-        txt.textContent = '⏳ ' + (st.step || 'Installation…') + ' (tu peux continuer à utiliser Clipoa)';
+        txt.textContent = '⏳ ' + (st.step || 'Installation…');
         btn.disabled = true; btn.textContent = 'Installation…';
       } else if (st.error) {
         txt.textContent = '⚠️ ' + st.error;

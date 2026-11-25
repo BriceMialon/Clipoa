@@ -89,7 +89,7 @@ def status() -> Dict[str, Any]:
         "voices": LOCAL_VOICES,
         "default_voice": st.get("default_voice") or DEFAULT_LOCAL_VOICE,
         "auto_default": bool(st.get("auto_default")),
-        "speed_note": "≈ 1 min de calcul pour 4 s de voix sur un Mac M1 (bien plus rapide sur une carte graphique)",
+        "speed_note": "plus long",
         "log_tail": tail if (st.get("installing") and _THREAD is not None and _THREAD.is_alive()) or st.get("error") else "",
     }
 

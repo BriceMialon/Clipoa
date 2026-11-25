@@ -203,6 +203,8 @@ class VoiceEngine:
         if any(w in low for w in ("frisson", "nuit", "sombre", "mystère", "disparu", "secret", "peur", "piège", "silence", "dangereux")):
             return {
                 "gemini_voice": "Charon",
+                "local_voice": "qwen:Uncle_Fu",
+                "el_tags": ("deep", "dark", "narrat", "mysterious", "calm"),
                 "style_prompt": "Voix grave, cinématique, mystérieuse et captivante avec des pauses dramatiques naturelles",
                 "el_stability": 0.42,
                 "el_style": 0.38,
@@ -210,6 +212,8 @@ class VoiceEngine:
         if any(w in low for w in ("million", "argent", "banque", "arrete", "erreur", "choquant", "incroyable", "jamais", "scandale", "vérité")):
             return {
                 "gemini_voice": "Fenrir",
+                "local_voice": "qwen:Ryan",
+                "el_tags": ("energetic", "intense", "confident", "social", "upbeat"),
                 "style_prompt": "Voix intense, percutante et rythmée de créateur YouTube Shorts / TikTok, ton accrocheur et affirmé",
                 "el_stability": 0.38,
                 "el_style": 0.45,
@@ -217,6 +221,8 @@ class VoiceEngine:
         if any(w in low for w in ("astuce", "comment", "étape", "méthode", "conseil", "apprendre", "explique", "guide")):
             return {
                 "gemini_voice": "Orus",
+                "local_voice": "qwen:Aiden",
+                "el_tags": ("clear", "informative", "educational", "professional", "calm"),
                 "style_prompt": "Voix posée, claire, experte et engageante avec un débit fluide et naturel",
                 "el_stability": 0.55,
                 "el_style": 0.25,
@@ -224,16 +230,43 @@ class VoiceEngine:
         if any(w in low for w in ("histoire", "jour", "vie", "amour", "émotion", "rêve", "coeur", "famille")):
             return {
                 "gemini_voice": "Aoede",
+                "local_voice": "qwen:Serena",
+                "el_tags": ("warm", "soft", "emotional", "narrat", "gentle"),
                 "style_prompt": "Voix chaleureuse, expressive et humaine, ton storytelling intime et authentique",
                 "el_stability": 0.48,
                 "el_style": 0.35,
             }
         return {
             "gemini_voice": "Puck",
+            "local_voice": "qwen:Ryan",
+            "el_tags": ("casual", "young", "conversational", "social", "upbeat"),
             "style_prompt": "Voix naturelle, vivante et dynamique de créateur vidéo moderne, rythme fluide et captivant",
             "el_stability": 0.45,
             "el_style": 0.30,
         }
+
+    @classmethod
+    def _pick_auto_el_voice(cls, tags) -> str:
+        """Choisit dans le compte ElevenLabs la voix dont la description colle le mieux au ton du script."""
+        try:
+            key = cls.get_elevenlabs_key()
+            if not key:
+                return ""
+            res = requests.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": key}, timeout=12)
+            if res.status_code != 200:
+                return ""
+            best, best_score = "", 0
+            for v in res.json().get("voices", []):
+                labels = v.get("labels") or {}
+                blob = " ".join([str(v.get("name") or ""), str(v.get("description") or ""), " ".join(str(x) for x in labels.values())]).lower()
+                score = sum(1 for t in tags if t in blob)
+                if v.get("category") in ("cloned", "professional"):
+                    score += 0.5  # la voix clonée de l'utilisateur passe devant à égalité
+                if score > best_score:
+                    best, best_score = v.get("voice_id") or "", score
+            return best
+        except Exception:
+            return ""
 
     @classmethod
     def generate_voice(
@@ -279,7 +312,7 @@ class VoiceEngine:
             chosen_voice = auto_profile["gemini_voice"]
         elif chosen_voice == "auto_el":
             provider = "elevenlabs" if el_key else ("gemini_tts" if gem_key else "edge_tts")
-            chosen_voice = ""
+            chosen_voice = cls._pick_auto_el_voice(auto_profile.get("el_tags") or ()) if el_key else ""
         elif chosen_voice.startswith("el:"):
             provider = "elevenlabs"
             chosen_voice = chosen_voice[3:]
@@ -303,7 +336,8 @@ class VoiceEngine:
                 from core import local_tts
                 if local_tts.use_by_default():
                     provider = "local_hd"
-                    chosen_voice = ""
+                    # En « Auto », la voix HD suit le ton du script ; sinon la voix HD par défaut
+                    chosen_voice = auto_profile.get("local_voice", "") if (voice or "").strip() in ("", "auto_gemini") else ""
             except Exception:
                 pass
         if provider == "local_hd":

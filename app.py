@@ -1378,7 +1378,11 @@ def api_social_meta_select_page():
 def _oauth_base_url() -> str:
     host = request.host.split(":")[0]
     port = request.host.split(":")[1] if ":" in request.host else "8080"
-    if host in ("localhost", "127.0.0.1") or host.startswith(("192.168.", "10.", "172.")):
+    if host in ("localhost", "127.0.0.1"):
+        # Garder l'hôte réellement utilisé : certains navigateurs résolvent "localhost" en ::1
+        # alors que le serveur n'écoute que sur 127.0.0.1 (retour OAuth perdu).
+        return f"http://{host}:{port}"
+    if host.startswith(("192.168.", "10.", "172.")):
         return f"http://localhost:{port}"
     return request.host_url.rstrip("/")
 
