@@ -261,6 +261,66 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
                 self.assertEqual(r_del.status_code, 200)
                 self.assertTrue(r_del.get_json()["deleted"])
 
+    def test_timings_custom_templates_sound_and_ui_updates(self):
+        from core.timing_tracker import record_actual_timing, get_learned_estimates, estimate_job_seconds
+        from core.script_template import extract_shots_from_template
+
+        # 1. Self-learning timing tracker (isolated)
+        with tempfile.TemporaryDirectory() as td:
+            tfile = Path(td) / "timing_history.json"
+            with patch("core.timing_tracker.TIMING_FILE", tfile):
+                record_actual_timing("antigravity", "blender3d", 95.0, 60)
+                est = get_learned_estimates()
+                self.assertIn("antigravity:blender3d", est["baselines_60s"])
+                sec = estimate_job_seconds("antigravity", "blender3d", 60)
+                self.assertGreater(sec, 20)
+
+        # 2. Custom script templates CRUD (isolated)
+        with tempfile.TemporaryDirectory() as td:
+            tpl_file = Path(td) / "script_templates.json"
+            with patch("core.script_template.CUSTOM_TEMPLATES_FILE", tpl_file):
+                r_list = self.client.get("/api/script-templates")
+                self.assertEqual(r_list.status_code, 200)
+                self.assertTrue(any(t["id"] == "default" for t in r_list.get_json()["templates"]))
+
+                r_add = self.client.post(
+                    "/api/script-templates",
+                    json={"name": "Template Thriller", "content": "## 1. Hook\n## 2. Scènes\n| Temps | Scène | Texte |\n|---|---|---|\n| 0:00–0:05 | Intro | Salut |"},
+                )
+                self.assertEqual(r_add.status_code, 200)
+                tid = r_add.get_json()["template"]["id"]
+                r_del = self.client.delete(f"/api/script-templates/{tid}")
+                self.assertEqual(r_del.status_code, 200)
+
+        # 3. Extract shots from template table
+        md_shots = """
+## 3. Le script
+| Temps | Scène | Action | Qui parle | Texte |
+|---|---|---|---|---|
+| 0:00–0:05 | Village enneigé | Neige tombe | Elias | Bonjour |
+| 0:05–0:11 | Miroir couvert | Drap blanc | Elias | Sans un mot |
+"""
+        shots = extract_shots_from_template(md_shots)
+        self.assertEqual(len(shots), 2)
+        self.assertEqual(shots[0]["start_s"], 0.0)
+        self.assertEqual(shots[1]["end_s"], 11.0)
+
+        # 4. /api/timings + UI HTML verification
+        r_tim = self.client.get("/api/timings")
+        self.assertEqual(r_tim.status_code, 200)
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertIn("top-el-text", html)
+        self.assertNotIn("top-claude-text", html)
+        self.assertNotIn("Avec un style", html)
+        self.assertNotIn("Dossier créatif local", html)
+        self.assertNotIn("Sauvegarder un Preset", html)
+        self.assertIn("fab-enable-music", html)
+        self.assertIn("fab-enable-sfx", html)
+        self.assertIn("reg-quota-7d-right", html)
+        self.assertIn("reg-agy-quota-7d-right", html)
+        self.assertIn("switchElevenLabsAccount()", html)
+        self.assertIn("switchAntigravityAccount()", html)
+
 
 if __name__ == "__main__":
     unittest.main()

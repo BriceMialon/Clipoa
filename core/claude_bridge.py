@@ -317,6 +317,117 @@ class ClaudeBridge:
         return cls._generate_fallback(prompt, system_prompt or "")
 
     @classmethod
+    def stream_query(
+        cls,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        action: str = "agent_stream",
+        model: Optional[str] = None,
+        timeout: int = 240,
+    ):
+        """
+        Streame la réponse de Claude CLI en direct (`text_delta`) pour une latence quasi-instantanée
+        identique à l'app native.
+        """
+        if not (USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH)):
+            yield cls.query(prompt, system_prompt=system_prompt, action=action, model=model)
+            return
+
+        c_cfg = load_settings().get("claude", {})
+        chosen_model = (model or c_cfg.get("model", "opus")).strip().lower()
+        if chosen_model not in ("opus", "sonnet", "haiku"):
+            chosen_model = c_cfg.get("model", "opus")
+        chosen_effort = c_cfg.get("effort", "medium")
+        sandbox_dir = STORAGE_DIR / "_claude_sandbox"
+        sandbox_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = [
+            CLAUDE_CLI_PATH, "-p", prompt,
+            "--output-format", "stream-json",
+            "--verbose",
+            "--include-partial-messages",
+            "--no-session-persistence",
+            "--tools", "",
+            "--strict-mcp-config",
+            "--model", chosen_model,
+            "--effort", chosen_effort,
+        ]
+        if system_prompt:
+            cmd.extend(["--system-prompt", system_prompt])
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+            cwd=str(sandbox_dir),
+        )
+        chunks = []
+        real_cost = 0.0
+        in_tok = 0
+        out_tok = 0
+        cache_tok = 0
+        canon_model = chosen_model
+        try:
+            assert proc.stdout is not None
+            for raw_line in proc.stdout:
+                line = raw_line.strip()
+                if not line or not line.startswith("{"):
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                et = ev.get("type")
+                if et == "rate_limit_event" and ev.get("rate_limit_info"):
+                    save_live_claude_quota(ev["rate_limit_info"])
+                elif et == "stream_event":
+                    se = ev.get("event") or {}
+                    if se.get("type") == "content_block_delta":
+                        delta = (se.get("delta") or {}).get("text") or ""
+                        if delta:
+                            chunks.append(delta)
+                            yield delta
+                elif et == "result":
+                    real_cost = float(ev.get("total_cost_usd") or 0.0)
+                    u = ev.get("usage") or {}
+                    in_tok = int(u.get("input_tokens") or 0)
+                    out_tok = int(u.get("output_tokens") or 0)
+                    cache_tok = int(u.get("cache_creation_input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0)
+                    mu = ev.get("modelUsage") or {}
+                    if mu:
+                        canon_model = next(iter(mu.keys()), chosen_model)
+                    if not chunks and ev.get("result"):
+                        txt = str(ev["result"])
+                        chunks.append(txt)
+                        yield txt
+            proc.wait(timeout=15)
+            out_txt = "".join(chunks)
+            if not out_txt and proc.returncode != 0:
+                err_txt = (proc.stderr.read() if proc.stderr else "")[:200]
+                if any(k in err_txt.lower() for k in QUOTA_KEYWORDS):
+                    raise ClaudeQuotaExceededError(f"Quota Claude atteint : {err_txt}")
+                raise RuntimeError(f"Erreur Claude CLI : {err_txt or proc.returncode}")
+            record_claude_usage(
+                len(prompt) + len(system_prompt or ""),
+                len(out_txt),
+                mode="claude_cli",
+                action=action,
+                cost_usd=real_cost,
+                input_tokens=in_tok,
+                output_tokens=out_tok,
+                cache_tokens=cache_tok,
+                canonical_model=canon_model,
+            )
+        finally:
+            if proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+    @classmethod
     def _generate_fallback(cls, prompt: str, system_prompt: str = "") -> str:
         sys_head = system_prompt.strip().lower()[:140]
         p_low = prompt.lower()

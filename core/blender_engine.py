@@ -3,6 +3,7 @@ import subprocess
 import os
 import logging
 from pathlib import Path
+from typing import Optional
 from config import BLENDER_PATH, RENDERS_DIR
 
 logger = logging.getLogger("BlenderEngine")
@@ -174,18 +175,45 @@ text_obj.data.materials.append(mat)
         script_save_path: str,
         spoken_script: str = "",
         frames: int = 180,
+        shots: Optional[list] = None,
+        audio_duration_sec: float = 0.0,
     ) -> str:
         """
-        Generates a rich, real procedural 3D Roblox R6 scene in Blender 5.x (EEVEE, 9:16 H.264 MP4):
-        - Automatically picks Variant B (snowy Nordic twilight village, red wooden houses, glowing windows,
-          R6 avatar in green coat & beanie) for dark/horror/melancholy stories, or
-        - Variant A (bright sunny low-poly suburb, blue sky, colorful pastel houses, R6 avatar in blue hoodie)
-          for upbeat/pop stories.
+        Generates a rich, TRUE MULTI-SHOT procedural 3D Roblox R6 movie in Blender 5.x (EEVEE, 9:16 H.264 MP4)
+        covering the ENTIRE video duration with distinct camera angles & 3D zones per shot (never just 1 static shot!).
         """
         low = f"{title_text} {spoken_script}".lower()
-        dark_keywords = ("horreur", "effray", "nuit", "soir", "dispar", "mort", "fenêtre", "fenetre", "éteint", "eteint", "sombre", "peur", "monstre", "seul", "neige", "glace", "triste", "efface")
+        dark_keywords = ("horreur", "effray", "nuit", "soir", "dispar", "mort", "fenêtre", "fenetre", "éteint", "eteint", "sombre", "peur", "monstre", "seul", "neige", "glace", "triste", "efface", "miroir", "deuil")
         is_melancholy = any(k in low for k in dark_keywords)
-        frames = max(90, min(300, int(frames or 180)))
+
+        fps = 24
+        dur_sec = max(12.0, min(120.0, float(audio_duration_sec or (frames / 30.0) or 45.0)))
+        total_frames = max(180, int(round(dur_sec * fps)))
+
+        # Build shot timeline covering 100% of total_frames (at least 8 distinct shots)
+        shot_list = list(shots or [])
+        num_shots = max(8, min(18, len(shot_list) if len(shot_list) >= 4 else max(8, int(round(dur_sec / 4.5)))))
+        shot_specs = []
+        for idx in range(num_shots):
+            f_start = max(1, int(round((idx / num_shots) * total_frames)) + 1)
+            f_end = total_frames if idx == num_shots - 1 else max(f_start + 12, int(round(((idx + 1) / num_shots) * total_frames)))
+            raw_desc = ""
+            if idx < len(shot_list) and isinstance(shot_list[idx], dict):
+                raw_desc = f"{shot_list[idx].get('scene', '')} {shot_list[idx].get('action', '')} {shot_list[idx].get('visual', '')}".lower()
+            # Choose matching 3D zone for this shot
+            if any(k in raw_desc for k in ("sous la glace", "eau", "noy", "profond", "bleu nuit")):
+                zone = "underwater"
+            elif any(k in raw_desc for k in ("lac", "glace", "rive", "thin ice", "danger")):
+                zone = "lake"
+            elif any(k in raw_desc for k in ("miroir", "maison", "chambre", "cuisine", "intérieur", "interieur", "couloir", "drap")):
+                zone = "interior"
+            elif any(k in raw_desc for k in ("drone", "survol", "village", "ville", "panoram")):
+                zone = "drone"
+            elif any(k in raw_desc for k in ("gros plan", "visage", "yeux", "larme", "carnet", "fenêtre", "fenetre")):
+                zone = "closeup"
+            else:
+                zone = ["drone", "street", "interior", "closeup", "lake", "street_side", "interior", "underwater"][idx % 8]
+            shot_specs.append((f_start, f_end, zone))
 
         script_content = f'''
 import bpy
@@ -197,12 +225,12 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 
 scene = bpy.context.scene
 scene.render.engine = 'BLENDER_EEVEE'
-scene.render.resolution_x = 1080
-scene.render.resolution_y = 1920
+scene.render.resolution_x = 720
+scene.render.resolution_y = 1280
 scene.render.resolution_percentage = 100
-scene.render.fps = 30
+scene.render.fps = {fps}
 scene.frame_start = 1
-scene.frame_end = {frames}
+scene.frame_end = {total_frames}
 if hasattr(scene.render.image_settings, 'media_type'):
     scene.render.image_settings.media_type = 'VIDEO'
 scene.render.image_settings.file_format = 'FFMPEG'
@@ -211,9 +239,10 @@ scene.render.ffmpeg.codec = 'H264'
 scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
 scene.render.use_file_extension = False
 if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
-    scene.eevee.taa_render_samples = 16
+    scene.eevee.taa_render_samples = 8
 
 IS_MELANCHOLY = {repr(is_melancholy)}
+SHOT_SPECS = {repr(shot_specs)}
 
 def make_mat(name, rgba, rough=0.45, emit=0.0):
     m = bpy.data.materials.new(name=name)
@@ -241,33 +270,21 @@ scene.world = world
 world.use_nodes = True
 bg = world.node_tree.nodes.get("Background")
 if bg:
-    if IS_MELANCHOLY:
-        bg.inputs[0].default_value = (0.04, 0.07, 0.14, 1.0)
-        bg.inputs[1].default_value = 0.7
-    else:
-        bg.inputs[0].default_value = (0.28, 0.62, 0.98, 1.0)
-        bg.inputs[1].default_value = 1.1
+    bg.inputs[0].default_value = (0.04, 0.07, 0.14, 1.0) if IS_MELANCHOLY else (0.28, 0.62, 0.98, 1.0)
+    bg.inputs[1].default_value = 0.75 if IS_MELANCHOLY else 1.1
 
-# Sun + Fill lighting
 sun_d = bpy.data.lights.new("Sun", type='SUN')
-sun_d.energy = 1.6 if IS_MELANCHOLY else 3.2
-sun_d.color = (0.65, 0.78, 1.0) if IS_MELANCHOLY else (1.0, 0.96, 0.88)
+sun_d.energy = 1.7 if IS_MELANCHOLY else 3.2
+sun_d.color = (0.68, 0.80, 1.0) if IS_MELANCHOLY else (1.0, 0.96, 0.88)
 sun_o = bpy.data.objects.new("Sun", sun_d)
 scene.collection.objects.link(sun_o)
 sun_o.rotation_euler = (math.radians(48), math.radians(15), math.radians(-30))
 
-# Ground & Road
+# ===== ZONE 1 & 2 : VILLAGE + STREET (x around 0, y 0..45) =====
 ground_mat = make_mat("Ground", (0.86, 0.88, 0.92, 1.0) if IS_MELANCHOLY else (0.28, 0.70, 0.30, 1.0), 0.85)
 road_mat = make_mat("Road", (0.16, 0.18, 0.22, 1.0), 0.75)
 stripe_mat = make_mat("Stripe", (0.95, 0.95, 0.98, 1.0), 0.5)
-
-add_box("Ground", (0, 20, -0.25), (60, 80, 0.5), ground_mat)
-add_box("Road", (0, 20, -0.02), (5.5, 80, 0.08), road_mat)
-for i in range(-2, 18):
-    add_box(f"Stripe_{{i}}", (0, i * 3.5, 0.03), (0.22, 1.4, 0.03), stripe_mat)
-
-# Houses along both sides of the street
-win_warm = make_mat("WinWarm", (1.0, 0.82, 0.42, 1.0), 0.2, emit=3.5 if IS_MELANCHOLY else 0.4)
+win_warm = make_mat("WinWarm", (1.0, 0.82, 0.42, 1.0), 0.2, emit=3.5 if IS_MELANCHOLY else 0.5)
 win_dark = make_mat("WinDark", (0.04, 0.05, 0.08, 1.0), 0.15)
 roof_mat = make_mat("Roof", (0.90, 0.92, 0.96, 1.0) if IS_MELANCHOLY else (0.35, 0.24, 0.22, 1.0), 0.6)
 house_colors = (
@@ -276,7 +293,11 @@ house_colors = (
     [(0.45, 0.68, 0.95, 1.0), (0.92, 0.42, 0.44, 1.0), (0.48, 0.82, 0.52, 1.0), (0.96, 0.82, 0.42, 1.0)]
 )
 
-flicker_win = None
+add_box("Ground", (0, 22, -0.25), (70, 90, 0.5), ground_mat)
+add_box("Road", (0, 22, -0.02), (5.5, 90, 0.08), road_mat)
+for i in range(-2, 18):
+    add_box(f"Stripe_{{i}}", (0, i * 3.5, 0.03), (0.22, 1.4, 0.03), stripe_mat)
+
 for side in (-1, 1):
     for idx in range(7):
         y = 3.0 + idx * 6.5
@@ -285,85 +306,153 @@ for side in (-1, 1):
         h_mat = make_mat(f"HouseMat_{{side}}_{{idx}}", house_colors[idx % len(house_colors)], 0.55)
         add_box(f"House_{{side}}_{{idx}}", (x, y, h / 2.0), (4.6, 4.8, h), h_mat)
         add_box(f"Roof_{{side}}_{{idx}}", (x, y, h + 0.35), (5.0, 5.2, 0.7), roof_mat)
-        # Windows facing road
         for wy in (-1.2, 1.2):
             for wz in (1.6, h - 1.3):
-                is_lit = (idx != 2 or side != 1 or wz < 2.0)
-                wmat = win_warm if is_lit else win_dark
-                wx = x - side * 2.32
-                wobj = add_box(f"Win_{{side}}_{{idx}}_{{wy}}_{{wz}}", (wx, y + wy, wz), (0.12, 1.0, 1.1), wmat)
-                if side == -1 and idx == 1 and wz > 2.0 and wy > 0:
-                    flicker_win = wobj
+                wmat = win_warm if (idx != 2 or side != 1 or wz < 2.0) else win_dark
+                add_box(f"Win_{{side}}_{{idx}}_{{wy}}_{{wz}}", (x - side * 2.32, y + wy, wz), (0.12, 1.0, 1.1), wmat)
 
-# Low-poly pine trees
 trunk_mat = make_mat("Trunk", (0.34, 0.22, 0.14, 1.0), 0.8)
 leaf_mat = make_mat("Leaves", (0.14, 0.32, 0.22, 1.0) if IS_MELANCHOLY else (0.18, 0.65, 0.26, 1.0), 0.65)
 for side in (-1, 1):
     for idx in range(8):
-        tx = side * 3.45
-        ty = 1.0 + idx * 5.8
+        tx, ty = side * 3.45, 1.0 + idx * 5.8
         add_box(f"Trunk_{{side}}_{{idx}}", (tx, ty, 0.7), (0.32, 0.32, 1.4), trunk_mat)
         bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=1.05, depth=2.6, location=(tx, ty, 2.4))
-        cone = bpy.context.active_object
-        cone.data.materials.append(leaf_mat)
+        bpy.context.active_object.data.materials.append(leaf_mat)
 
-# Blocky Roblox R6 Hero Avatar walking down the road
-skin_mat = make_mat("Skin", (0.95, 0.82, 0.22, 1.0) if not IS_MELANCHOLY else (0.94, 0.84, 0.72, 1.0), 0.35)
-torso_mat = make_mat("Torso", (0.12, 0.32, 0.24, 1.0) if IS_MELANCHOLY else (0.12, 0.38, 0.88, 1.0), 0.4)
-pants_mat = make_mat("Pants", (0.14, 0.16, 0.22, 1.0) if IS_MELANCHOLY else (0.14, 0.26, 0.56, 1.0), 0.5)
-hat_mat = make_mat("Hat", (0.18, 0.16, 0.20, 1.0) if IS_MELANCHOLY else (0.10, 0.32, 0.85, 1.0), 0.45)
-eye_mat = make_mat("Eye", (0.02, 0.02, 0.02, 1.0), 0.2)
+def build_r6_avatar(name, loc, torso_rgba, hat_rgba, scale_f=1.0, rot_z=0.0):
+    skin_mat = make_mat(name + "_Skin", (0.94, 0.84, 0.72, 1.0) if IS_MELANCHOLY else (0.95, 0.82, 0.22, 1.0), 0.35)
+    t_mat = make_mat(name + "_Torso", torso_rgba, 0.4)
+    p_mat = make_mat(name + "_Pants", (0.14, 0.16, 0.22, 1.0), 0.5)
+    h_mat = make_mat(name + "_Hat", hat_rgba, 0.45)
+    e_mat = make_mat(name + "_Eye", (0.02, 0.02, 0.02, 1.0), 0.2)
+    root = bpy.data.objects.new(name, None)
+    scene.collection.objects.link(root)
+    root.location = loc
+    root.rotation_euler = (0, 0, rot_z)
+    root.scale = (scale_f, scale_f, scale_f)
+    def part(p_name, ploc, pscale, pmat):
+        o = add_box(name + "_" + p_name, ploc, pscale, pmat)
+        o.parent = root
+        return o
+    part("Torso", (0, 0, 1.65), (1.05, 0.55, 1.15), t_mat)
+    part("Head", (0, 0, 2.60), (0.72, 0.72, 0.72), skin_mat)
+    part("Hat", (0, 0, 3.02), (0.78, 0.78, 0.30), h_mat)
+    part("EyeL", (-0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
+    part("EyeR", (0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
+    part("Mouth", (0.0, -0.37, 2.46), (0.26, 0.04, 0.05), e_mat)
+    al = part("ArmL", (-0.75, 0, 1.65), (0.42, 0.45, 1.10), t_mat)
+    ar = part("ArmR", (0.75, 0, 1.65), (0.42, 0.45, 1.10), t_mat)
+    ll = part("LegL", (-0.27, 0, 0.55), (0.46, 0.48, 1.10), p_mat)
+    lr = part("LegR", (0.27, 0, 0.55), (0.46, 0.48, 1.10), p_mat)
+    return root, al, ar, ll, lr
 
-hero = bpy.data.objects.new("RobloxHero", None)
-scene.collection.objects.link(hero)
-hero.location = (0.0, 2.0, 0.0)
+hero, al, ar, ll, lr = build_r6_avatar(
+    "Hero", (0.0, 4.0, 0.0),
+    (0.12, 0.32, 0.24, 1.0) if IS_MELANCHOLY else (0.12, 0.38, 0.88, 1.0),
+    (0.18, 0.16, 0.20, 1.0) if IS_MELANCHOLY else (0.10, 0.32, 0.85, 1.0),
+)
+hero.keyframe_insert("location", frame=1)
+hero.location = (0.0, 24.0, 0.0)
+hero.keyframe_insert("location", frame={total_frames})
+for f in range(1, {total_frames} + 1, 10):
+    ang = 0.42 if ((f // 10) % 2 == 0) else -0.42
+    al.rotation_euler = (ang, 0, 0); al.keyframe_insert("rotation_euler", frame=f)
+    ar.rotation_euler = (-ang, 0, 0); ar.keyframe_insert("rotation_euler", frame=f)
+    ll.rotation_euler = (-ang, 0, 0); ll.keyframe_insert("rotation_euler", frame=f)
+    lr.rotation_euler = (ang, 0, 0); lr.keyframe_insert("rotation_euler", frame=f)
 
-def add_part(name, loc, scale, mat):
-    obj = add_box(name, loc, scale, mat)
-    obj.parent = hero
-    return obj
+# Secondary villagers along sidewalk
+build_r6_avatar("Sister", (-1.8, 14.0, 0.0), (0.95, 0.78, 0.20, 1.0), (0.92, 0.45, 0.65, 1.0), scale_f=0.76, rot_z=0.3)
+build_r6_avatar("Elder", (1.9, 19.0, 0.0), (0.35, 0.24, 0.22, 1.0), (0.75, 0.18, 0.18, 1.0), scale_f=1.02, rot_z=-0.4)
 
-add_part("Torso", (0, 0, 1.65), (1.05, 0.55, 1.15), torso_mat)
-add_part("Head", (0, 0, 2.60), (0.72, 0.72, 0.72), skin_mat)
-add_part("Beanie", (0, 0, 3.02), (0.78, 0.78, 0.30), hat_mat)
-# Flat 2D decal face (2 black dot eyes + mouth line)
-add_part("EyeL", (-0.16, -0.37, 2.66), (0.09, 0.04, 0.11), eye_mat)
-add_part("EyeR", (0.16, -0.37, 2.66), (0.09, 0.04, 0.11), eye_mat)
-add_part("Mouth", (0.0, -0.37, 2.46), (0.26, 0.04, 0.05), eye_mat)
+# ===== ZONE 3 : INTERIOR ROOM WITH MIRROR & WARM LAMP (x = 45, y = 0) =====
+wall_mat = make_mat("WallInt", (0.28, 0.22, 0.20, 1.0), 0.7)
+floor_mat = make_mat("FloorInt", (0.20, 0.14, 0.10, 1.0), 0.6)
+drape_mat = make_mat("Drape", (0.92, 0.93, 0.96, 1.0), 0.8)
+mirror_mat = make_mat("MirrorFrame", (0.45, 0.30, 0.16, 1.0), 0.4)
+add_box("IntFloor", (45, 0, -0.1), (10, 10, 0.2), floor_mat)
+add_box("IntWallBack", (45, 4.5, 3.0), (10, 0.3, 6.0), wall_mat)
+add_box("IntWallL", (40, 0, 3.0), (0.3, 10, 6.0), wall_mat)
+add_box("IntWallR", (50, 0, 3.0), (0.3, 10, 6.0), wall_mat)
+add_box("MirrorFrame", (45, 4.2, 2.3), (1.8, 0.15, 2.6), mirror_mat)
+add_box("MirrorSheet", (45, 4.08, 2.35), (1.65, 0.12, 2.4), drape_mat)
+int_light_d = bpy.data.lights.new("IntLamp", type='POINT')
+int_light_d.energy = 260
+int_light_d.color = (1.0, 0.76, 0.46)
+int_light_o = bpy.data.objects.new("IntLamp", int_light_d)
+scene.collection.objects.link(int_light_o)
+int_light_o.location = (45, 1.0, 4.2)
+build_r6_avatar("HeroInt", (44.2, 1.8, 0.0), (0.12, 0.32, 0.24, 1.0), (0.18, 0.16, 0.20, 1.0), rot_z=math.radians(170))
+build_r6_avatar("SisterInt", (46.2, 2.4, 0.0), (0.95, 0.78, 0.20, 1.0), (0.92, 0.45, 0.65, 1.0), scale_f=0.76, rot_z=math.radians(200))
 
-arm_l = add_part("ArmL", (-0.75, 0, 1.65), (0.42, 0.45, 1.10), torso_mat)
-arm_r = add_part("ArmR", (0.75, 0, 1.65), (0.42, 0.45, 1.10), torso_mat)
-leg_l = add_part("LegL", (-0.27, 0, 0.55), (0.46, 0.48, 1.10), pants_mat)
-leg_r = add_part("LegR", (0.27, 0, 0.55), (0.46, 0.48, 1.10), pants_mat)
+# ===== ZONE 4 : FROZEN LAKE + DANGER SIGN (x = -45, y = 0) =====
+ice_mat = make_mat("Ice", (0.58, 0.78, 0.92, 1.0), 0.12)
+glow_ice_mat = make_mat("IceGlow", (0.55, 0.85, 1.0, 1.0), 0.1, emit=2.8)
+sign_red = make_mat("SignRed", (0.85, 0.15, 0.15, 1.0), 0.4)
+add_box("FrozenLake", (-45, 5, -0.1), (36, 40, 0.2), ice_mat)
+add_box("IceGlowCore", (-45, 8, -0.05), (3.5, 3.5, 0.08), glow_ice_mat)
+add_box("SignPost", (-42.5, 4.0, 1.0), (0.16, 0.16, 2.0), trunk_mat)
+add_box("SignBoard", (-42.5, 4.0, 1.8), (1.6, 0.12, 0.85), sign_red)
+build_r6_avatar("HeroLake", (-45.0, 6.0, 0.0), (0.12, 0.32, 0.24, 1.0), (0.18, 0.16, 0.20, 1.0), rot_z=math.radians(180))
 
-# Animate Roblox R6 walking forward along the street
-hero.keyframe_insert(data_path="location", frame=1)
-hero.location = (0.0, 16.0, 0.0)
-hero.keyframe_insert(data_path="location", frame={frames})
+# ===== ZONE 5 : UNDERWATER / UNDER THE ICE FINALE (x = 0, y = -45) =====
+uw_mat = make_mat("Underwater", (0.04, 0.15, 0.28, 1.0), 0.3)
+ray_mat = make_mat("IceRay", (0.72, 0.89, 1.0, 1.0), 0.1, emit=4.2)
+add_box("UWBox", (0, -45, 2.0), (24, 24, 12), uw_mat)
+add_box("IceCeiling", (0, -45, 5.2), (18, 18, 0.2), ice_mat)
+for r_i in (-2.0, 0.0, 2.0):
+    add_box(f"Ray_{{r_i}}", (r_i, -44, 3.2), (0.55, 0.55, 4.2), ray_mat, rot=(0, math.radians(10), 0))
+uw_hero, _, _, _, _ = build_r6_avatar("HeroUW", (0.0, -45.0, 1.0), (0.12, 0.32, 0.24, 1.0), (0.18, 0.16, 0.20, 1.0))
+uw_light_d = bpy.data.lights.new("UWLight", type='POINT')
+uw_light_d.energy = 450
+uw_light_d.color = (0.55, 0.82, 1.0)
+uw_light_o = bpy.data.objects.new("UWLight", uw_light_d)
+scene.collection.objects.link(uw_light_o)
+uw_light_o.location = (0, -45, 4.6)
 
-for f in range(1, {frames} + 1, 12):
-    ang = 0.42 if ((f // 12) % 2 == 0) else -0.42
-    arm_l.rotation_euler = (ang, 0, 0); arm_l.keyframe_insert("rotation_euler", frame=f)
-    arm_r.rotation_euler = (-ang, 0, 0); arm_r.keyframe_insert("rotation_euler", frame=f)
-    leg_l.rotation_euler = (-ang, 0, 0); leg_l.keyframe_insert("rotation_euler", frame=f)
-    leg_r.rotation_euler = (ang, 0, 0); leg_r.keyframe_insert("rotation_euler", frame=f)
-
-# Smooth tracking camera in front of the Roblox R6 avatar
+# ===== MULTI-SHOT CAMERA WITH CLEAN CUTS + SMOOTH MOTION PER SHOT =====
 cam_d = bpy.data.cameras.new("Camera")
 cam_d.lens = 32
 cam_o = bpy.data.objects.new("Camera", cam_d)
 scene.collection.objects.link(cam_o)
 scene.camera = cam_o
 
-cam_o.location = (0.6, -3.6, 2.5)
-cam_o.rotation_euler = (math.radians(85), 0, math.radians(6))
-cam_o.keyframe_insert("location", frame=1)
-cam_o.keyframe_insert("rotation_euler", frame=1)
+ZONE_CAM_PRESETS = {{
+    "drone":       ((0.0, -6.0, 12.0), (math.radians(56), 0, 0),            (0.0, 6.0, 7.5),   (math.radians(66), 0, 0)),
+    "street":      ((0.8, -1.5, 2.5),  (math.radians(84), 0, math.radians(7)),  (-0.6, 8.0, 2.6),  (math.radians(83), 0, math.radians(-5))),
+    "street_side": ((3.6, 8.0, 2.4),   (math.radians(84), 0, math.radians(38)), (3.2, 16.0, 2.6),  (math.radians(83), 0, math.radians(24))),
+    "closeup":     ((0.4, 9.5, 2.65),  (math.radians(87), 0, math.radians(10)), (-0.3, 13.5, 2.75),(math.radians(86), 0, math.radians(-8))),
+    "interior":    ((45.3, -2.6, 2.2), (math.radians(86), 0, math.radians(4)),  (44.7, -1.2, 2.3), (math.radians(85), 0, math.radians(-4))),
+    "lake":        ((-45.0, -2.5, 2.8),(math.radians(80), 0, 0),            (-44.0, 2.2, 2.2), (math.radians(84), 0, math.radians(-8))),
+    "underwater":  ((0.0, -51.0, 2.4), (math.radians(86), 0, 0),            (0.5, -48.5, 3.0), (math.radians(78), 0, math.radians(6))),
+}}
 
-cam_o.location = (-0.5, 10.5, 2.8)
-cam_o.rotation_euler = (math.radians(82), 0, math.radians(-5))
-cam_o.keyframe_insert("location", frame={frames})
-cam_o.keyframe_insert("rotation_euler", frame={frames})
+for (f_s, f_e, zone) in SHOT_SPECS:
+    loc1, rot1, loc2, rot2 = ZONE_CAM_PRESETS.get(zone, ZONE_CAM_PRESETS["street"])
+    cam_o.location = loc1
+    cam_o.rotation_euler = rot1
+    cam_o.keyframe_insert("location", frame=f_s)
+    cam_o.keyframe_insert("rotation_euler", frame=f_s)
+    cam_o.location = loc2
+    cam_o.rotation_euler = rot2
+    cam_o.keyframe_insert("location", frame=max(f_s + 1, f_e - 1))
+    cam_o.keyframe_insert("rotation_euler", frame=max(f_s + 1, f_e - 1))
+
+# Ensure crisp instant cuts between shots (CONSTANT interpolation on shot end -> next shot start)
+if cam_o.animation_data and cam_o.animation_data.action:
+    cut_frames = {{max(f_s + 1, f_e - 1) for (f_s, f_e, _) in SHOT_SPECS}}
+    fcurves = getattr(cam_o.animation_data.action, "fcurves", None)
+    if fcurves is None and hasattr(cam_o.animation_data.action, "layers"):
+        # Blender 5.x layered action support
+        fcurves = []
+        for layer in cam_o.animation_data.action.layers:
+            for strip in layer.strips:
+                for bag in getattr(strip, "channelbags", []):
+                    fcurves.extend(bag.fcurves)
+    for fc in (fcurves or []):
+        for kp in fc.keyframe_points:
+            kp.interpolation = 'CONSTANT' if int(round(kp.co[0])) in cut_frames else 'LINEAR'
 '''
         with open(script_save_path, "w", encoding="utf-8") as f:
             f.write(script_content)

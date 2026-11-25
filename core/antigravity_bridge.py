@@ -193,7 +193,9 @@ class AntigravityBridge:
 
     @classmethod
     def get_quota_summary(cls) -> Dict[str, Any]:
-        window_5h = time.time() - 5 * 3600
+        now = time.time()
+        window_5h = now - 5 * 3600
+        window_7d = now - 7 * 86400
         history: List[Dict[str, Any]] = []
         with _AGY_LOCK:
             if AGY_USAGE_FILE.exists():
@@ -208,6 +210,13 @@ class AntigravityBridge:
         tokens_left = max(0, AGY_WINDOW_BUDGET_TOKENS - tokens_used)
         used_pct = min(100.0, round((tokens_used / max(1, AGY_WINDOW_BUDGET_TOKENS)) * 100.0, 1))
         remaining_pct = max(0.0, round(100.0 - used_pct, 1))
+
+        weekly_budget = AGY_WINDOW_BUDGET_TOKENS * 8
+        recent_7d = [h for h in history if h.get("ts", 0) >= window_7d]
+        tokens_used_7d = sum(int(h.get("total_tokens", 0)) for h in recent_7d)
+        used_pct_7d = min(100.0, round((tokens_used_7d / max(1, weekly_budget)) * 100.0, 1))
+        remaining_pct_7d = max(0.0, round(100.0 - used_pct_7d, 1))
+
         return {
             "calls_5h": len(recent),
             "tokens_used_5h": tokens_used,
@@ -215,6 +224,8 @@ class AntigravityBridge:
             "budget_tokens_5h": AGY_WINDOW_BUDGET_TOKENS,
             "used_pct": used_pct,
             "remaining_pct": remaining_pct,
+            "used_pct_7d": used_pct_7d,
+            "remaining_pct_7d": remaining_pct_7d,
             "est_videos_left": max(0, tokens_left // 4500),
         }
 
@@ -250,6 +261,25 @@ class AntigravityBridge:
             "ok": True,
             "message": "Terminal ouvert : connecte-toi à Antigravity, puis clique sur « Rafraîchir » dans Clipoa !",
         }
+
+    @classmethod
+    def switch_account(cls) -> Dict[str, Any]:
+        """Efface les identifiants OAuth locaux d'Antigravity CLI et ouvre le Terminal pour choisir un autre compte."""
+        for cred_file in (
+            Path.home() / ".gemini" / "antigravity-cli" / "oauth_creds.json",
+            Path.home() / ".gemini" / "antigravity-cli" / "credentials.json",
+            Path.home() / ".gemini" / "oauth_creds.json",
+        ):
+            try:
+                if cred_file.exists():
+                    cred_file.unlink()
+            except OSError:
+                pass
+        cls._cached_connected = None
+        cls._cached_models = None
+        res = cls.start_cli_login()
+        res["message"] = "Compte Antigravity réinitialisé — choisis ton nouveau compte Google dans le Terminal puis clique sur ↻ !"
+        return res
 
     @classmethod
     def _empty_cwd(cls) -> str:

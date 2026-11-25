@@ -67,6 +67,15 @@ from core.script_template import (
     build_script_refinement_prompt,
     extract_spoken_script_from_template,
     extract_title_from_template,
+    extract_shots_from_template,
+    list_script_templates,
+    save_custom_script_template,
+    delete_custom_script_template,
+)
+from core.timing_tracker import (
+    get_learned_estimates,
+    estimate_job_seconds,
+    record_actual_timing,
 )
 from core.social_publisher import FreeSocialPublisher, PLATFORMS
 from core.browser_auth import BrowserPortalAuth
@@ -613,6 +622,8 @@ def index():
         external_report=AnalyticsEngine.load_external_report(),
         analytics_niches=PRESET_NICHES,
         presets=list_presets(),
+        learned_estimates=get_learned_estimates(),
+        script_templates=list_script_templates(),
         mobile_url=mobile_url,
     )
 
@@ -889,6 +900,16 @@ def api_el_voices():
     return jsonify({"voices": VoiceEngine.list_elevenlabs_voices()})
 
 
+@app.route("/api/elevenlabs/disconnect", methods=["POST"])
+def api_el_disconnect():
+    """Déconnecte la clé ElevenLabs actuelle pour permettre de changer facilement de compte."""
+    save_settings({"elevenlabs": {"api_key": "", "enabled": False, "default_voice_id": ""}})
+    st = VoiceEngine.get_elevenlabs_status()
+    st["ok"] = True
+    st["message"] = "Compte ElevenLabs déconnecté — colle ta nouvelle clé API pour changer de compte."
+    return jsonify(st)
+
+
 # ---------- Creative Workspace Drive & Style Plugins (DA) APIs ----------
 
 @app.route("/api/drive/status", methods=["GET"])
@@ -1063,6 +1084,9 @@ def _launch_pipeline_job(job_id: str):
                     target_duration_sec=int(params.get("target_duration_sec") or 60),
                     engine=params.get("engine") or "claude",
                     engine_model=params.get("engine_model") or None,
+                    enable_music=bool(params.get("enable_music", True)),
+                    enable_sfx=bool(params.get("enable_sfx", True)),
+                    template_shots=params.get("template_shots") or None,
                     progress_cb=cb,
                     resume_session_id=sess,
                 )
@@ -1877,6 +1901,8 @@ def api_make():
         voice = request.form.get("voice") or None
         use_blender_3d = request.form.get("use_blender_3d", "false").lower() in ("1", "true", "yes", "on")
         retention_boost = request.form.get("retention_boost", "true").lower() in ("1", "true", "yes", "on")
+        enable_music = request.form.get("enable_music", "true").lower() in ("1", "true", "yes", "on")
+        enable_sfx = request.form.get("enable_sfx", "true").lower() in ("1", "true", "yes", "on")
         engine = (request.form.get("engine") or "claude").strip().lower()
         engine_model = (request.form.get("engine_model") or "").strip() or None
         bg_video = (request.form.get("background_video") or "").strip() or None
@@ -1905,6 +1931,8 @@ def api_make():
         voice = data.get("voice") or None
         use_blender_3d = bool(data.get("use_blender_3d", False))
         retention_boost = bool(data.get("retention_boost", True))
+        enable_music = bool(data.get("enable_music", True))
+        enable_sfx = bool(data.get("enable_sfx", True))
         engine = (data.get("engine") or "claude").strip().lower()
         engine_model = (data.get("engine_model") or "").strip() or None
         bg_video = (data.get("background_video") or "").strip() or None
@@ -1919,8 +1947,10 @@ def api_make():
         return jsonify({"error": "Écris un sujet ou colle ton script"}), 400
 
     # Si l'utilisateur fournit un script au format Template complet (tableaux Markdown),
-    # on extrait proprement les répliques parlées pour la voix off.
+    # on extrait les plans (pour le rendu multi-plans) ET les répliques parlées pour la voix off.
+    template_shots = []
     if custom_script and "## 3." in custom_script and "|" in custom_script:
+        template_shots = extract_shots_from_template(custom_script)
         extracted_spoken = extract_spoken_script_from_template(custom_script)
         if extracted_spoken:
             if not custom_title:
@@ -1937,7 +1967,8 @@ def api_make():
         job_label = f"⚡ Short : {display_text}"
 
     is_3d_job = bool(use_blender_3d or (plugin and plugin.get("render_mode") == "blender3d"))
-    est_total_sec = int(round((140 if is_3d_job else 55) * max(0.6, min(2.2, (target_duration_sec or 60) / 60.0))))
+    eng_norm = engine if engine in ("claude", "antigravity") else "claude"
+    est_total_sec = estimate_job_seconds(eng_norm, "blender3d" if is_3d_job else "motion", target_duration_sec)
     params = {
         "topic": topic,
         "custom_script": custom_script,
@@ -1951,7 +1982,10 @@ def api_make():
         "voice": voice,
         "use_blender_3d": is_3d_job,
         "retention_boost": retention_boost,
-        "engine": engine if engine in ("claude", "antigravity") else "claude",
+        "enable_music": enable_music,
+        "enable_sfx": enable_sfx,
+        "template_shots": template_shots,
+        "engine": eng_norm,
         "engine_model": engine_model,
         "est_total_sec": est_total_sec,
     }
@@ -2089,6 +2123,7 @@ def api_fabrique_generate_script():
     if not topic:
         return jsonify({"error": "Décris ton idée avant de générer le script."}), 400
     plugin_id = (data.get("plugin_id") or "").strip() or None
+    template_id = (data.get("template_id") or "default").strip() or "default"
     engine = (data.get("engine") or "claude").strip().lower()
     model = (data.get("model") or "").strip() or None
     try:
@@ -2097,8 +2132,14 @@ def api_fabrique_generate_script():
         target_dur = 60
 
     da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
-    sys_prompt, user_prompt = build_script_generation_prompt(topic=topic, target_duration_sec=target_dur, da_context=da_ctx)
+    sys_prompt, user_prompt = build_script_generation_prompt(
+        topic=topic,
+        target_duration_sec=target_dur,
+        da_context=da_ctx,
+        template_id=template_id,
+    )
 
+    t0 = time.time()
     try:
         agy_connected = bool(AntigravityBridge.check_status().get("connected"))
         use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
@@ -2106,9 +2147,11 @@ def api_fabrique_generate_script():
             chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
             raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300)
             engine_label = chosen_model
+            record_actual_timing("antigravity", "script", time.time() - t0, target_dur)
         else:
             raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
             engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+            record_actual_timing("claude", "script", time.time() - t0, target_dur)
 
         template_md = (raw or "").strip()
         title = extract_title_from_template(template_md, fallback=topic[:60])
@@ -2139,6 +2182,7 @@ def api_fabrique_generate_script_stream():
     if not topic:
         return jsonify({"error": "Décris ton idée avant de générer le script."}), 400
     plugin_id = (data.get("plugin_id") or "").strip() or None
+    template_id = (data.get("template_id") or "default").strip() or "default"
     engine = (data.get("engine") or "claude").strip().lower()
     model = (data.get("model") or "").strip() or None
     try:
@@ -2147,7 +2191,12 @@ def api_fabrique_generate_script_stream():
         target_dur = 60
 
     da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
-    sys_prompt, user_prompt = build_script_generation_prompt(topic=topic, target_duration_sec=target_dur, da_context=da_ctx)
+    sys_prompt, user_prompt = build_script_generation_prompt(
+        topic=topic,
+        target_duration_sec=target_dur,
+        da_context=da_ctx,
+        template_id=template_id,
+    )
 
     def _sse(ev_name: str, payload: dict) -> str:
         return f"event: {ev_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
@@ -2163,10 +2212,11 @@ def api_fabrique_generate_script_stream():
             return 26, "2/5 · Fiches personnages"
         if "## 1." in acc_text:
             return 14, "1/5 · Fiche projet"
-        return 8, "Initialisation de l'IA…"
+        return min(85, 10 + len(acc_text) // 60), "Rédaction en direct…"
 
     def _generate():
         yield _sse("progress", {"pct": 6, "stage": "Connexion au modèle IA…"})
+        t0 = time.time()
         try:
             agy_connected = bool(AntigravityBridge.check_status().get("connected"))
             use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
@@ -2179,12 +2229,16 @@ def api_fabrique_generate_script_stream():
                     full_so_far = "".join(acc)
                     pct, stage = _compute_progress(full_so_far)
                     yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
+                record_actual_timing("antigravity", "script", time.time() - t0, target_dur)
             else:
                 engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
-                yield _sse("progress", {"pct": 22, "stage": f"{engine_label} rédige le script…"})
-                raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
-                acc.append(raw or "")
-                yield _sse("chunk", {"delta": raw or "", "pct": 94, "stage": "Finalisation du template…"})
+                yield _sse("progress", {"pct": 12, "stage": f"{engine_label} rédige en direct…"})
+                for delta in ClaudeBridge.stream_query(user_prompt, system_prompt=sys_prompt, action="script_template", timeout=300):
+                    acc.append(delta)
+                    full_so_far = "".join(acc)
+                    pct, stage = _compute_progress(full_so_far)
+                    yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
+                record_actual_timing("claude", "script", time.time() - t0, target_dur)
 
             template_md = "".join(acc).strip()
             title = extract_title_from_template(template_md, fallback=topic[:60])
@@ -2226,6 +2280,7 @@ def api_fabrique_refine_script():
         return jsonify({"error": "Écris la modification que tu veux demander à l'IA."}), 400
 
     plugin_id = (data.get("plugin_id") or "").strip() or None
+    template_id = (data.get("template_id") or "default").strip() or "default"
     engine = (data.get("engine") or "claude").strip().lower()
     model = (data.get("model") or "").strip() or None
 
@@ -2234,6 +2289,7 @@ def api_fabrique_refine_script():
         current_script=current_script,
         instruction=instruction,
         da_context=da_ctx,
+        template_id=template_id,
     )
 
     try:
@@ -2275,6 +2331,11 @@ def api_antigravity_login():
     return jsonify(AntigravityBridge.start_cli_login())
 
 
+@app.route("/api/antigravity/switch", methods=["POST"])
+def api_antigravity_switch():
+    return jsonify(AntigravityBridge.switch_account())
+
+
 @app.route("/api/antigravity/model", methods=["POST"])
 def api_antigravity_model():
     data = request.json or {}
@@ -2282,6 +2343,40 @@ def api_antigravity_model():
     if not mid:
         return jsonify({"error": "Modèle manquant"}), 400
     return jsonify(AntigravityBridge.set_model(mid))
+
+
+@app.route("/api/timings", methods=["GET"])
+def api_timings():
+    return jsonify(get_learned_estimates())
+
+
+@app.route("/api/script-templates", methods=["GET", "POST"])
+def api_script_templates():
+    if request.method == "GET":
+        return jsonify({"templates": list_script_templates()})
+    try:
+        if request.content_type and "multipart/form-data" in request.content_type:
+            up = request.files.get("file")
+            name = (request.form.get("name") or (up.filename if up else "") or "Mon template").strip()
+            content = up.read().decode("utf-8", errors="replace") if up else ""
+        else:
+            data = request.json or {}
+            name = (data.get("name") or "Mon template").strip()
+            content = data.get("content") or ""
+        item = save_custom_script_template(name, content)
+        return jsonify({"ok": True, "template": item, "templates": list_script_templates()})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/script-templates/<tid>", methods=["DELETE"])
+def api_delete_script_template(tid):
+    ok = delete_custom_script_template(tid)
+    if not ok:
+        return jsonify({"error": "Template introuvable ou protégé"}), 404
+    return jsonify({"ok": True, "templates": list_script_templates()})
 
 
 @app.route("/api/assistant/help", methods=["POST"])

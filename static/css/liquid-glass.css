@@ -1971,3 +1971,157 @@ html[data-theme="light"] .code-editor {
   .ai-tb-model { max-width: 120px; font-size: 11px; }
   .ai-tb-status span.ai-tb-lbl { display: none; }
 }
+
+/* =========================================================================
+   FORMATTED SCRIPT VIEWER (Tables, Sections, Timecode Pills, Audio Badges)
+   ========================================================================= */
+.script-formatted-view {
+  max-height: 460px;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--glass-soft);
+  border: 1px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.script-formatted-view .sf-section {
+  margin-bottom: 16px;
+}
+.script-formatted-view .sf-section:last-child {
+  margin-bottom: 0;
+}
+.script-formatted-view .sf-h2 {
+  font: 700 13.5px/1.3 var(--font-display);
+  color: var(--ink);
+  margin: 0 0 8px 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(139, 139, 255, 0.14), rgba(255, 91, 68, 0.06));
+  border-left: 3px solid var(--indigo);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.script-formatted-view .sf-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 11px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated, rgba(14, 17, 26, 0.45));
+}
+.script-formatted-view table.sf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  min-width: 520px;
+}
+.script-formatted-view table.sf-table th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.script-formatted-view table.sf-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--stroke-subtle);
+  vertical-align: top;
+  color: var(--ink);
+}
+.script-formatted-view table.sf-table tr:last-child td {
+  border-bottom: none;
+}
+.script-formatted-view table.sf-table tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+.script-formatted-view .sf-tc {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(139, 139, 255, 0.16);
+  color: var(--indigo);
+  white-space: nowrap;
+}
+.script-formatted-view .sf-spoken {
+  font-weight: 600;
+  color: var(--ink);
+}
+.script-formatted-view .sf-badge-mus {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--ok);
+  white-space: nowrap;
+}
+.script-formatted-view .sf-badge-sfx {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  white-space: nowrap;
+}
+.script-formatted-view .sf-copy-btn {
+  margin-left: 6px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--glass-soft);
+  color: var(--muted);
+  cursor: pointer;
+}
+.script-formatted-view .sf-copy-btn:hover {
+  color: var(--ink);
+  border-color: var(--border-hi);
+}
+.script-formatted-view p.sf-para {
+  margin: 4px 0 8px 0;
+  color: var(--ink);
+}
+.quota-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+.quota-mini-box {
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: var(--glass-soft);
+  border: 1px solid var(--stroke-subtle);
+}
+.quota-mini-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+.quota-mini-bar {
+  height: 5px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.quota-mini-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease;
+}

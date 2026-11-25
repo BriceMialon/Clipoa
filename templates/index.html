@@ -138,7 +138,7 @@
               <span>Antigravity Neon</span>
             </span>
             <span id="side-agy-pct" style="color:var(--muted);">
-              {{ agy_status.quota.remaining_pct }}% · {{ (agy_status.quota.tokens_left_5h // 1000) }}k tok
+              {{ agy_status.quota.remaining_pct }}%
             </span>
           </div>
           <div class="progress-track" style="margin-top:5px; height:4px;">
@@ -170,9 +170,17 @@
         </button>
 
         <div class="topbar-right">
-          <button type="button" class="pill-chip" data-view="reglages" onclick="showView('reglages')" title="Connexions & quotas IA">
-            <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="top-claude-dot"></span>
-            <span id="top-claude-text">{{ (claude_status.model or 'opus')|capitalize }} · {{ claude_status.quota.remaining_pct }}%</span>
+          <button type="button" class="pill-chip" data-view="reglages" onclick="showView('reglages')" title="Crédits ElevenLabs & Connexions">
+            <span class="dot {{ 'ok' if el_status.connected else 'warn' }}" id="top-el-dot"></span>
+            <span id="top-el-text">
+              {% if el_status.connected and el_status.character_limit %}
+                ElevenLabs · {{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }} crédits
+              {% elif el_status.connected %}
+                ElevenLabs · Branché
+              {% else %}
+                ElevenLabs · Non branché
+              {% endif %}
+            </span>
           </button>
           <button type="button" class="icon-btn" onclick="openModal('modal-phone')" title="Ouvrir sur ton téléphone (QR Wi-Fi)">
             <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
@@ -367,11 +375,34 @@
                 <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">
                   ✍️ Générer le script
                 </button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="toggleEl('fab-script-adv-drawer')" title="Choisir ou importer ton propre template de script">
+                  ⚙️ Paramètres de script avancés
+                </button>
               </div>
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
             </div>
 
-            <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + valider / modifier) -->
+            <!-- Paramètres de script avancés : Template personnalisé -->
+            <div id="fab-script-adv-drawer" style="display:none; margin-top:10px; padding:12px 14px; border-radius:14px; background:var(--glass-soft); border:1px solid var(--border);">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+                <span style="font-size:12px; font-weight:700; color:var(--ink);">📄 Template de script (Claude & Antigravity s'adaptent automatiquement)</span>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <select id="fab-template-select" class="input-sm" style="flex:1; min-width:220px;" onchange="onScriptTemplateChange()">
+                  {% for tpl in script_templates %}
+                  <option value="{{ tpl.id }}">{{ tpl.name }}{{ ' (Par défaut)' if tpl.is_default else ' (Perso)' }}</option>
+                  {% endfor %}
+                </select>
+                <button type="button" class="btn btn-ghost btn-xs" id="fab-tpl-del-btn" style="display:none;" onclick="deleteSelectedScriptTemplate()">Supprimer</button>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+                <input type="text" id="fab-tpl-name" class="input-sm" style="width:180px;" placeholder="Nom de ton template…">
+                <input type="file" id="fab-tpl-file" accept=".md,.txt,.markdown" style="display:none;" onchange="uploadCustomScriptTemplate(this)">
+                <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('fab-tpl-file').click()">↑ Importer un fichier (.md / .txt)</button>
+              </div>
+            </div>
+
+            <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + aperçu mis en forme + valider / modifier) -->
             <div id="fab-script-review-box" style="display:none; margin-top:12px; padding:14px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
               <div id="fab-gen-progress-wrap" style="display:none; margin-bottom:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
@@ -384,18 +415,23 @@
               </div>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span style="font-size:12.5px; font-weight:700; color:var(--ink);">📝 Script généré (Template complet)</span>
+                  <span style="font-size:12.5px; font-weight:700; color:var(--ink);">📝 Script généré</span>
                   <span id="fab-review-meta" style="font-size:11.5px; color:var(--muted);"></span>
                   <span id="fab-review-validated-badge" style="display:none; font-size:11px; font-weight:700; color:var(--ok); background:var(--ok-soft); padding:2px 8px; border-radius:99px;">✓ Validé</span>
                 </div>
-                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                  <div class="fab-mode-seg" style="padding:2px;">
+                    <button type="button" class="fab-mode-btn actif" id="fab-view-pretty-btn" style="padding:3px 9px; font-size:11px;" onclick="setFabScriptViewMode('pretty')">👁️ Aperçu</button>
+                    <button type="button" class="fab-mode-btn" id="fab-view-raw-btn" style="padding:3px 9px; font-size:11px;" onclick="setFabScriptViewMode('raw')">✏️ Éditer</button>
+                  </div>
                   <button type="button" class="btn btn-primary btn-xs" id="fab-validate-script-btn" onclick="validateFabScript()">✓ Valider</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="generateFabriqueScript()">↻ Régénérer</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="clearGeneratedFabScript()">Effacer</button>
                 </div>
               </div>
               <input type="text" id="fab-review-title" class="input-sm" style="margin-bottom:8px;" placeholder="Titre de la vidéo…">
-              <textarea id="fab-review-text" class="code-editor" rows="14" style="width:100%; font-size:12px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()" placeholder="Fiche projet, Personnages, Script plan par plan, Musiques (MUS-xx) et Effets sonores (SFX-xx)…"></textarea>
+              <div id="fab-review-formatted" class="script-formatted-view"></div>
+              <textarea id="fab-review-text" class="code-editor" rows="14" style="display:none; width:100%; font-size:12px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()" placeholder="Fiche projet, Personnages, Script plan par plan, Musiques (MUS-xx) et Effets sonores (SFX-xx)…"></textarea>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
                 <input type="text" id="fab-refine-input" class="input-sm" style="flex:1; min-width:200px;" placeholder="Demander à l'IA de remodifier (ex : rends la fin plus sombre, ajoute un perso, change la musique…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
                 <button type="button" class="btn btn-ghost btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Modifier avec l'IA</button>
@@ -420,7 +456,7 @@
               <button type="button" class="style-plaque" data-splaque="plugin:{{ pl.id }}" data-plugin-id="{{ pl.id }}" onclick="selectStylePlaque('plugin:{{ pl.id }}', this)">
                 <div class="sp-art {{ pl.gradient_css }} {{ 'has-cover' if pl.cover_url else '' }}" {% if pl.cover_url %}style="background-image:url('{{ pl.cover_url }}');"{% endif %}>
                   {% if not pl.cover_url %}<div style="font-size:26px; margin:auto 0;">{{ pl.icon }}</div>{% endif %}
-                  <div class="sp-meta-strip">⏱ {{ pl.est_time_label }} · 🪙 {{ pl.est_tokens_label|replace(' tokens', ' tok') }}</div>
+                  <div class="sp-meta-strip">⏱ {{ pl.est_time_label }}</div>
                 </div>
                 <span class="sp-name">{{ pl.name }}</span>
               </button>
@@ -588,6 +624,16 @@
                   <button type="button" class="btn btn-primary btn-sm" onclick="quickConnectElevenLabs()">Brancher</button>
                 </div>
               </div>
+              <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border);">
+                <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
+                  <input type="checkbox" id="fab-enable-music" checked style="accent-color:var(--accent); width:14px; height:14px;">
+                  <span>🎵 Musique d'ambiance adaptée aux scènes</span>
+                </label>
+                <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
+                  <input type="checkbox" id="fab-enable-sfx" checked style="accent-color:var(--accent); width:14px; height:14px;">
+                  <span>🔊 Bruits & effets sonores (SFX)</span>
+                </label>
+              </div>
             </div>
 
             <!-- Pied de la Fabrique -->
@@ -607,7 +653,7 @@
              VUE 2B : PLUGINS DE STYLE (DA, Planches de modèles & Scripts)
              ================================================================ -->
         <section id="view-plugins" class="view">
-          <nav class="subnav" aria-label="Styles"><button type="button" class="subnav-btn" data-sub="plugins" onclick="showView('plugins')">Mes styles</button><button type="button" class="subnav-btn" data-sub="style" onclick="showView('style')">Sous-titres & dossier</button></nav>
+          <nav class="subnav" aria-label="Styles"><button type="button" class="subnav-btn" data-sub="plugins" onclick="showView('plugins')">Mes styles</button><button type="button" class="subnav-btn" data-sub="style" onclick="showView('style')">Sous-titres</button></nav>
           <div class="page-head">
             <div>
               <h1 class="page-title">Mes styles</h1>
@@ -644,7 +690,6 @@
               {% if renders %}
               <button type="button" class="btn btn-coral" onclick="openTheaterMode(0)">▶ Regarder une par une</button>
               {% endif %}
-              <button type="button" class="btn btn-ghost" onclick="showView('creer')">+ Fabriquer</button>
             </div>
           </div>
 
@@ -661,7 +706,6 @@
                 <button type="button" class="chip" data-lib-type="direct" onclick="filterLibrary('direct', this)">Shorts IA</button>
                 <button type="button" class="chip" data-lib-type="clone" onclick="filterLibrary('clone', this)">Clonés</button>
                 <button type="button" class="chip" data-lib-type="monteur_cut" onclick="filterLibrary('monteur_cut', this)">Découpés</button>
-                <button type="button" class="chip" data-lib-type="plugin_da" onclick="filterLibrary('plugin_da', this)">Avec un style</button>
               </div>
               <input type="text" id="lib-search" class="input-sm" style="width:200px;" placeholder="Rechercher…" oninput="filterLibrary()">
             </div>
@@ -1127,14 +1171,11 @@
              VUE 9 : STYLE & PRESETS (Sous-titres Submagic, Brand Kits & Dossier)
              ================================================================ -->
         <section id="view-style" class="view">
-          <nav class="subnav" aria-label="Styles"><button type="button" class="subnav-btn" data-sub="plugins" onclick="showView('plugins')">Mes styles</button><button type="button" class="subnav-btn" data-sub="style" onclick="showView('style')">Sous-titres & dossier</button></nav>
+          <nav class="subnav" aria-label="Styles"><button type="button" class="subnav-btn" data-sub="plugins" onclick="showView('plugins')">Mes styles</button><button type="button" class="subnav-btn" data-sub="style" onclick="showView('style')">Sous-titres</button></nav>
           <div class="page-head">
             <div>
-              <h1 class="page-title">Sous-titres & dossier</h1>
-              <p class="page-sub">La couleur de tes sous-titres et le dossier de références de ta chaîne.</p>
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-primary btn-sm" onclick="saveCurrentAsPreset()">+ Sauvegarder un Preset</button>
+              <h1 class="page-title">Sous-titres</h1>
+              <p class="page-sub">Choisis la couleur de tes sous-titres dynamiques Submagic.</p>
             </div>
           </div>
 
@@ -1157,15 +1198,6 @@
                 <div style="font-family:var(--font-display); font-weight:800; font-size:15px; color:#fff;">LA VRAIE <span style="color:#00E5FF;">RAISON</span></div>
                 <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Cyber Cyan</div>
               </div>
-            </div>
-          </div>
-
-          <div class="card lg-sheen">
-            <div class="section-title">Dossier créatif local · {{ drive_status.folder_name or 'Mon dossier créatif' }}</div>
-            <p style="color:var(--muted); font-size:13.5px; margin-top:4px;">{{ drive_status.files_count }} fichier(s) synchronisé(s) (guides de rétention, notes de style, bibliothèques).</p>
-            <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-              <input type="text" id="drive-local-path" class="input-sm" style="flex:1; min-width:200px;" placeholder="Chemin d'un dossier local à synchroniser…">
-              <button type="button" class="btn btn-ghost btn-sm" onclick="syncDriveLocal()">Synchroniser</button>
             </div>
           </div>
         </section>
@@ -1198,18 +1230,28 @@
                   Modèle par défaut : <b style="color:var(--ink);">Opus 5.5 (Medium)</b>.
                 </div>
 
-                <div style="margin-top:10px;">
-                  <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink); font-weight:600;">
-                    <span id="reg-quota-left">Quota 5h {{ ('· reset ' ~ claude_status.quota.resets_at) if claude_status.quota.resets_at else '' }}</span>
-                    <span id="reg-quota-right">{{ claude_status.quota.remaining_pct }}% (~{{ claude_status.quota.est_videos_left }} vid.)</span>
+                <div class="quota-dual-grid">
+                  <div class="quota-mini-box">
+                    <div class="quota-mini-top">
+                      <span id="reg-quota-left" style="color:var(--muted); font-weight:600;">Limite 5h</span>
+                      <span id="reg-quota-right" style="color:var(--ink); font-weight:700;">{{ claude_status.quota.remaining_pct }}%</span>
+                    </div>
+                    <div class="quota-mini-bar">
+                      <div class="quota-mini-fill" id="reg-quota-bar" style="width:{{ claude_status.quota.remaining_pct }}%; background:var(--accent);"></div>
+                    </div>
                   </div>
-                  <div class="progress-track" style="margin-top:5px; height:5px;"><div class="progress-fill" id="reg-quota-bar" style="width:{{ claude_status.quota.remaining_pct }}%; animation:none;"></div></div>
-                  <div style="font-size:11px; color:var(--muted); margin-top:4px;" id="reg-quota-sub">
-                    {% if claude_status.quota.seven_day_remaining_pct is not none %}
-                    7 jours : {{ claude_status.quota.seven_day_remaining_pct }}% ·
-                    {% endif %}
-                    {{ claude_status.quota.calls_5h }} appels Clipoa
+                  <div class="quota-mini-box">
+                    <div class="quota-mini-top">
+                      <span style="color:var(--muted); font-weight:600;">Limite hebdo</span>
+                      <span id="reg-quota-7d-right" style="color:var(--ink); font-weight:700;">{{ claude_status.quota.seven_day_remaining_pct if claude_status.quota.seven_day_remaining_pct is not none else 100 }}%</span>
+                    </div>
+                    <div class="quota-mini-bar">
+                      <div class="quota-mini-fill" id="reg-quota-7d-bar" style="width:{{ claude_status.quota.seven_day_remaining_pct if claude_status.quota.seven_day_remaining_pct is not none else 100 }}%; background:var(--indigo);"></div>
+                    </div>
                   </div>
+                </div>
+                <div style="font-size:11px; color:var(--muted); margin-top:5px;" id="reg-quota-sub">
+                  {{ ('Reset 5h : ' ~ claude_status.quota.resets_at ~ ' · ') if claude_status.quota.resets_at else '' }}{{ claude_status.quota.calls_5h }} appels Clipoa
                 </div>
               </div>
 
@@ -1259,21 +1301,28 @@
                   Modèle par défaut : <b style="color:var(--ink);">Gemini 4 Neon (Medium)</b>.
                 </div>
 
-                <div style="margin-top:10px;">
-                  <div style="display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink); font-weight:600;">
-                    <span>Tokens restants (5h)</span>
-                    <span id="reg-agy-quota-right">
-                      {% if agy_status.connected %}
-                      {{ agy_status.quota.remaining_pct }}% (~{{ (agy_status.quota.tokens_left_5h // 1000) }}k tok)
-                      {% else %}
-                      Non connecté
-                      {% endif %}
-                    </span>
+                <div class="quota-dual-grid">
+                  <div class="quota-mini-box">
+                    <div class="quota-mini-top">
+                      <span style="color:var(--muted); font-weight:600;">Limite 5h</span>
+                      <span id="reg-agy-quota-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct ~ '%') if agy_status.connected else '—' }}</span>
+                    </div>
+                    <div class="quota-mini-bar">
+                      <div class="quota-mini-fill" id="reg-agy-quota-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; background:var(--accent);"></div>
+                    </div>
                   </div>
-                  <div class="progress-track" style="margin-top:5px; height:5px;"><div class="progress-fill" id="reg-agy-quota-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; animation:none;"></div></div>
-                  <div style="font-size:11px; color:var(--muted); margin-top:4px;">
-                    {{ agy_status.models|length }} modèles disponibles · {{ agy_status.quota.calls_5h }} appels Clipoa
+                  <div class="quota-mini-box">
+                    <div class="quota-mini-top">
+                      <span style="color:var(--muted); font-weight:600;">Limite hebdo</span>
+                      <span id="reg-agy-quota-7d-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct_7d ~ '%') if agy_status.connected else '—' }}</span>
+                    </div>
+                    <div class="quota-mini-bar">
+                      <div class="quota-mini-fill" id="reg-agy-quota-7d-bar" style="width:{{ agy_status.quota.remaining_pct_7d if agy_status.connected else 0 }}%; background:var(--indigo);"></div>
+                    </div>
                   </div>
+                </div>
+                <div style="font-size:11px; color:var(--muted); margin-top:5px;">
+                  {{ agy_status.models|length }} modèles disponibles · {{ agy_status.quota.calls_5h }} appels Clipoa
                 </div>
               </div>
 
@@ -1281,7 +1330,11 @@
                 <span style="font-size:11.5px; color:var(--muted);">Scripts, 3D Blender & Aide IA</span>
                 <div style="display:flex; gap:5px;">
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">{{ 'Reconnecter' if agy_status.connected else 'Connecter' }}</button>
+                  {% if agy_status.connected %}
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="switchAntigravityAccount()">Changer</button>
+                  {% else %}
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">Connecter</button>
+                  {% endif %}
                 </div>
               </div>
             </div>
@@ -1324,6 +1377,7 @@
                 <div style="display:flex; gap:5px;">
                   {% if el_status.connected %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshElevenLabsCredits()" title="Actualiser les crédits en direct">↻</button>
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="switchElevenLabsAccount()">Changer</button>
                   <button type="button" class="btn btn-ghost btn-xs" id="el-adv-btn" style="display:none;" onclick="openModal('modal-el-connect')">Configurer</button>
                   {% else %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="openModal('modal-el-connect')">Brancher</button>
@@ -2000,6 +2054,9 @@
     const CLAUDE_MODEL_NAME = '{{ (claude_status.model or "opus")|capitalize }}';
     let STUDIO_PRESETS = {{ presets | tojson }};
     let STYLE_PLUGINS = {{ style_plugins | tojson }};
+    let LEARNED_ESTIMATES = {{ learned_estimates | tojson }};
+    let SCRIPT_TEMPLATES = {{ script_templates | tojson }};
+    let fabScriptViewMode = 'pretty';
     const SHEET_ROLE_LABELS = {
       personnages: 'Personnages',
       decors: 'Décors',
@@ -2248,23 +2305,160 @@
       updateCreateCTA();
     }
 
-    function computeScaledPluginMetrics(pl, durSec = 60) {
+    function computeScaledPluginMetrics(pl, durSec = 60, engOverride = null) {
       const scale = Math.max(0.4, Math.min(3.0, (durSec || 60) / 60));
-      const baseIn = pl.est_input_tokens || 1200;
-      const baseOut = pl.est_output_tokens || 1100;
-      const outTok = Math.round(baseOut * (0.4 + 0.6 * scale));
-      const totalTok = baseIn + outTok;
-      const tokLbl = totalTok >= 1000
-        ? `~${(totalTok / 1000).toFixed(1).replace('.', ',')}k tokens`
-        : `~${totalTok} tokens`;
-      const baseTime = pl.est_time_sec || 60;
-      const timeSec = Math.round(baseTime * (0.45 + 0.55 * scale));
-      const timeLbl = (durSec === 60 && pl.est_time_label) ? pl.est_time_label : ('~' + formatDurShort(timeSec));
-      const baseTotal = Math.max(1, baseIn + baseOut);
-      const ratio = totalTok / baseTotal;
-      const quotaPct = Math.min(100, Math.round((pl.est_claude_quota_pct || 2) * ratio * 10) / 10);
-      const usd = Math.round((pl.est_claude_usd || 0.1) * ratio * 100) / 100;
-      return { totalTok, tokLbl, timeSec, timeLbl, quotaPct, usd };
+      const eng = (engOverride || createEngine || 'claude') === 'antigravity' ? 'antigravity' : 'claude';
+      const rMode = (pl && pl.render_mode === 'blender3d') ? 'blender3d' : 'motion';
+      const baseMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.baselines_60s) || {};
+      const quotaMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.quota_pct_60s) || {};
+      const baseTime = baseMap[`${eng}:${rMode}`] || (rMode === 'blender3d' ? (eng === 'antigravity' ? 115 : 135) : (eng === 'antigravity' ? 42 : 55));
+      const timeSec = Math.max(12, Math.round(baseTime * (0.45 + 0.55 * scale)));
+      const timeLbl = '~' + formatDurShort(timeSec);
+      const baseQuota = quotaMap[eng] || (eng === 'antigravity' ? 1.1 : 3.2);
+      const quotaPct = Math.min(100, Math.round(baseQuota * (0.5 + 0.5 * scale) * 10) / 10);
+      return { timeSec, timeLbl, quotaPct, eng };
+    }
+
+    function setFabScriptViewMode(mode) {
+      fabScriptViewMode = (mode === 'raw') ? 'raw' : 'pretty';
+      const prettyEl = document.getElementById('fab-review-formatted');
+      const rawEl = document.getElementById('fab-review-text');
+      document.getElementById('fab-view-pretty-btn')?.classList.toggle('actif', fabScriptViewMode === 'pretty');
+      document.getElementById('fab-view-raw-btn')?.classList.toggle('actif', fabScriptViewMode === 'raw');
+      if (fabScriptViewMode === 'pretty') {
+        renderFormattedScript(rawEl ? rawEl.value : '');
+        if (prettyEl) prettyEl.style.display = 'block';
+        if (rawEl) rawEl.style.display = 'none';
+      } else {
+        if (prettyEl) prettyEl.style.display = 'none';
+        if (rawEl) rawEl.style.display = 'block';
+      }
+    }
+
+    function copyInlinePrompt(btnEl) {
+      const txt = btnEl?.dataset?.prompt || '';
+      if (!txt) return;
+      navigator.clipboard?.writeText(txt).then(() => toast('Prompt copié !')).catch(() => toast('Copie impossible'));
+    }
+
+    function renderFormattedScript(mdText) {
+      const box = document.getElementById('fab-review-formatted');
+      if (!box) return;
+      const raw = (mdText || '').trim();
+      if (!raw) {
+        box.innerHTML = '<div style="color:var(--muted); font-size:12px;">Le script s’affichera ici mis en forme…</div>';
+        return;
+      }
+      const lines = raw.split(/\r?\n/);
+      let html = '';
+      let inSection = false;
+      let i = 0;
+
+      const formatCell = (cellText, colHeader) => {
+        let s = escHtml(cellText.trim());
+        s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+        const hLow = (colHeader || '').toLowerCase();
+        if (hLow.includes('temps') || /^\d+:\d+/.test(cellText.trim())) {
+          return `<span class="sf-tc">${s}</span>`;
+        }
+        if (hLow === 'texte' || hLow.includes('réplique')) {
+          return `<span class="sf-spoken">${s}</span>`;
+        }
+        s = s.replace(/\b(MUS-\d+)\b/g, '<span class="sf-badge-mus">$1</span>');
+        s = s.replace(/\b(SFX-\d+)\b/g, '<span class="sf-badge-sfx">$1</span>');
+        if (hLow.includes('prompt') && cellText.trim().length > 8) {
+          return `${s} <button type="button" class="sf-copy-btn" data-prompt="${escHtml(cellText.trim())}" onclick="copyInlinePrompt(this)">Copier</button>`;
+        }
+        return s;
+      };
+
+      while (i < lines.length) {
+        const ln = lines[i].trim();
+        if (!ln) { i++; continue; }
+        if (/^#{1,3}\s+/.test(ln)) {
+          if (inSection) html += '</div>';
+          inSection = true;
+          const titleTxt = ln.replace(/^#{1,3}\s+/, '').trim();
+          html += `<div class="sf-section"><div class="sf-h2">${escHtml(titleTxt)}</div>`;
+          i++;
+          continue;
+        }
+        if (ln.startsWith('|') && ln.endsWith('|')) {
+          const tblLines = [];
+          while (i < lines.length && lines[i].trim().startsWith('|')) {
+            tblLines.push(lines[i].trim());
+            i++;
+          }
+          if (tblLines.length >= 2) {
+            const parseRow = r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+            const headers = parseRow(tblLines[0]);
+            const bodyRows = tblLines.slice(1).filter(r => !/^\|[\s:\-|]+\|$/.test(r));
+            html += '<div class="sf-table-wrap"><table class="sf-table"><thead><tr>';
+            headers.forEach(h => { html += `<th>${escHtml(h)}</th>`; });
+            html += '</tr></thead><tbody>';
+            bodyRows.forEach(r => {
+              const cells = parseRow(r);
+              html += '<tr>';
+              headers.forEach((h, idx) => {
+                html += `<td>${formatCell(cells[idx] || '', h)}</td>`;
+              });
+              html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            continue;
+          }
+        }
+        let p = escHtml(ln).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        html += `<p class="sf-para">${p}</p>`;
+        i++;
+      }
+      if (inSection) html += '</div>';
+      box.innerHTML = html;
+    }
+
+    function onScriptTemplateChange() {
+      const sel = document.getElementById('fab-template-select');
+      const delBtn = document.getElementById('fab-tpl-del-btn');
+      if (delBtn && sel) {
+        delBtn.style.display = (sel.value && sel.value !== 'default') ? 'inline-flex' : 'none';
+      }
+    }
+
+    function refreshScriptTemplatesSelect(templates, selectId = null) {
+      SCRIPT_TEMPLATES = templates || SCRIPT_TEMPLATES;
+      const sel = document.getElementById('fab-template-select');
+      if (!sel) return;
+      const cur = selectId || sel.value || 'default';
+      sel.innerHTML = SCRIPT_TEMPLATES.map(t =>
+        `<option value="${escHtml(t.id)}" ${t.id === cur ? 'selected' : ''}>${escHtml(t.name)}${t.is_default ? ' (Par défaut)' : ' (Perso)'}</option>`
+      ).join('');
+      onScriptTemplateChange();
+    }
+
+    async function uploadCustomScriptTemplate(inputEl) {
+      const file = inputEl?.files?.[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append('file', file);
+      const customName = val('fab-tpl-name') || file.name.replace(/\.(md|txt|markdown)$/i, '');
+      fd.append('name', customName);
+      const res = await apiJson('/api/script-templates', { method: 'POST', body: fd });
+      inputEl.value = '';
+      if (res.error) return toast(res.error);
+      const nameInp = document.getElementById('fab-tpl-name');
+      if (nameInp) nameInp.value = '';
+      refreshScriptTemplatesSelect(res.templates, res.template?.id);
+      toast(`✓ Template « ${res.template?.name || customName} » importé !`);
+    }
+
+    async function deleteSelectedScriptTemplate() {
+      const sel = document.getElementById('fab-template-select');
+      if (!sel || !sel.value || sel.value === 'default') return;
+      const res = await apiJson('/api/script-templates/' + encodeURIComponent(sel.value), { method: 'DELETE' });
+      if (res.error) return toast(res.error);
+      refreshScriptTemplatesSelect(res.templates, 'default');
+      toast('Template supprimé.');
     }
 
     function setFabInputMode(mode) {
@@ -2359,6 +2553,7 @@
             current_script,
             instruction,
             plugin_id: activePluginId || '',
+            template_id: val('fab-template-select') || 'default',
             engine: eng,
             model: mdl,
           }),
@@ -2374,6 +2569,7 @@
         const ref = document.getElementById('fab-refine-input');
         if (ref) ref.value = '';
         onFabReviewEdited();
+        setFabScriptViewMode('pretty');
         if (st) st.textContent = `✓ Modifié (${res.engine_label || eng})`;
         toast('Script mis à jour par l’IA !');
       } finally {
@@ -2413,6 +2609,7 @@
       if (box) box.style.display = 'block';
       if (ta) ta.value = '';
       if (ti) ti.value = topic.slice(0, 60);
+      setFabScriptViewMode('pretty');
       setFabGenProgress(5, 'Connexion au modèle IA…');
 
       let fakePct = 5;
@@ -2430,6 +2627,7 @@
           body: JSON.stringify({
             topic,
             plugin_id: activePluginId || '',
+            template_id: val('fab-template-select') || 'default',
             target_duration_sec: targetDurationSec,
             engine: eng,
             model: mdl,
@@ -2444,6 +2642,7 @@
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
         let gotDone = false;
+        let lastPrettyRenderTs = 0;
 
         while (true) {
           const { value, done } = await reader.read();
@@ -2470,6 +2669,13 @@
               if (ta && payload.delta) {
                 ta.value += payload.delta;
                 ta.scrollTop = ta.scrollHeight;
+                const nowMs = Date.now();
+                if (fabScriptViewMode === 'pretty' && (nowMs - lastPrettyRenderTs > 140)) {
+                  lastPrettyRenderTs = nowMs;
+                  renderFormattedScript(ta.value);
+                  const pf = document.getElementById('fab-review-formatted');
+                  if (pf) pf.scrollTop = pf.scrollHeight;
+                }
               }
               setFabGenProgress(payload.pct || 50, payload.stage || 'Rédaction en cours…');
               updateFabReviewMeta();
@@ -2478,6 +2684,7 @@
               clearInterval(pulseTimer);
               if (ti && payload.title) ti.value = payload.title;
               if (ta && payload.template_script) ta.value = payload.template_script;
+              setFabScriptViewMode('pretty');
               setFabGenProgress(100, '✓ Script prêt');
               updateFabReviewMeta();
               if (st) st.textContent = `✓ Généré (${payload.engine_label || eng})`;
@@ -2490,6 +2697,7 @@
           }
         }
         if (!gotDone && ta && ta.value.trim()) {
+          setFabScriptViewMode('pretty');
           setFabGenProgress(100, '✓ Script prêt');
           updateFabReviewMeta();
           updateCreateCTA();
@@ -2524,15 +2732,12 @@
       if (title) title.textContent = pl.name;
       const metricsEl = document.getElementById('ap-metrics');
       if (metricsEl) {
-        const m = computeScaledPluginMetrics(pl, targetDurationSec);
+        const m = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
         const durTag = formatDurShort(targetDurationSec);
-        const usdStr = `~$${m.usd.toFixed(2)}`;
-        const costHtml = createEngine === 'gemini'
-          ? `<span class="plugin-metric-pill free">🪙 ${escHtml(m.tokLbl)} · Gratuit (Gemini)</span>`
-          : `<span class="plugin-metric-pill cost">🪙 ${escHtml(m.tokLbl)} · ~${m.quotaPct}% quota (${usdStr})</span>`;
+        const engLbl = m.eng === 'antigravity' ? 'Antigravity' : 'Claude';
         metricsEl.innerHTML = `
           <span class="plugin-metric-pill">⏱ ${escHtml(m.timeLbl)} (${escHtml(durTag)})</span>
-          ${costHtml}
+          <span class="plugin-metric-pill cost">⚡ ~${m.quotaPct}% quota (${engLbl})</span>
         `;
       }
     }
@@ -2560,7 +2765,8 @@
           const adapted = (pl.render_mode === 'blender3d') ? 'blender3d' : (pl.render_mode === 'broll' ? 'broll' : 'motion');
           selectRenderType(adapted, true);
           syncRenderLocksForStyle(pl, adapted);
-          hintTxt = `${pl.name} · ⏱ ${pl.est_time_label || '~1 min'} · 🪙 ${pl.est_tokens_label || '~2k tokens'}`;
+          const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
+          hintTxt = `${pl.name} · ⏱ ${mHint.timeLbl}`;
         }
       } else {
         activePluginId = '';
@@ -2648,6 +2854,7 @@
       if (claudeRow) claudeRow.style.display = createEngine === 'claude' ? 'flex' : 'none';
       const agyRow = document.getElementById('agy-model-row');
       if (agyRow) agyRow.style.display = createEngine === 'antigravity' ? 'flex' : 'none';
+      renderStylePlaquesStrip();
       renderActivePluginBar();
       updateCreateCTA();
     }
@@ -2655,6 +2862,24 @@
     async function startAntigravityLogin() {
       const res = await apiJson('/api/antigravity/login', { method: 'POST' });
       toast(res.message || res.error || 'Terminal Antigravity ouvert');
+    }
+
+    async function switchAntigravityAccount() {
+      const res = await apiJson('/api/antigravity/switch', { method: 'POST' });
+      toast(res.message || res.error || 'Changement de compte Antigravity ouvert dans le Terminal');
+    }
+
+    async function switchElevenLabsAccount() {
+      const res = await apiJson('/api/elevenlabs/disconnect', { method: 'POST' });
+      if (res.error) return toast(res.error);
+      const keyInp = document.getElementById('el-api-key');
+      if (keyInp) keyInp.value = '';
+      const voiceInp = document.getElementById('el-voice-id');
+      if (voiceInp) voiceInp.value = '';
+      await refreshElevenLabsCredits(true);
+      openModal('modal-el-connect');
+      setTimeout(() => document.getElementById('el-api-key')?.focus(), 120);
+      toast('Ancien compte débranché — colle ta nouvelle clé ElevenLabs !');
     }
 
     async function saveAntigravityModel(mid) {
@@ -2666,8 +2891,8 @@
       });
     }
 
-    async function refreshElevenLabsCredits() {
-      toast('Actualisation des crédits ElevenLabs…');
+    async function refreshElevenLabsCredits(silent = false) {
+      if (!silent) toast('Actualisation des crédits ElevenLabs…');
       const st = await apiJson('/api/elevenlabs/status');
       const stEl = document.getElementById('reg-el-status');
       if (stEl) {
@@ -2675,20 +2900,30 @@
         stEl.style.color = st.connected ? 'var(--ok)' : 'var(--muted)';
       }
       const txtEl = document.getElementById('reg-el-credits-text');
+      const remNum = Number(st.remaining_chars || 0).toLocaleString('fr-FR');
+      const limNum = Number(st.character_limit || 0).toLocaleString('fr-FR');
       if (txtEl) {
         if (st.connected && st.character_limit) {
-          const rem = Number(st.remaining_chars || 0).toLocaleString('fr-FR');
-          const lim = Number(st.character_limit || 0).toLocaleString('fr-FR');
-          txtEl.innerHTML = `<b style="color:var(--ink);">${rem}</b> / ${lim} crédits restants (~${st.est_videos_left || 0} shorts)`;
+          txtEl.innerHTML = `<b style="color:var(--ink);">${remNum}</b> / ${limNum} crédits restants (~${st.est_videos_left || 0} shorts)`;
         } else {
-          txtEl.textContent = st.message || 'ElevenLabs non branché';
+          txtEl.textContent = st.message || 'Non connecté';
         }
       }
       const bar = document.getElementById('reg-el-credits-bar');
-      if (bar && st.character_limit) {
-        bar.style.width = `${Math.max(0, Math.min(100, 100 - (st.used_pct || 0))).toFixed(1)}%`;
+      if (bar) {
+        bar.style.width = (st.connected && st.character_limit)
+          ? `${Math.max(0, Math.min(100, 100 - (st.used_pct || 0))).toFixed(1)}%`
+          : '0%';
       }
-      toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
+      const topElDot = document.getElementById('top-el-dot');
+      if (topElDot) topElDot.className = 'dot ' + (st.connected ? 'ok' : 'warn');
+      const topElTxt = document.getElementById('top-el-text');
+      if (topElTxt) {
+        topElTxt.textContent = (st.connected && st.character_limit)
+          ? `ElevenLabs · ${remNum} crédits`
+          : (st.connected ? 'ElevenLabs · Branché' : 'ElevenLabs · Non branché');
+      }
+      if (!silent) toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
     }
 
     async function refreshAntigravityStatus(probe = true) {
@@ -2705,17 +2940,21 @@
       }
       const aq = st.quota || {};
       const remPct = aq.remaining_pct ?? 100;
-      const tokK = Math.floor((aq.tokens_left_5h ?? 250000) / 1000);
+      const rem7d = aq.remaining_pct_7d ?? 100;
       const sDot = document.getElementById('side-agy-dot');
       if (sDot) sDot.className = 'dot ' + (ok ? 'ok' : 'warn');
       const sPct = document.getElementById('side-agy-pct');
-      if (sPct) sPct.textContent = ok ? `${remPct}% · ${tokK}k tok` : 'Off';
+      if (sPct) sPct.textContent = ok ? `${remPct}%` : 'Off';
       const sBar = document.getElementById('side-agy-bar');
       if (sBar) sBar.style.width = `${ok ? remPct : 0}%`;
       const rRight = document.getElementById('reg-agy-quota-right');
-      if (rRight) rRight.textContent = ok ? `${remPct}% (~${tokK}k tok)` : 'Non connecté';
+      if (rRight) rRight.textContent = ok ? `${remPct}%` : '—';
       const rBar = document.getElementById('reg-agy-quota-bar');
       if (rBar) rBar.style.width = `${ok ? remPct : 0}%`;
+      const r7d = document.getElementById('reg-agy-quota-7d-right');
+      if (r7d) r7d.textContent = ok ? `${rem7d}%` : '—';
+      const r7dBar = document.getElementById('reg-agy-quota-7d-bar');
+      if (r7dBar) r7dBar.style.width = `${ok ? rem7d : 0}%`;
       if (Array.isArray(st.models) && st.models.length) {
         const sel = document.getElementById('agy-model');
         if (sel) {
@@ -2968,11 +3207,6 @@
         const capModel = model.charAt(0).toUpperCase() + model.slice(1);
         const pct = q.remaining_pct ?? 100;
 
-        const topTxt = document.getElementById('top-claude-text');
-        if (topTxt) topTxt.textContent = `${capModel} · ${pct}%`;
-        const topDot = document.getElementById('top-claude-dot');
-        if (topDot) topDot.className = 'dot ' + (st.connected ? 'ok' : 'warn');
-
         const sPct = document.getElementById('side-claude-pct');
         if (sPct) sPct.textContent = `${pct}%`;
         const sBar = document.getElementById('side-claude-bar');
@@ -2980,18 +3214,21 @@
         const sDot = document.getElementById('side-claude-dot');
         if (sDot) sDot.className = 'dot ' + (st.connected ? 'ok' : 'warn');
 
-        const rl = document.getElementById('reg-quota-left');
-        if (rl) rl.textContent = `Quota réel Anthropic (5h)${q.resets_at ? ' · reset à ' + q.resets_at : ''}`;
+        const pct7d = (q.seven_day_remaining_pct !== undefined && q.seven_day_remaining_pct !== null)
+          ? q.seven_day_remaining_pct
+          : 100;
         const rr = document.getElementById('reg-quota-right');
-        if (rr) rr.textContent = `${pct}% restant (~${q.est_videos_left ?? 0} vidéos)`;
+        if (rr) rr.textContent = `${pct}%`;
         const rb = document.getElementById('reg-quota-bar');
         if (rb) rb.style.width = `${pct}%`;
+        const r7 = document.getElementById('reg-quota-7d-right');
+        if (r7) r7.textContent = `${pct7d}%`;
+        const r7b = document.getElementById('reg-quota-7d-bar');
+        if (r7b) r7b.style.width = `${pct7d}%`;
         const rs = document.getElementById('reg-quota-sub');
         if (rs) {
-          const w7 = (q.seven_day_remaining_pct !== undefined && q.seven_day_remaining_pct !== null)
-            ? `Fenêtre 7 jours : ${q.seven_day_remaining_pct}% restant · `
-            : '';
-          rs.textContent = `${w7}~${q.est_pct_per_video ?? 8}% / vidéo · ${q.calls_5h ?? 0} appels Clipoa`;
+          const rst = q.resets_at ? `Reset 5h : ${q.resets_at} · ` : '';
+          rs.textContent = `${rst}${q.calls_5h ?? 0} appels Clipoa`;
         }
       } catch (e) {}
     }
@@ -3172,11 +3409,11 @@
       const pluginsHtml = STYLE_PLUGINS.map(pl => {
         const key = 'plugin:' + pl.id;
         const coverAttr = pl.cover_url ? `style="background-image:url('${escHtml(pl.cover_url)}');"` : '';
-        const tokShort = String(pl.est_tokens_label || '~2k tokens').replace(' tokens', ' tok');
+        const mPl = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
         return `<button type="button" class="style-plaque ${selectedStylePlaque === key ? 'actif' : ''}" data-splaque="${escHtml(key)}" data-plugin-id="${escHtml(pl.id)}" onclick="selectStylePlaque('${escHtml(key)}', this)">
           <div class="sp-art ${escHtml(pl.gradient_css || 'sp-plug-custom')} ${pl.cover_url ? 'has-cover' : ''}" ${coverAttr}>
             ${pl.cover_url ? '' : `<div style="font-size:26px; margin:auto 0;">${escHtml(pl.icon || '🧩')}</div>`}
-            <div class="sp-meta-strip">⏱ ${escHtml(pl.est_time_label || '~1 min')} · 🪙 ${escHtml(tokShort)}</div>
+            <div class="sp-meta-strip">⏱ ${escHtml(mPl.timeLbl)}</div>
           </div>
           <span class="sp-name">${escHtml(pl.name)}</span>
         </button>`;
@@ -3639,6 +3876,8 @@
       const theme = val('fab-theme') || 'dark_luxury';
       const sub = val('fab-sub') || 'submagic_yellow';
       const retention_boost = true;
+      const enable_music = !!document.getElementById('fab-enable-music')?.checked;
+      const enable_sfx = !!document.getElementById('fab-enable-sfx')?.checked;
       const topic = isCustomScript ? (customTitle || mainText.slice(0, 60) || custom_script.slice(0, 60)) : mainText;
 
       // Détermine le moteur réel + modèle choisi (Claude Opus 5.5 Medium via agy ou Claude CLI, vs Antigravity Neon Medium)
@@ -3689,6 +3928,8 @@
         fd.append('voice', voice);
         fd.append('theme', theme); fd.append('subtitle_style', sub);
         fd.append('retention_boost', 'true');
+        fd.append('enable_music', enable_music ? 'true' : 'false');
+        fd.append('enable_sfx', enable_sfx ? 'true' : 'false');
         fd.append('bg_file', bgFile.files[0]);
         data = await apiJson('/api/make', { method: 'POST', body: fd });
       } else {
@@ -3704,7 +3945,9 @@
             engine_model: reqModel,
             voice, theme, subtitle_style: sub,
             use_blender_3d: selectedRenderType === 'blender3d',
-            retention_boost
+            retention_boost,
+            enable_music,
+            enable_sfx
           })
         });
       }

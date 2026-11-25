@@ -16,6 +16,8 @@ from core.postiz_client import PostizClient
 from core.checkpoints import load_checkpoint, save_checkpoint, clear_checkpoint
 from core.style_plugins import StylePluginStore, duration_to_word_range
 from core.antigravity_bridge import AntigravityBridge
+from core.sound_designer import SoundDesigner, get_wav_duration
+from core.timing_tracker import record_actual_timing
 from agents.team import LeCloneur, LeScenariste, LeStratege, LeControleur
 from agents.prompts import PROMPT_SCENARISTE
 from config import STORAGE_DIR, DEFAULT_THEME, DEFAULT_SUBTITLE_STYLE
@@ -159,14 +161,18 @@ class ShortCrewPipeline:
         target_duration_sec: int = 60,
         engine: str = "claude",
         engine_model: Optional[str] = None,
+        enable_music: bool = True,
+        enable_sfx: bool = True,
+        template_shots: Optional[List[Dict[str, Any]]] = None,
         progress_cb: Optional[Callable[[int, str], None]] = None,
         resume_session_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Creates a short directly from an idea OR a user's own script ('La Fabrique'),
         optionally applying a Style Plugin's Art Direction (DA) via Claude or Antigravity,
-        with AI-generated Blender 3D scenes and checkpoint resume support.
+        with multi-shot Blender 3D scenes, ambient music/SFX, and self-learning timings.
         """
+        t_start_total = time.time()
         def _prog(pct: int, msg: str):
             print(msg)
             if progress_cb:
@@ -269,48 +275,75 @@ class ShortCrewPipeline:
 
         if "video_path" not in cp or not os.path.exists(cp["video_path"]):
             effective_bg = background_video
+            audio_dur_sec = get_wav_duration(voice_res["audio_wav"])
+            all_shots = template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or [])
+
+            # Mixage musique d'ambiance + effets sonores (SFX) si cochés
+            final_audio_wav = voice_res["audio_wav"]
+            if enable_music or enable_sfx:
+                _prog(50, "🎵 [2/4] Création musique d'ambiance & effets sonores (SFX)...")
+                mixed_wav = str(Path(voice_res["audio_wav"]).with_name(f"{session_id}_mixed.wav"))
+                final_audio_wav = SoundDesigner.mix_ambient_and_sfx(
+                    voice_wav=voice_res["audio_wav"],
+                    output_wav=mixed_wav,
+                    spoken_script=script.get("full_spoken_script", ""),
+                    title=script.get("title") or topic or "",
+                    shots=all_shots,
+                    enable_music=enable_music,
+                    enable_sfx=enable_sfx,
+                )
+
             if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-                _prog(55, f"🧊 [3/4] {eng_name} génère la scène 3D Blender...")
+                _prog(56, f"🧊 [3/4] Rendu multi-plans 3D Blender ({max(8, len(all_shots))} plans · {int(round(audio_dur_sec))}s)...")
                 try:
                     out_dir = Path(voice_res["audio_wav"]).parent
-                    py_script = str(out_dir / "scene_3d.py")
-                    bg_out = str(out_dir / "blender_bg.mp4")
-                    frames = max(120, min(180, int(min(6, target_duration_sec or 60) * 30)))
-                    ai_ok = AntigravityBridge.generate_blender_script(
-                        topic=topic or script.get("title") or "Short 3D",
-                        spoken_script=script.get("full_spoken_script", ""),
-                        script_save_path=py_script,
-                        da_context=da_ctx,
-                        visual_storyboard=script.get("visual_storyboard"),
-                        frames=frames,
-                        engine=active_engine,
-                        model=engine_model,
-                    )
+                    py_script = str(out_dir / f"{session_id}_scene_3d.py")
+                    bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
+                    total_frames = max(180, int(round(audio_dur_sec * 24)))
                     rendered = False
-                    if ai_ok:
-                        _prog(62, f"🧊 [3/4] Rendu 3D Blender ({frames} frames)...")
-                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=frames)
-                    if not rendered:
-                        _prog(60, f"🧊 [3/4] Rendu scène 3D Blender ({plugin['name'] if plugin else '3D'})...")
-                        if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):
+                    # Pour Roblox 3D & 2D×Monde 3D : moteur multi-plans 3D couvrant 100% de la durée de la vidéo !
+                    if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):
+                        BlenderEngine.create_roblox_3d_scene(
+                            title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
+                            script_save_path=py_script,
+                            spoken_script=script.get("full_spoken_script", ""),
+                            frames=total_frames,
+                            shots=all_shots,
+                            audio_duration_sec=audio_dur_sec,
+                        )
+                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
+                    else:
+                        ai_ok = AntigravityBridge.generate_blender_script(
+                            topic=topic or script.get("title") or "Short 3D",
+                            spoken_script=script.get("full_spoken_script", ""),
+                            script_save_path=py_script,
+                            da_context=da_ctx,
+                            visual_storyboard=all_shots,
+                            frames=total_frames,
+                            engine=active_engine,
+                            model=engine_model,
+                        )
+                        if ai_ok:
+                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
+                        if not rendered:
                             BlenderEngine.create_roblox_3d_scene(
                                 title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
                                 script_save_path=py_script,
                                 spoken_script=script.get("full_spoken_script", ""),
-                                frames=frames,
+                                frames=total_frames,
+                                shots=all_shots,
+                                audio_duration_sec=audio_dur_sec,
                             )
-                        else:
-                            BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
-                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=frames)
+                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
                     if rendered:
                         effective_bg = bg_out
                 except Exception as e:
                     print(f"⚠️ Rendu Blender ignoré ({e}).")
 
-            _prog(68, "🎬 [3/4] Rendu vertical 1080x1920 + sous-titres Submagic...")
+            _prog(74, "🎬 [3/4] Montage final 1080x1920 + sous-titres...")
             cp["video_path"] = VideoComposer.compose_short(
                 output_name=session_id,
-                audio_path=voice_res["audio_wav"],
+                audio_path=final_audio_wav,
                 script_data=script,
                 transcript_data=voice_transcript,
                 background_video=effective_bg,
@@ -323,6 +356,7 @@ class ShortCrewPipeline:
 
         _prog(90, "🔍 [4/4] Audit qualité par Le Contrôle...")
         audit = QualityController.audit_production(video_path, script)
+        record_actual_timing(active_engine, "blender3d" if use_blender_3d else "motion", time.time() - t_start_total, target_duration_sec)
 
         render_type = "plugin_da" if plugin else ("custom_script" if is_custom_script else "direct")
         result = {
