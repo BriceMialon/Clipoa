@@ -17,6 +17,7 @@ Design:
 import base64
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import threading
@@ -24,6 +25,7 @@ from pathlib import Path
 from typing import Any, FrozenSet
 
 ENC_PREFIX = "enc:v1:"
+_logger = logging.getLogger("ClipoaVault")
 
 SENSITIVE_FIELD_NAMES: FrozenSet[str] = frozenset({
     "access_token",
@@ -176,7 +178,13 @@ def decrypt_sensitive_fields(obj: Any) -> Any:
         out = {}
         for k, v in obj.items():
             if isinstance(k, str) and k.lower() in SENSITIVE_FIELD_NAMES and isinstance(v, str) and v.startswith(ENC_PREFIX):
-                out[k] = decrypt_secret(v)
+                plain = decrypt_secret(v)
+                if not plain:
+                    # Clé du coffre différente (autre Mac, CLIPOA_VAULT_KEY changée) : on garde la valeur chiffrée
+                    # telle quelle pour qu'une sauvegarde ne l'efface pas ; elle redevient lisible si la clé revient.
+                    _logger.warning("Coffre : un secret (%s) ne se déchiffre pas avec la clé actuelle, il est conservé chiffré.", k)
+                    plain = v
+                out[k] = plain
             else:
                 out[k] = decrypt_sensitive_fields(v)
         return out
