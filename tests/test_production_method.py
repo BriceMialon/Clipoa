@@ -140,7 +140,7 @@ class TestStylesProduction(unittest.TestCase):
         from core.style_plugins import sanitize_production, StylePluginStore
         clean = sanitize_production({"shot_max_s": "99", "caption_mode": "ONE_WORD", "keyword_colors": "false", "evil": 1, "mood": "x"})
         self.assertEqual(clean, {"shot_max_s": 12.0, "caption_mode": "one_word", "keyword_colors": False})
-        for pid, key, val in (("fete_en_folie", "caption_mode", "one_word"), ("2d_monde_3d", "character_style", "flat2d"), ("roblox_3d", "shot_max_s", 3.0)):
+        for pid, key, val in (("fete_en_folie", "caption_mode", "one_word"), ("2d_monde_3d", "character_style", "flat2d"), ("roblox_3d", "shot_max_s", 3.5)):
             pl = StylePluginStore.get_plugin(pid, include_script_body=False)
             if pl:
                 self.assertEqual(pl["production"][key], val)
@@ -369,7 +369,106 @@ class TestSceneDesignerAndKit(unittest.TestCase):
         ex = StylePluginStore.get_plugin("explainer_2d", include_script_body=False)
         self.assertIsNotNone(ex)
         self.assertEqual(ex["production"]["visual_style"], "explainer2d")
-        self.assertEqual(ex["production"]["caption_mode"], "none")
+        # réf. @rosoai : sous-titres par groupes + carton-titre crème
+        self.assertEqual(ex["production"]["caption_mode"], "chunk")
+        self.assertEqual(ex["production"].get("note_look"), "card")
+
+    def test_drawn_styles_use_2d_characters_and_textures(self):
+        with tempfile.TemporaryDirectory() as td:
+            spec = {"locations": [{"id": "a", "type": "village"}], "characters": [{"id": "hero", "hair": "#553322", "accessory": "glasses"}],
+                    "shots": [{"location": "a", "focus": "hero", "camera": "close", "emotion": "happy", "show": {"kind": "text", "text": "INTERDIT", "color": "#FF0000"}}]}
+            for style in ("paper2d", "explainer2d"):
+                path = os.path.join(td, style + ".py")
+                BlenderEngine.create_scene_from_spec(spec, [{"start": 0.0, "end": 3.0}], path, 3.0, style=style)
+                code = Path(path).read_text(encoding="utf-8")
+                compile(code, path, "exec")
+                self.assertIn("def make_char_2d", code)
+                self.assertIn("def build_face_2d", code)
+                self.assertIn("def show_item", code)
+                self.assertIn("INTERDIT", code)
+            paper = Path(os.path.join(td, "paper2d.py")).read_text(encoding="utf-8")
+            self.assertIn("p2_apply_textures", paper)
+            self.assertIn("LOCKED_TRACK", paper)
+            roblox = os.path.join(td, "roblox.py")
+            BlenderEngine.create_scene_from_spec(spec, [{"start": 0.0, "end": 3.0}], roblox, 3.0, style="roblox")
+            self.assertNotIn("def make_char_2d", Path(roblox).read_text(encoding="utf-8"))
+
+    def test_style_preview_reference_and_example(self):
+        import json as _json
+        from unittest import mock
+        import core.style_plugins as sp
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td)
+            refs = tdp / "style_refs"
+            refs.mkdir()
+            with mock.patch.object(sp, "PLUGINS_DIR", tdp / "plugins"), mock.patch.object(sp, "PLUGINS_INDEX_FILE", tdp / "plugins" / "plugins.json"), \
+                    mock.patch.object(sp, "REMOVED_STARTERS_FILE", tdp / "plugins" / "removed.json"), mock.patch.object(sp, "STYLE_REFS_DIR", refs):
+                store = sp.StylePluginStore
+                self.assertEqual(store.style_preview("roblox_3d", tdp / "renders")["kind"], "none")
+                # un lien seul n'est jamais montré (pas de renvoi vers le site d'origine)
+                store.update_plugin("roblox_3d", {"reference_url": "https://www.tiktok.com/@x/video/7708402726627052832"})
+                self.assertEqual(store.style_preview("roblox_3d", tdp / "renders")["kind"], "none")
+                # un rendu fait dans ce style devient l'exemple
+                rd = tdp / "renders" / "make_1"
+                rd.mkdir(parents=True)
+                (rd / "final_short.mp4").write_bytes(b"x")
+                (rd / "metadata.json").write_text(_json.dumps({"plugin_id": "roblox_3d"}), encoding="utf-8")
+                pv = store.style_preview("roblox_3d", tdp / "renders")
+                self.assertEqual((pv["kind"], pv["url"]), ("video", "/stream/make_1"))
+                self.assertNotIn("source_url", pv)
+                # la vidéo livrée avec Clipoa passe avant tout
+                (refs / "roblox_3d.mp4").write_bytes(b"0")
+                pv = store.style_preview("roblox_3d", tdp / "renders")
+                self.assertEqual(pv["url"], "/api/plugins/roblox_3d/reference-video")
+                # les rendus d'avant la refonte du style ne servent pas d'exemple
+                rd2 = tdp / "renders" / "make_2"
+                rd2.mkdir()
+                (rd2 / "final_short.mp4").write_bytes(b"x")
+                (rd2 / "metadata.json").write_text(_json.dumps({"plugin_id": "2d_monde_3d"}), encoding="utf-8")
+                os.utime(rd2 / "final_short.mp4", (1000, 1000))
+                self.assertEqual(store.style_preview("2d_monde_3d", tdp / "renders")["kind"], "none")
+        import app as clipoa_app
+        c = clipoa_app.app.test_client()
+        self.assertEqual(c.post("/api/plugins/roblox_3d/reference-video", json={"url": "https://e.com"}).status_code, 405)
+        html = c.get("/").get_data(as_text=True)
+        self.assertNotIn('data-splaque="3d"', html)
+        self.assertNotIn('data-splaque="broll"', html)
+        self.assertNotIn("ap-ref-file", html)
+
+    def test_starter_updates_only_replace_untouched_values(self):
+        import json as _json
+        from unittest import mock
+        import core.style_plugins as sp
+        with tempfile.TemporaryDirectory() as td:
+            tdp = Path(td) / "plugins"
+            tdp.mkdir()
+            idx = tdp / "plugins.json"
+            idx.write_text(_json.dumps([
+                {"id": "roblox_3d", "name": "3D Roblox", "subtitle_style": "submagic_yellow", "da_prompt": "# STYLE BIBLE — « In this town / Dans ma ville » ancien"},
+                {"id": "2d_monde_3d", "name": "2D", "subtitle_style": "neon_green"},
+            ]), encoding="utf-8")
+            with mock.patch.object(sp, "PLUGINS_DIR", tdp), mock.patch.object(sp, "PLUGINS_INDEX_FILE", idx), mock.patch.object(sp, "REMOVED_STARTERS_FILE", tdp / "r.json"):
+                rob = sp.StylePluginStore.get_plugin("roblox_3d", include_script_body=False)
+                self.assertEqual(rob["subtitle_style"], "clean_white")
+                self.assertIn("Conte en blocs", rob["da_prompt"])
+                self.assertEqual(sp.StylePluginStore.get_plugin("2d_monde_3d", include_script_body=False)["subtitle_style"], "neon_green")
+
+    def test_two_words_captions_and_new_subtitle_styles(self):
+        from core.video_composer import SUBTITLE_STYLES
+        self.assertIn("clean_white", SUBTITLE_STYLES)
+        self.assertIn("warm_cream", SUBTITLE_STYLES)
+        words = [{"word": w, "start": i * 0.4, "end": i * 0.4 + 0.3} for i, w in enumerate("un deux trois quatre cinq".split())]
+        chunks = VideoComposer._chunk_words(words, max_words=2)
+        self.assertTrue(all(len(c) <= 2 for c in chunks))
+        with tempfile.TemporaryDirectory() as td:
+            ass = os.path.join(td, "s.ass")
+            VideoComposer.generate_ass_subtitles(words, ass, caption_mode="two_words", notes=[{"text": "1770", "start": 0.0, "end": 1.0}],
+                                                 note_color="#3B2A20", note_look="card")
+            content = Path(ass).read_text(encoding="utf-8")
+            self.assertIn(",NoteCard,", content)
+        plan = pm.build_plan({"full_spoken_script": SCRIPT}, words, 2.0, [], style_overrides={"caption_mode": "two_words", "note_look": "card"})
+        self.assertEqual(plan["captions"]["mode"], "two_words")
+        self.assertEqual(plan["captions"]["note_look"], "card")
 
     def test_caption_none_keeps_only_labels(self):
         with tempfile.TemporaryDirectory() as td:
@@ -409,7 +508,9 @@ class TestStyleFromReference(unittest.TestCase):
                 "vision": True, "words_per_s": 2.6, "source_url": "https://example.com/v"}
         pid = None
         try:
-            with patch.object(style_analyzer, "analyze_reference", return_value=fake):
+            from core import custom_engine
+            with patch.object(style_analyzer, "analyze_reference", return_value=fake), \
+                    patch.object(custom_engine, "design_style_engine", side_effect=RuntimeError("hors ligne")):
                 made = style_analyzer.create_style_from_reference("https://example.com/v")
             pid = made["plugin"]["id"]
             pl = StylePluginStore.get_plugin(pid, include_script_body=False)
@@ -421,12 +522,72 @@ class TestStyleFromReference(unittest.TestCase):
             if pid:
                 StylePluginStore.delete_plugin(pid)
 
+    def test_clone_uses_custom_engine_when_written(self):
+        from unittest.mock import patch
+        from core import style_analyzer, custom_engine
+        from core.style_plugins import StylePluginStore
+        fake = {"analysis": {"name": "Toon Test Unique", "icon": "🎈", "tagline": "t", "renderer_scores": {"explainer2d": 9, "paper2d": 3},
+                             "tool_guess": "Blender toon", "da_prompt": "# DA\ncartoon", "narrative_rules": "1. accroche",
+                             "palette": {"sky": "#4DA3FF"}, "time_of_day": "day", "production": {}},
+                "stats": {"duration_s": 30, "shots": 8, "avg_shot_s": 3.0}, "sheets": [], "cover": "", "meta": {"uploader": "x"},
+                "vision": True, "words_per_s": 2.6, "source_url": "https://example.com/v2", "words": []}
+        pid = None
+        try:
+            with patch.object(style_analyzer, "analyze_reference", return_value=fake), \
+                    patch.object(custom_engine, "design_style_engine", return_value={"tool": "html", "why": "toon"}):
+                made = style_analyzer.create_style_from_reference("https://example.com/v2", hidden=True)
+            pid = made["plugin"]["id"]
+            raw = StylePluginStore.get_plugin(pid, include_script_body=False)
+            self.assertEqual(raw["production"]["visual_style"], "custom")
+            self.assertEqual(raw["production"]["fallback_style"], "explainer2d")
+            self.assertEqual(raw["production"]["palette"], {"sky": "#4DA3FF"})
+            self.assertNotIn(pid, [p["id"] for p in StylePluginStore.list_plugins()])
+        finally:
+            if pid:
+                StylePluginStore.delete_plugin(pid)
+
     def test_make_like_validation(self):
         import app as clipoa_app
         c = clipoa_app.app.test_client()
         self.assertEqual(c.post("/api/make-like", json={"topic": "x"}).status_code, 400)
         self.assertEqual(c.post("/api/make-like", json={"url": "https://youtube.com/shorts/abc"}).status_code, 400)
-        self.assertEqual(c.post("/api/plugins/from-reference", json={}).status_code, 400)
+        self.assertEqual(c.post("/api/plugins/from-reference", json={"url": "https://youtube.com/shorts/abc"}).status_code, 403)
         html = c.get("/").get_data(as_text=True)
         self.assertIn('id="fab-ref-url"', html)
-        self.assertIn("createStyleFromReference", html)
+        self.assertNotIn('data-splaque="new_plugin"', html)
+        self.assertIn("syncRefUrlLock", html)
+
+
+class TestCloneAccuracy(unittest.TestCase):
+    def test_renderer_picked_from_scores(self):
+        from core.style_analyzer import pick_renderer
+        self.assertEqual(pick_renderer({"renderer": "paper2d", "renderer_scores": {"paper2d": 4, "explainer2d": 8, "roblox": 1}}), "explainer2d")
+        self.assertEqual(pick_renderer({"renderer": "roblox"}), "roblox")
+        self.assertEqual(pick_renderer({}), "explainer2d")
+
+    def test_production_keeps_palette_light_and_hud(self):
+        from core.style_plugins import sanitize_production
+        out = sanitize_production({"palette": {"sky": "4da3ff", "ground": "#zzzzzz"}, "time_of_day": "day", "hud": "true", "hud_color": "#ffd23f"})
+        self.assertEqual(out["palette"], {"sky": "#4DA3FF"})
+        self.assertEqual((out["time_of_day"], out["hud"], out["hud_color"]), ("day", True, "#FFD23F"))
+
+    def test_hud_timeline_and_ass(self):
+        words = [{"word": w, "start": i * 0.5, "end": i * 0.5 + 0.4} for i, w in enumerate("ils décollent du balcon puis montent très haut".split())]
+        script = {"hud": [{"at_phrase": "ils décollent", "lines": ["ALTITUDE : 5 M"]}, {"at_phrase": "montent très", "lines": ["ALTITUDE : 9 000 M", "VITESSE : MACH 8"]}]}
+        hud = pm.plan_hud(script, 4.0, words)
+        self.assertEqual(len(hud), 2)
+        self.assertEqual(hud[0]["end"], hud[1]["start"])
+        self.assertEqual(hud[1]["end"], 4.0)
+        with tempfile.TemporaryDirectory() as td:
+            ass = os.path.join(td, "s.ass")
+            VideoComposer.generate_ass_subtitles(words, ass, hud=hud, hud_color="#FFD23F")
+            content = Path(ass).read_text(encoding="utf-8")
+            self.assertIn(",Hud,", content)
+            self.assertIn("ALTITUDE : 9 000 M", content)
+
+    def test_shot_show_sanitized(self):
+        from core.scene_designer import _sanitize_show
+        self.assertEqual(_sanitize_show({"kind": "car", "color": "#ff0000"})["kind"], "car")
+        self.assertEqual(_sanitize_show({"kind": "fusée", "text": "décollage"})["text"], "DÉCOLLAGE")
+        self.assertIsNone(_sanitize_show({"kind": "text"}))
+

@@ -128,6 +128,17 @@ class ShortCrewPipeline:
         eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
         py_script = str(out_dir / f"{session_id}_scene_3d.py")
         bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
+        if style == "custom":
+            # style copié d'une vidéo : moteur écrit sur mesure par l'IA (page animée / three.js ou Blender)
+            try:
+                from core import custom_engine
+                return custom_engine.render_with_style_engine(
+                    plugin, session_id, script, words or [], plan, audio_dur_sec, bg_out,
+                    engine=engine, model=engine_model, da_hint=da_ctx, progress=progress,
+                )
+            except Exception as e:
+                style = ((plugin or {}).get("production") or {}).get("fallback_style") or "explainer2d"
+                _p(56, f"⚠️ Moteur sur mesure indisponible ({str(e)[:90]}) — style intégré le plus proche ({style})")
         if style == "cine3d":
             # Qualité Docteur Shark : moteur three.js ciné ; repli automatique sur Blender Roblox si besoin
             try:
@@ -148,6 +159,14 @@ class ShortCrewPipeline:
         try:
             _p(55, f"🎬 [3/4] {eng_lbl} met en scène le décor de ton histoire...")
             spec = design_scene(script, plan, style=style, engine=engine, model=engine_model, words=words, da_hint=da_ctx)
+            # style copié d'une vidéo : ses vraies couleurs et sa lumière priment sur les choix du décorateur
+            prod = (plugin or {}).get("production") or {}
+            if isinstance(prod.get("palette"), dict) and prod["palette"]:
+                spec["palette"] = {**(spec.get("palette") or {}), **prod["palette"]}
+            if prod.get("time_of_day") in ("day", "sunset", "night"):
+                spec["time_of_day"] = prod["time_of_day"]
+                for _loc in spec.get("locations") or []:
+                    _loc["time_of_day"] = None
             try:
                 with open(out_dir / f"{session_id}_scene_spec.json", "w", encoding="utf-8") as f:
                     json.dump(spec, f, indent=2, ensure_ascii=False)
@@ -367,7 +386,7 @@ class ShortCrewPipeline:
                         f"Script exact de l'utilisateur à conserver MOT POUR MOT dans `full_spoken_script` :\n{custom_script}\n\n"
                         f"Titre optionnel : {(custom_title or topic or '').strip()}\n"
                         f"{da_ctx}\n"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), twist_text, caption_keywords, on_screen_notes, social_caption."
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), twist_text, caption_keywords, on_screen_notes, hud, social_caption."
                     )
                 else:
                     _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) écrit ton script (~{dur_info['duration_sec']}s)...")
@@ -377,7 +396,7 @@ class ShortCrewPipeline:
                         f"{('Style demandé : ' + user_style + chr(10)) if user_style else ''}"
                         f"{da_ctx}\n"
                         f"{avoid_titles_block(recent_video_titles())}"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, twist_text, caption_keywords, on_screen_notes, social_caption."
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, twist_text, caption_keywords, on_screen_notes, hud, social_caption."
                     )
                 raw_ag = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=engine_model)
                 parsed_ag = None
@@ -486,6 +505,14 @@ class ShortCrewPipeline:
         _prog(90, "🔍 [4/4] Audit qualité par Le Contrôle...")
         audit = QualityController.audit_production(video_path, script)
         record_actual_timing(active_engine, "blender3d" if use_blender_3d else "motion", time.time() - t_start_total, target_duration_sec)
+        if not resume_session_id:
+            # benchmark par style : temps réel + coût Claude réel de CETTE fabrication
+            try:
+                from core.timing_tracker import record_style_run, style_key
+                record_style_run(style_key((plugin or {}).get("id", ""), copied=bool((plugin or {}).get("hidden"))),
+                                 active_engine, time.time() - t_start_total, target_duration_sec, t_start_total)
+            except Exception:
+                pass
 
         render_type = "plugin_da" if plugin else ("custom_script" if is_custom_script else "direct")
         result = {

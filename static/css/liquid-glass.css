@@ -2128,3 +2128,24 @@ html[data-theme="light"] .code-editor {
   border-radius: 99px;
   transition: width 0.3s ease;
 }
+
+/* ===== Logos des services (fichier officiel dans static/logos, sinon pastille) ===== */
+.brand-logo { display:inline-flex; position:relative; border-radius:7px; overflow:hidden; flex-shrink:0; vertical-align:middle; }
+.brand-logo img { width:100%; height:100%; object-fit:contain; }
+.brand-logo b { display:none; }
+.brand-logo.nologo b { display:flex; align-items:center; justify-content:center; width:100%; height:100%; color:#fff; font-size:0.62em; font-weight:800; font-size:calc(100% * 0.75); }
+
+/* ===== Compte actif en haut à droite ===== */
+.ws-switch { position:relative; }
+.ws-switch .pill-chip { display:inline-flex; align-items:center; gap:8px; }
+.ws-avatar { width:22px; height:22px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+.ws-name { max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+.ws-menu { display:none; position:absolute; right:0; top:calc(100% + 8px); min-width:260px; padding:6px; border-radius:16px; z-index:60;
+  background:var(--glass, rgba(20,20,24,.96)); border:1px solid var(--border); box-shadow:0 16px 40px rgba(0,0,0,.25); backdrop-filter:blur(18px); }
+.ws-menu.open { display:block; }
+.ws-item { display:flex; align-items:center; gap:10px; width:100%; padding:9px 10px; border-radius:12px; background:none; border:0; color:var(--ink); cursor:pointer; text-align:left; }
+.ws-item:hover, .ws-item.actif { background:var(--glass-soft); }
+.ws-item b { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px; }
+.ws-item small { font-size:11px; color:var(--muted); }
+.ws-item > .brand-logo:last-child { margin-left:auto; opacity:.8; }
+.ws-add { color:var(--accent); font-weight:700; justify-content:center; }

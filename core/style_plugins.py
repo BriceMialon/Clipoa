@@ -26,6 +26,12 @@ IMAGE_SHEET_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg"}
 ALLOWED_SCRIPT_EXTS = {".py", ".js", ".ts", ".sh", ".json", ".txt", ".md"}
 
 MAX_SHEET_BYTES = 25 * 1024 * 1024  # 25 MB per model sheet
+REFERENCE_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm"}
+MAX_REFERENCE_VIDEO_BYTES = 300 * 1024 * 1024
+# Rendus faits AVANT cette date (epoch) n'illustrent plus le style (moteur refait) : jamais montrés comme exemple
+STARTER_LOOK_SINCE: Dict[str, float] = {"2d_monde_3d": 1795627000.0, "explainer_2d": 1795627000.0}
+# Vidéos de référence livrées avec Clipoa (choisies par l'éditeur, pas par les utilisateurs) : assets/style_refs/<id>.mp4
+STYLE_REFS_DIR = Path(__file__).resolve().parent.parent / "assets" / "style_refs"
 MAX_SCRIPT_BYTES = 2 * 1024 * 1024  # 2 MB per script
 
 PLUGIN_GRADIENTS = [
@@ -63,14 +69,14 @@ SHEET_ROLES = [
     {"id": "reference", "label": "Aperçu"},
 ]
 
-STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « In this town / Dans ma ville » (Shorts 3D style Roblox)
+STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « 3D Roblox » : Dans ma ville (pop) & Conte en blocs (mélancolie)
 
 > **À l'IA qui lit ce fichier :** tu reçois après ce document un **script oral** (ou une idée). Produis le script / découpage plan par plan, prompts, sous-titres et montage **exactement dans cette direction artistique**.
 > Ordre : §0 choisir la variante → §1 règles d'or → §2–§6 DA → §7 découpage → §8 prompts → §9 montage → §10 checklist.
 
 ## 0. CHOISIR LA VARIANTE (une seule par vidéo)
 - **A — « Roblox pop »** : script drôle, absurde, mème, répétitif, énergique (réf. @synelite1).
-- **B — « Roblox mélancolie »** : script émouvant, deuil, mystère, twist final, mélancolique (réf. @fusedintheblankfr).
+- **B — « Conte en blocs mélancolique »** : script émouvant, deuil, règles étranges, secret, twist final (réf. @fusedintheblankfr). Des personnages tout mignons portent une histoire grave : ton doux, intime, jamais gore. La peur vient des règles et de la révélation ; on finit sur une émotion (larmes, apaisement), pas sur un choc violent. Récit plus long et posé (60 à 140 s).
 
 ## 1. RÈGLES D'OR (communes A et B)
 1. **Personnages = avatars Roblox classiques (R6)** : tête cylindrique arrondie (A) ou cube adouci voxel (B), corps en blocs, bras et jambes rectangulaires, **visage = décalcomanie 2D plate** (2 points noirs pour les yeux, trait de bouche simple). Jamais de doigts, jamais de nez, jamais d'anatomie réaliste.
@@ -89,16 +95,22 @@ STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « In this town / Dans ma ville » 
 
 ## 3. DÉCORS & LUMIÈRE
 - **A — Roblox pop** : banlieue américaine low-poly, rue goudronnée ligne blanche pointillée, maisons pastel, gratte-ciels pastel au loin, ciel bleu vif `#4DA3FF` + nuages cartoon, Party House violette `#6B4FC9` disco (rose `#FF5FA2`, cyan `#3DE0E0`, jaune `#FFE14D`).
-- **B — Roblox mélancolie** : village nordique enneigé, maisons rouge suédois `#9E2F2A` et blanc, sapins low-poly, neige `#E6E8EC`, lac gelé, scène sous la glace (`#0E2A44`, rayons `#BFE3FF`). **Flashback vérité en noir et blanc** (désaturation 100 %, contraste fort).
+- **B — Conte en blocs** : palette **« chaud dedans / froid dehors »**.
+  - Intérieur : papier peint crème rayé `#E9DFC6`, parquet `#8A5232`, plinthes blanches, fauteuil bordeaux `#8E1F2A`, télé, table, lumière chaude `#FFD9A0`.
+  - Extérieur de jour : neige `#F1F3F6`, ciel gris-lilas `#C9C3D3`, sapins `#2F4A3A`, maisons rouge suédois `#9B2C2C` et blanc.
+  - Extérieur de nuit : bleu nuit `#1E2A44`, neige bleutée `#B9C6DE`, lampadaires et fenêtres chauds.
+  - Final : sous la glace `#1F5D7E`, faisceaux de lumière blanche. **Flashback vérité en noir et blanc** (désaturation progressive quand la vérité approche).
+  - Lumière douce de soleil d'hiver, ombres douces au sol, contre-jours dans les portes. Pas de contours dessinés.
 
 ## 4. SOUS-TITRES
 - **A (Pop)** : 1 mot à la fois, Montserrat SemiBold ~52 px, blanc contour noir 2 px, centre écran (~58 % hauteur, y=1110), onomatopées en MAJ.
-- **B (Mélancolie)** : phrase complète 1–2 lignes, Montserrat Bold ~56 px, blanc contour noir 3 px, bas-centre (~70 % hauteur, MarginV 560), ponctuation conservée.
+- **B (Mélancolie)** : groupes de mots coupés par proposition, Montserrat Bold, **blanc** contour noir fin + ombre légère, juste sous le centre, ponctuation conservée. **Aucune couleur sur les mots-clés**, aucun emoji, aucune animation « pop », coupe sèche. Pas de cartons.
 
 ## 5. CAMÉRA, MONTAGE & DÉCOUPAGE
 - Plan d'ouverture survol/drone ou travelling rue. Alternance plan large → plan moyen → gros plan visage décal. Cuts francs (fondu au noir uniquement en fin de B).
 - **A** : rythme mème (1–1,5 s), caméra vlog, fin en boucle.
-- **B** : rythme conte (2–3 s), push-in lents, gros plans détails narratifs, flashback N&B des indices, plan final sous la glace + visage dans l'ombre.
+- **B** : rythme conte (2–4 s, 3 s en moyenne), ouverture aérienne sur le village puis on resserre ; alternance plans larges / moyens / **très gros plans de visages** (tête cube qui remplit l'écran, larme bleue `#8EC9F0` qui coule) sur chaque émotion ; plans de détail sur les objets-règles (télé, miroir, nourriture, porte) ; plans de dos qui suivent un perso qui marche, plongées sur les traces de pas ; push-in lents, coupes franches, **coupe au noir avant le plan final** ; final en contre-plongée vers une lumière puis gros plan apaisé, yeux fermés.
+- **Son B** : voix off au « je », calme, un peu brisée, proche du micro, ~2,8 mots/s avec de vrais silences (0,5–1 s) avant les phrases fortes. Piano / boîte à musique et nappes douces, bas ; la musique **s'arrête juste avant la révélation** et revient plus aérienne à la fin. Bruitages discrets : vent, pas dans la neige, porte, grésillement de télé, craquement de glace, sons étouffés sous l'eau.
 
 ## 6. PHRASES-ANCRES PROMPTS
 - **Style A** : `Roblox game screenshot style, classic R6 blocky avatars with rounded cylindrical heads, flat 2D decal faces (two black dot eyes, simple line mouth), smooth matte plastic materials, bright saturated colors, clean low-poly American suburb, vivid blue sky with big puffy cartoon clouds, soft global illumination, vertical 9:16, no text except in-world signs`
@@ -107,13 +119,23 @@ STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « In this town / Dans ma ville » 
 - **Voix** : A = jeune blasé pince-sans-rire (~3,2 mots/s) ; B = jeune douce posée mélancolique (~2,5 mots/s) avec silences avant révélations.
 """
 
-NARRATIVE_RULES_ROBLOX_3D = """Structure « In this town / Dans ma ville » :
+NARRATIVE_RULES_ROBLOX_3D = """Structure « Dans ma ville » (variante A pop) :
 1. Hook (0–2 s) : « Dans ma ville, [règle absurde ou surnaturelle]. Sauf moi. »
 2. Origine en 1 phrase.
-3. Litanie d'exemples (4 à 7 persos-types en A, ou règles à respecter en B), 1 plan chacun.
+3. Litanie d'exemples (4 à 7 persos-types), 1 plan chacun.
 4. Conséquence sur la ville / premier cas vécu.
-5. Bascule personnelle → Retournement (boucle comique en A, ou twist + flashback N&B en B).
-6. Chute en boucle qui répond à la première phrase."""
+5. Bascule personnelle → retournement en boucle comique.
+6. Chute en boucle qui répond à la première phrase.
+
+Structure « Conte en blocs » (variante B mélancolie) — narration au « je » (enfant ou jeune adulte), passé composé et imparfait, phrases courtes avec répétitions émotives (« j'ai essayé, j'ai vraiment essayé ») :
+1. Accroche-règle (0–7 s) : une loi étrange de « ma ville » ou de « ma famille », posée calmement.
+2. Premier souvenir et règles : la première fois qu'on a vu le phénomène, puis 3 ou 4 règles concrètes et visuelles (objet à cacher ou à allumer, interdit émotionnel) et la conséquence si on les enfreint.
+3. Le drame : un accident ou une perte, raconté pudiquement, avec de la culpabilité.
+4. La journée de retour : on applique les règles, petits détails tendres (repas préféré, programme télé). « Pendant une journée, tout était normal. »
+5. La séparation : la marche finale, on se lâche la main, l'interdit est brisé, on se retourne.
+6. Les indices retournés : 2 ou 3 détails semés plus tôt relus autrement, en phrases de 2 à 4 mots.
+7. Le twist : phrase sèche précédée d'un silence (ex. c'était le narrateur qui était mort).
+8. L'apaisement : une image de lumière et une dernière phrase douce. Pas de CTA agressif, au plus une question très courte."""
 
 STYLE_BIBLE_2D_MONDE_3D = """# STYLE BIBLE — « Conte cartoon 2D dans un monde 3D » (format TikTok / Shorts)
 
@@ -197,36 +219,34 @@ NARRATIVE_RULES_FETE_EN_FOLIE = """Structure « vie pilotée par les commentaire
 4. Action / montée (20–70 s) : gradation verticale du décor, phrases courtes et sensorielles, 1 plan par phrase.
 5. Cliffhanger + CTA (5–8 dernières s) : question ouverte + « le commentaire le plus/moins liké décide » → CU + UI commentaire vide + bouton S'abonner."""
 
-STYLE_BIBLE_EXPLAINER_2D = r"""# STYLE BIBLE — « Explainer 2D pastel » (dessin animé vectoriel de face, Shorts / Reels / TikTok 9:16)
+STYLE_BIBLE_EXPLAINER_2D = r"""# STYLE BIBLE — « Explainer 2D » (dessin animé illustré chaleureux, Shorts / Reels / TikTok 9:16)
 
-> **À l'IA qui lit ce fichier :** tu reçois un script oral ou une idée (souvent un commerce, un métier, une marque locale ou une notion à expliquer). Reproduis exactement ce STYLE avec l'histoire de l'utilisateur. Ne copie jamais les personnages, noms ou textes de la vidéo de référence.
+> **À l'IA qui lit ce fichier :** tu reçois un script oral ou une idée (une notion, un métier, une astuce, une anecdote d'histoire, une marque locale). Reproduis exactement ce STYLE avec l'histoire de l'utilisateur. Ne copie jamais les personnages, noms ou textes des vidéos de référence.
 
 ## 1. L'ADN
-Petite fable explicative de 35 à 50 s, racontée par une voix off posée qui vouvoie le spectateur, illustrée en **dessin animé vectoriel pastel vu de face**. Chaque phrase = une image claire, avec **un grand mot ou un chiffre à l'écran** à la place des sous-titres. La marque ou le héros n'arrive qu'au milieu (vers la moitié de la vidéo) : on donne d'abord une raison de regarder.
+Petite histoire explicative de 20 à 50 s racontée par une voix off chaleureuse, illustrée comme un **dessin animé de livre jeunesse** : décors riches et cosy, un héros attachant en gros plan, de petites animations simples. Contenu simple, rythme régulier, un format qu'on peut décliner en série (même héros, même décor, nouvelle astuce).
 
 ## 2. FORMAT
-- 9:16, 1080×1920, 30 fps. Durée 35-50 s. Environ 2,6-2,8 mots/s, pauses de 0,4-0,6 s entre les phrases.
-- **Aucun sous-titre mot à mot.** Seulement des **étiquettes géantes** en haut de l'écran (zone 15-25 % de la hauteur) : un chiffre (« PRÈS DE 80 % »), une saison (« HIVER »), un délai (« 2 JOURS »), un mois sur un calendrier, avec parfois une ligne plus petite en couleur d'accent dessous.
-- Rien d'important dans les 15 % du bas.
+- 9:16, 1080×1920. Plans de 2 à 5 s.
+- **Sous-titres** par groupes de 2-3 mots, blancs à contour brun foncé, le mot prononcé en **jaune crème** `#FFE08A`, sous le centre.
+- **Carton-titre** en haut à chaque moment clé : petit panneau crème `#FFF4DC` aux coins arrondis, texte brun foncé (une question « Ta chantilly ne monte pas ? », une date « 1770 », un nom). Gros chiffres possibles en blanc à contour orange.
 
 ## 3. DIRECTION ARTISTIQUE
-- **Vectoriel plat pastel**, vue de face (aucune perspective), **contours fins bleu marine foncé** `#1F2133` sur tous les éléments, aplats sans dégradé ni ombre.
-- Palette : ciel bleu très pâle `#DCEBF5`, soleil jaune doux `#FDD15A` à rayons roses, nuages blancs, collines vert sauge `#9EBD9E` / `#7A9E80`, sol beige `#E2C9A6`, **accent rose framboise** `#D9406E`, murs intérieurs rose poudré `#FAE1E6`, blanc cassé.
-- Décors en couches : ciel → soleil + 2 nuages → collines → (immeubles gris-vert en silhouette si ville) → sol → personnages devant. Intérieurs : mur pastel, fenêtre, une étagère ou un comptoir.
-- **Personnages** : simples, tête ronde, deux points pour les yeux, petit sourire, joues roses, cheveux en calotte, corps rectangulaire, tenue de métier lisible (salopette, tablier couleur d'accent, chapeau de paille). Diversité des teints. Ils font UN geste par plan : saluer, montrer du bras, porter une caisse.
-- **Objet personnifié** possible pour l'accroche (un produit avec des yeux, des lunettes, une valise).
-- Cartes et schémas simples (pays en aplat avec un trajet en pointillés) pour expliquer une origine ou une distance.
+- **Contours épais brun foncé** `#3B2A20` sur TOUT (personnages, meubles, objets), aplats de couleur avec une ombre douce d'un ton plus foncé, aucun dégradé photo.
+- Palette chaude : murs crème / jaune pâle `#F6E3B4`, bois miel `#C98A4B`, bleu ardoise `#4E6E8E` (meubles, placards), vert sapin `#3F7F5F`, rouge doux `#D9534F`, peau pêche `#F7D2B6`, joues roses.
+- **Décors détaillés et cosy** vus de face : cuisine (carrelage, étagère à bocaux, placards), bureau (bibliothèque pleine de livres colorés, fenêtre avec lune ou soleil, bougie, encrier), salon, boutique, atelier, salle de classe. Objets du sujet bien visibles (le fouet et le saladier, le dessin sur la feuille…).
+- **Personnages chibi** : grosse tête ronde (près de la moitié du corps), grands yeux blancs à pupille brun foncé et reflet, sourcils expressifs, petit nez, bouche qui sourit, joues roses, coiffure simple (mèche, frange, perruque d'époque), accessoires lisibles (lunettes rondes, tablier, perruque, chapeau). Corps court, mains rondes. UN geste par plan : fouetter, montrer, écrire, saluer.
+- Vue plongeante possible sur une table (feuille, outils) pour les étapes concrètes.
 
 ## 4. CAMÉRA & MONTAGE
-- Caméra de face. Chaque lieu est un décor plein cadre ; on passe d'un lieu à l'autre par un **glissé latéral rapide** (whip-pan horizontal) ; dans un même lieu, coupe nette ou léger zoom avant.
-- Plans de 2 à 6 s (plus longs que les Shorts « mème » : l'image s'anime pendant la phrase, éléments qui apparaissent un par un : fleurs qui poussent, chiffres qui montent).
-- Fin : **carton de marque** sur fond blanc cassé (nom + mot-clé du métier + appel à l'action d'une ligne + le personnage qui salue).
+- Caméra de face, héros cadré à la taille ou en gros plan (sa tête dans le tiers haut-milieu). Léger zoom avant pendant le plan, glissé latéral quand on change de lieu.
+- Fin : le héros sourit ou salue + une phrase-chute ou un appel à l'action d'une ligne.
 
 ## 5. SON
-- Voix off unique, chaleureuse et posée, vouvoiement. Musique douce acoustique (ukulélé, piano léger) assez basse, petits bruitages « pop » quand un élément apparaît, souffle sur les glissés.
+- Voix off unique, chaleureuse, tutoiement ou vouvoiement selon le sujet. Musique douce (piano, ukulélé, clochettes) assez basse, petits « pop » quand un élément apparaît.
 
 ## 6. PHRASES-ANCRES (prompts)
-- `flat 2D vector explainer animation, front view, pastel palette, thin dark navy outlines, pale blue sky, sage green hills, beige ground, raspberry pink accents, simple round-headed characters with dot eyes, no gradients, no shadows, vertical 9:16, big bold label text at the top`
+- `cozy 2D cartoon illustration, children's book style, thick dark brown outlines, warm flat colors with soft cel shading, detailed front-view interior, chibi character with big round head, big white eyes, rosy cheeks, round glasses, vertical 9:16, cream rounded title sign at the top, white subtitles with dark outline`
 """
 
 NARRATIVE_RULES_EXPLAINER_2D = r"""Structure « explainer de marque » (vouvoiement, phrases courtes et factuelles, ~2,7 mots/s) :
@@ -276,12 +296,12 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "category": "3D",
         "icon": "🧱",
         "gradient": "roblox",
-        "tagline": "Avatars R6 en blocs dans un monde 3D low-poly.",
+        "tagline": "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique.",
         "da_prompt": STYLE_BIBLE_ROBLOX_3D,
         "narrative_rules": NARRATIVE_RULES_ROBLOX_3D,
         "render_mode": "blender3d",
         "theme": "cyber_grid",
-        "subtitle_style": "submagic_yellow",
+        "subtitle_style": "clean_white",
         "est_time_sec": 65,
         "est_time_label": "~1m05",
         "script_language": "python",
@@ -308,7 +328,7 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "narrative_rules": NARRATIVE_RULES_2D_MONDE_3D,
         "render_mode": "blender3d",
         "theme": "neon_pulse",
-        "subtitle_style": "cyber_cyan",
+        "subtitle_style": "clean_white",
         "est_time_sec": 65,
         "est_time_label": "~1m05",
         "script_language": "python",
@@ -357,12 +377,12 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "category": "2D",
         "icon": "🌷",
         "gradient": "cartoon",
-        "tagline": "Dessin animé vectoriel pastel vu de face, grandes étiquettes, voix posée.",
+        "tagline": "Dessin animé illustré chaleureux : héros chibi, décors cosy, contours épais.",
         "da_prompt": STYLE_BIBLE_EXPLAINER_2D,
         "narrative_rules": NARRATIVE_RULES_EXPLAINER_2D,
         "render_mode": "blender3d",
         "theme": "pop_flat",
-        "subtitle_style": "shortcrew_red",
+        "subtitle_style": "warm_cream",
         "est_time_sec": 70,
         "est_time_label": "~1m10",
         "script_language": "python",
@@ -413,13 +433,13 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
 # Valeurs par défaut des styles livrés ; un style peut les surcharger via son champ « production ».
 STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # DA : plans 1-1,5 s (variante pop) à 2-3 s (mélancolie), caméra toujours en mouvement
-    "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.0, "character_style": "r6", "visual_style": "roblox"},
+    "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.5, "keyword_colors": False, "character_style": "r6", "visual_style": "roblox"},
     # DA : un plan toutes les 2-3 s ; sous-titres 1-3 mots BLANCS à contour noir (pas de couleurs)
-    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "character_style": "flat2d", "visual_style": "paper2d"},
+    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "caption_mode": "two_words", "character_style": "flat2d", "visual_style": "paper2d"},
     # DA : un plan par phrase (~2,3 s), UN seul mot à la fois, pas de musique marquée (nappe très basse)
     "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
     # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
-    "explainer_2d": {"shot_min_s": 2.0, "shot_max_s": 6.0, "caption_mode": "none", "music_db": -18.0, "mood": "calm", "visual_style": "explainer2d", "note_color": "#D9406E"},
+    "explainer_2d": {"shot_min_s": 2.0, "shot_max_s": 5.0, "caption_mode": "chunk", "keyword_colors": False, "note_look": "card", "music_db": -18.0, "mood": "calm", "visual_style": "explainer2d", "note_color": "#3B2A20"},
     # Qualité cinéma : moteur three.js ciné (rendu long, plus de tokens), un mot à la fois, mots-clés colorés
     "roblox_cine": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "one_word", "music_db": -17.0, "character_style": "r6", "visual_style": "cine3d"},
 }
@@ -433,11 +453,18 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "whoosh_min_gap_s": ("float", (2.0, 60.0)),
     "sfx_repeat_gap_s": ("float", (0.5, 20.0)),
     "music_cut_before_twist_s": ("float", (0.0, 3.0)),
-    "caption_mode": ("enum", ("chunk", "one_word", "none")),
+    "caption_mode": ("enum", ("chunk", "one_word", "two_words", "none")),
     "keyword_colors": ("bool", None),
     "character_style": ("enum", ("r6", "flat2d")),
-    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d")),
+    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d", "custom")),
+    "fallback_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d")),
     "note_color": ("hex", None),
+    "note_look": ("enum", ("text", "card")),
+    # copie d'une vidéo : couleurs et lumière de l'original imposées au décor, compteurs permanents en haut (« ALTITUDE : 5 M »)
+    "palette": ("palette", None),
+    "time_of_day": ("enum", ("day", "sunset", "night")),
+    "hud": ("bool", None),
+    "hud_color": ("hex", None),
     "caption_look": ("enum", ("", "cine")),
 }
 
@@ -452,7 +479,16 @@ def sanitize_production(raw: Any) -> Dict[str, Any]:
             continue
         val = raw[key]
         try:
-            if kind == "hex":
+            if kind == "palette":
+                if isinstance(val, dict):
+                    pal = {}
+                    for pk in ("sky", "ground", "accent"):
+                        pv = str(val.get(pk) or "").strip().lstrip("#")
+                        if re.match(r"^[0-9a-fA-F]{6}$", pv):
+                            pal[pk] = "#" + pv.upper()
+                    if pal:
+                        out[key] = pal
+            elif kind == "hex":
                 v = str(val).strip().lstrip("#")
                 if re.match(r"^[0-9a-fA-F]{6}$", v):
                     out[key] = "#" + v.upper()
@@ -474,6 +510,26 @@ def sanitize_production(raw: Any) -> Dict[str, Any]:
 
 
 REMOVED_STARTERS_FILE = PLUGINS_DIR / "removed_starters.json"
+
+# style livré -> {champ: (ancienne valeur livrée, nouvelle valeur)} (migration douce des installations existantes)
+STARTER_DEFAULT_UPDATES: Dict[str, Dict[str, Any]] = {
+    # références 2D × 3D : sous-titres blancs à contour noir (plus de mot actif cyan)
+    "2d_monde_3d": {"subtitle_style": ("cyber_cyan", "clean_white")},
+    # 3D Roblox fusionné avec « Conte Blocs Mélancolique » (un seul style, le meilleur des deux)
+    "roblox_3d": {"subtitle_style": ("submagic_yellow", "clean_white"),
+                  "tagline": ("Avatars R6 en blocs dans un monde 3D low-poly.", "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique."),
+                  "da_prompt": ("prefix:# STYLE BIBLE — « In this town / Dans ma ville »", STYLE_BIBLE_ROBLOX_3D),
+                  "narrative_rules": ("prefix:Structure « In this town / Dans ma ville »", NARRATIVE_RULES_ROBLOX_3D)},
+    # références @rosoai (cuisine, savant 1770) : sous-titres blancs + mot prononcé jaune crème, DA illustrée chaleureuse
+    "explainer_2d": {"subtitle_style": ("shortcrew_red", "warm_cream"),
+                     "tagline": ("Dessin animé vectoriel pastel vu de face, grandes étiquettes, voix posée.", "Dessin animé illustré chaleureux : héros chibi, décors cosy, contours épais."),
+                     "da_prompt": ("prefix:# STYLE BIBLE — « Explainer 2D pastel »", STYLE_BIBLE_EXPLAINER_2D)},
+}
+
+
+def _clean_reference_url(url: Any) -> str:
+    u = str(url or "").strip()[:500]
+    return u if re.match(r"^https?://[^\s<>\"']+$", u) else ""
 
 
 def _REMOVED_STARTERS(_data: Any = None) -> set:
@@ -712,6 +768,9 @@ def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False)
         "status_label": status_label,
         "cover_url": cover_url,
         "starter": bool(raw.get("starter", False)),
+        "reference_url": str(raw.get("reference_url") or ""),
+        "hidden": bool(raw.get("hidden")),
+        "has_reference_video": bool(raw.get("reference_video")),
         "production": {**STARTER_PRODUCTION.get(pid, {}), **sanitize_production(raw.get("production"))},
         "heavy": bool(raw.get("heavy")) or ({**STARTER_PRODUCTION.get(pid, {}), **sanitize_production(raw.get("production"))}.get("visual_style") == "cine3d"),
         "created_at": raw.get("created_at") or "",
@@ -764,6 +823,15 @@ class StylePluginStore:
                         shutil.copyfile(cover, dest)
                 except Exception:
                     pass
+        # Réglages livrés corrigés depuis : appliqués seulement si l'utilisateur a gardé l'ancienne valeur livrée
+        for p in data:
+            if not isinstance(p, dict):
+                continue
+            for key, (old_val, new_val) in STARTER_DEFAULT_UPDATES.get(p.get("id"), {}).items():
+                cur = p.get(key)
+                if cur == old_val or (isinstance(old_val, str) and old_val.startswith("prefix:") and isinstance(cur, str) and cur.startswith(old_val[7:])):
+                    p[key] = new_val
+                    added = True
         if added:
             try:
                 _atomic_write_json(PLUGINS_INDEX_FILE, data)
@@ -779,7 +847,17 @@ class StylePluginStore:
     def list_plugins(cls, include_script_body: bool = False) -> List[Dict[str, Any]]:
         with _LOCK:
             items = cls._load_raw_unlocked()
-        return [_compute_plugin_view(p, include_script_body=include_script_body) for p in items]
+        # styles « copiés d'une vidéo » (lien collé dans la Fabrique) : internes, jamais proposés dans la liste
+        return [_compute_plugin_view(p, include_script_body=include_script_body) for p in items if not p.get("hidden")]
+
+    @classmethod
+    def set_hidden(cls, plugin_id: str, hidden: bool = True) -> None:
+        with _LOCK:
+            items = cls._load_raw_unlocked()
+            for p in items:
+                if p.get("id") == plugin_id:
+                    p["hidden"] = bool(hidden)
+            cls._save_raw_unlocked(items)
 
     @classmethod
     def get_plugin(cls, plugin_id: str, include_script_body: bool = True) -> Optional[Dict[str, Any]]:
@@ -905,6 +983,8 @@ class StylePluginStore:
                 rm = str(payload.get("render_mode") or "motion").strip().lower()
                 if rm in ("motion", "blender3d", "ai_video", "broll", "custom_script"):
                     target["render_mode"] = rm
+            if "reference_url" in payload:
+                target["reference_url"] = _clean_reference_url(payload.get("reference_url"))
             if "theme" in payload:
                 target["theme"] = str(payload.get("theme") or DEFAULT_THEME)
             if "subtitle_style" in payload:
@@ -1046,6 +1126,99 @@ class StylePluginStore:
         if fpath and fpath.exists():
             fpath.unlink(missing_ok=True)
         return cls.get_plugin(plugin_id, include_script_body=True) or {}
+
+    # ---------------------------------------------------------------- vidéo de référence du style
+    @classmethod
+    def set_reference_video(cls, plugin_id: str, src_path: str = "", file_storage=None, source_url: str = "") -> Dict[str, Any]:
+        """Enregistre la vidéo qui montre à quoi ressemble le style (fichier envoyé ou vidéo d'exemple téléchargée)."""
+        if not is_valid_plugin_id(plugin_id):
+            raise ValueError("Style introuvable.")
+        name = (file_storage.filename if file_storage is not None else src_path) or ""
+        ext = Path(name).suffix.lower()
+        if ext not in REFERENCE_VIDEO_EXTS:
+            raise ValueError("Format vidéo non pris en charge (MP4, MOV, M4V ou WEBM).")
+        dest_dir = PLUGINS_DIR / plugin_id / "reference"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        fname = f"reference_{uuid.uuid4().hex[:6]}{ext}"
+        dest = dest_dir / fname
+        if file_storage is not None:
+            file_storage.save(str(dest))
+        else:
+            src = Path(src_path)
+            if not src.exists():
+                raise ValueError("Vidéo introuvable.")
+            shutil.copyfile(src, dest)
+        if dest.stat().st_size > MAX_REFERENCE_VIDEO_BYTES:
+            dest.unlink(missing_ok=True)
+            raise ValueError("Vidéo trop lourde (300 Mo max).")
+        old = ""
+        with _LOCK:
+            items = cls._load_raw_unlocked()
+            target = next((p for p in items if p.get("id") == plugin_id), None)
+            if not target:
+                dest.unlink(missing_ok=True)
+                raise FileNotFoundError("Plugin introuvable.")
+            old = str(target.get("reference_video") or "")
+            target["reference_video"] = fname
+            if source_url:
+                target["reference_url"] = _clean_reference_url(source_url)
+            target["updated_at"] = time.strftime("%Y-%m-%d %H:%M")
+            cls._save_raw_unlocked(items)
+        if old and old != fname and _SAFE_FILENAME_RE.match(old):
+            (dest_dir / old).unlink(missing_ok=True)
+        return {"filename": fname}
+
+    @classmethod
+    def get_reference_video_path(cls, plugin_id: str) -> Optional[Path]:
+        if not is_valid_plugin_id(plugin_id):
+            return None
+        for ext in (".mp4", ".webm", ".mov", ".m4v"):
+            bundled = STYLE_REFS_DIR / f"{plugin_id}{ext}"
+            if bundled.is_file():
+                return bundled
+        with _LOCK:
+            raw = next((p for p in cls._load_raw_unlocked() if p.get("id") == plugin_id), None)
+        fname = str((raw or {}).get("reference_video") or "")
+        if not fname or not _SAFE_FILENAME_RE.match(fname):
+            return None
+        base = (PLUGINS_DIR / plugin_id / "reference").resolve()
+        cand = (base / fname).resolve()
+        return cand if cand.parent == base and cand.is_file() else None
+
+    @classmethod
+    def style_preview(cls, plugin_id: str, renders_dir: Optional[Path] = None) -> Dict[str, Any]:
+        """Ce qu'on montre quand on clique sur un style : sa vidéo de référence, sinon un exemple récent fait dans ce style."""
+        if not is_valid_plugin_id(plugin_id):
+            return {"kind": "none"}
+        with _LOCK:
+            raw = next((p for p in cls._load_raw_unlocked() if p.get("id") == plugin_id), None)
+        if not raw:
+            return {"kind": "none"}
+        # Seulement une vidéo lue dans Clipoa : jamais de lien vers le site d'origine
+        if cls.get_reference_video_path(plugin_id):
+            return {"kind": "video", "url": f"/api/plugins/{plugin_id}/reference-video", "label": "Vidéo de référence"}
+        rd = Path(renders_dir) if renders_dir else STORAGE_DIR / "renders"
+        since = STARTER_LOOK_SINCE.get(plugin_id, 0.0)
+        best = None
+        try:
+            for meta in rd.glob("*/metadata.json"):
+                vid = meta.parent / "final_short.mp4"
+                if not vid.exists():
+                    continue
+                mt = vid.stat().st_mtime
+                if mt < since or (best and mt <= best[0]):
+                    continue
+                try:
+                    if json.loads(meta.read_text(encoding="utf-8")).get("plugin_id") != plugin_id:
+                        continue
+                except Exception:
+                    continue
+                best = (mt, meta.parent.name)
+        except Exception:
+            best = None
+        if best:
+            return {"kind": "video", "url": f"/stream/{best[1]}", "label": "Exemple fait avec Clipoa dans ce style"}
+        return {"kind": "none"}
 
     @classmethod
     def get_sheet_path(cls, plugin_id: str, filename: str) -> Optional[Path]:

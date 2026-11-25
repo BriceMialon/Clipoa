@@ -16,10 +16,12 @@ from typing import Any, Callable, Dict, List, Optional
 from config import FFMPEG_PATH, DOWNLOADS_DIR
 
 RENDERERS = {
-    "roblox": "3D en blocs façon Roblox / jeu vidéo low-poly (personnages R6, décors 3D)",
-    "paper2d": "personnages 2D plats (papier découpé) dans un décor 3D low-poly",
-    "flat_vector": "illustration vectorielle plate très saturée, sans contours, perspective 3D légère",
-    "explainer2d": "dessin animé vectoriel de face (motion design 2D, explainer), contours fins, couleurs pastel ou franches",
+    "roblox": "personnages CUBIQUES en blocs (tête carrée ou cylindrique, corps et membres rectangulaires, visage autocollant) dans un monde 3D de jeu vidéo low-poly",
+    "paper2d": "personnages 2D en traits très simples (grosse tête ronde blanche, membres bâtons fins) collés dans un décor 3D TEXTURÉ quasi réaliste (pavés, bois, rues)",
+    "explainer2d": "DESSIN ANIMÉ cartoon : contours épais foncés sur tout, couleurs vives en aplats avec ombre douce, décors dessinés (ciel bleu, bâtiments, objets), "
+                   "personnages cartoon expressifs (grosse tête ronde, grands yeux, chapeau, tenue de métier), cadrage de face ; c'est le moteur des dessins animés « toon » "
+                   "même quand quelques objets ont l'air en volume",
+    "flat_vector": "motion design en aplats très saturés SANS contours, formes géométriques, peu ou pas de personnages détaillés",
 }
 
 
@@ -69,8 +71,12 @@ Mesures : durée {stats.get('duration_s')} s ; {stats.get('shots')} plans ; plan
 Texte parlé (horodaté) :
 {transcript_txt[:2500]}
 
-Clipoa rend les vidéos avec Blender. Moteurs disponibles (choisis le plus proche) :
+Clipoa rend les vidéos avec Blender. Moteurs disponibles :
 {renderers}
+Pour CHAQUE moteur, donne une note de ressemblance de 0 à 10 avec les images (« renderer_scores ») en regardant d'abord les PERSONNAGES
+(cubiques ? traits bâtons ? dessin animé à contours ?) puis le décor ; « renderer » = le mieux noté.
+« palette » = les vraies couleurs dominantes des images (ciel, sol / murs, couleur d'accent). « hud » = des compteurs ou infos fixes affichés
+en permanence (souvent en haut, ex. « JOURS SANS … : 3 », « ALTITUDE : 5 M ») qui changent pendant la vidéo : enabled true seulement s'il y en a.
 
 Réponds UNIQUEMENT avec un JSON valide :
 {{
@@ -78,21 +84,40 @@ Réponds UNIQUEMENT avec un JSON valide :
   "icon": "un emoji",
   "tagline": "une phrase qui décrit le rendu",
   "tool_guess": "outil probable utilisé par le créateur (ex. After Effects, Blender, IA vidéo, Canva, CapCut, Roblox Studio…) et pourquoi, en une phrase",
+  "renderer_scores": {{"roblox": 0, "paper2d": 0, "explainer2d": 0, "flat_vector": 0}},
   "renderer": "roblox|paper2d|flat_vector|explainer2d",
+  "time_of_day": "day|sunset|night (lumière dominante de la vidéo)",
+  "hud": {{"enabled": false, "examples": ["COMPTEUR : 0"], "color": "#RRGGBB"}},
   "confidence": "élevée|moyenne|faible + ce qui manque",
   "da_prompt": "STYLE BIBLE en Markdown, 500 à 900 mots, sections : 1. L'ADN ; 2. Format (durée, rythme, zones sûres) ; 3. Direction artistique (rendu, palette avec codes hex, contours, lumière, personnages, décors) ; 4. Texte à l'écran / sous-titres (format exact) ; 5. Caméra et montage (types de plans, transitions) ; 6. Son (voix, musique, bruitages) ; 7. Phrases-ancres de prompt en anglais. Ne copie ni personnages, ni noms, ni textes de la référence : décris le STYLE.",
   "narrative_rules": "structure narrative en 5 à 8 étapes avec les timings, ton et personne grammaticale (tu/vous/je), types de phrases",
   "production": {{
     "mood": "dark|tension|upbeat|calm",
     "shot_min_s": 1.0, "shot_max_s": 4.0,
-    "caption_mode": "chunk|one_word|none",
+    "caption_mode": "chunk|one_word|two_words|none",
     "keyword_colors": true,
     "music_db": -18,
     "note_color": "#RRGGBB"
   }},
   "palette": {{"sky": "#RRGGBB", "ground": "#RRGGBB", "accent": "#RRGGBB"}},
-  "subtitle_style": "submagic_yellow|shortcrew_red|neon_green|cyber_cyan"
+  "subtitle_style": "submagic_yellow|shortcrew_red|neon_green|cyber_cyan|clean_white"
 }}"""
+
+
+def pick_renderer(a: Dict[str, Any]) -> str:
+    """Moteur le mieux noté par l'IA (notes 0-10 par moteur) ; sinon son choix direct ; sinon le dessin animé."""
+    scores = a.get("renderer_scores") if isinstance(a.get("renderer_scores"), dict) else {}
+    best, best_v = "", -1.0
+    for k in RENDERERS:
+        try:
+            v = float(scores.get(k))
+        except (TypeError, ValueError):
+            continue
+        if v > best_v:
+            best, best_v = k, v
+    if best and best_v > 0:
+        return best
+    return a.get("renderer") if a.get("renderer") in RENDERERS else "explainer2d"
 
 
 def _parse(raw: str) -> Optional[Dict[str, Any]]:
@@ -133,11 +158,18 @@ def analyze_reference(
     sheets = make_sheets(video_path, sheets_dir, stats["duration_s"] or 30.0)
     _p(22, "🎙️ Écoute de la voix (transcription)...")
     transcript_txt, n_words = "", 0
+    ref_words: List[Dict[str, Any]] = []
     try:
         tr = AudioTranscriber.transcribe(dl["audio_path"])
         for seg in tr.get("segments", []):
             transcript_txt += f'{float(seg.get("start", 0)):.1f}-{float(seg.get("end", 0)):.1f} {str(seg.get("text", "")).strip()}\n'
             n_words += len(str(seg.get("text", "")).split())
+            # mots horodatés (pour la planche de contrôle du moteur sur mesure)
+            toks = str(seg.get("text", "")).split()
+            s0, s1 = float(seg.get("start", 0)), float(seg.get("end", 0))
+            for k, tok in enumerate(toks):
+                ref_words.append({"word": tok, "start": s0 + (s1 - s0) * k / max(1, len(toks)),
+                                  "end": s0 + (s1 - s0) * (k + 1) / max(1, len(toks))})
     except Exception as e:
         transcript_txt = f"(transcription impossible : {e})"
     wps = n_words / max(1.0, stats["duration_s"])
@@ -169,6 +201,8 @@ def analyze_reference(
         "vision": vision,
         "words_per_s": round(wps, 2),
         "source_url": url,
+        "video_path": video_path,
+        "words": ref_words,
     }
 
 
@@ -177,14 +211,26 @@ def create_style_from_reference(
     engine: str = "claude",
     model: Optional[str] = None,
     progress: Optional[Callable[[int, str], None]] = None,
+    hidden: bool = False,
 ) -> Dict[str, Any]:
-    """Analyse la vidéo et enregistre un nouveau style (plugin) prêt à l'emploi dans Clipoa."""
+    """Analyse la vidéo et enregistre un nouveau style (plugin) prêt à l'emploi dans Clipoa.
+    hidden=True (lien collé dans la Fabrique) : style interne à cette vidéo, absent de la liste des styles."""
     from core.style_plugins import StylePluginStore, sanitize_production
     res = analyze_reference(url, engine=engine, model=model, progress=progress)
     a = res["analysis"]
-    renderer = a.get("renderer") if a.get("renderer") in RENDERERS else "flat_vector"
+    renderer = pick_renderer(a)
     prod = dict(a.get("production") or {})
     prod["visual_style"] = renderer
+    # la vidéo copiée garde SES couleurs, SA lumière et ses compteurs à l'écran
+    if isinstance(a.get("palette"), dict):
+        prod["palette"] = a["palette"]
+    if a.get("time_of_day") in ("day", "sunset", "night"):
+        prod["time_of_day"] = a["time_of_day"]
+    hud = a.get("hud") if isinstance(a.get("hud"), dict) else {}
+    if hud.get("enabled"):
+        prod["hud"] = True
+        if hud.get("color"):
+            prod["hud_color"] = hud["color"]
     if renderer in ("paper2d",):
         prod["character_style"] = "flat2d"
     stats = res["stats"]
@@ -200,6 +246,13 @@ def create_style_from_reference(
         f"Mesures : {stats.get('duration_s')} s, {stats.get('shots')} plans, plan moyen {stats.get('avg_shot_s')} s, {res['words_per_s']} mots/s."
         + (f"\nOutil probable du créateur : {tool}" if tool else "")
     )
+    if hud.get("enabled"):
+        ex = ", ".join(f"« {e} »" for e in (hud.get("examples") or [])[:3] if e)
+        da += (
+            "\n\n## Compteurs à l'écran (signature de ce style)\n"
+            "En haut à gauche, 1 à 2 lignes fixes en MAJUSCULES qui évoluent avec l'histoire (chiffre qui monte ou qui retombe), "
+            f"dans l'esprit de {ex or '« COMPTEUR : 0 »'} mais avec le sujet de la nouvelle histoire. Le script les donne dans « hud »."
+        )
     plugin = StylePluginStore.create_plugin({
         "name": str(a.get("name") or "Style importé")[:50],
         "icon": str(a.get("icon") or "🎬")[:8],
@@ -210,7 +263,7 @@ def create_style_from_reference(
         "narrative_rules": str(a.get("narrative_rules") or ""),
         "render_mode": "blender3d",
         "theme": "pop_flat" if renderer in ("explainer2d", "flat_vector") else "dark_luxury",
-        "subtitle_style": a.get("subtitle_style") if a.get("subtitle_style") in ("submagic_yellow", "shortcrew_red", "neon_green", "cyber_cyan") else "submagic_yellow",
+        "subtitle_style": a.get("subtitle_style") if a.get("subtitle_style") in ("submagic_yellow", "shortcrew_red", "neon_green", "cyber_cyan", "clean_white") else "submagic_yellow",
         "production": production,
     })
     if res.get("cover"):
@@ -218,6 +271,29 @@ def create_style_from_reference(
             StylePluginStore.attach_local_sheet(plugin["id"], res["cover"], "reference")
         except Exception as e:
             print(f"⚠️ Vignette non ajoutée ({e})")
+    if hidden:
+        StylePluginStore.set_hidden(plugin["id"], True)
+    # Moteur SUR MESURE : l'IA choisit l'outil (page animée / three.js, ou Blender) et écrit le moteur de CE style.
+    # Les moteurs intégrés ne servent plus qu'en secours (production.fallback_style).
+    try:
+        from core import custom_engine
+        made = custom_engine.design_style_engine(
+            plugin["id"], dict(a, palette=a.get("palette") or {}), res.get("sheets") or [], res.get("words") or [],
+            float(stats.get("duration_s") or 20.0), engine=engine, model=model, progress=progress,
+        )
+        StylePluginStore.update_plugin(plugin["id"], {"production": dict(production, visual_style="custom", fallback_style=renderer)})
+        tool = f"{made['tool']} (sur mesure) — {made.get('why') or tool}"
+        renderer = "custom"
+    except Exception as e:
+        print(f"⚠️ Moteur sur mesure impossible ({e}) : style intégré le plus proche ({renderer}).")
+    # la vidéo d'exemple devient la vidéo de référence du style (montrée quand on clique dessus)
+    try:
+        if res.get("video_path"):
+            StylePluginStore.set_reference_video(plugin["id"], src_path=res["video_path"], source_url=url)
+        else:
+            StylePluginStore.update_plugin(plugin["id"], {"reference_url": url})
+    except Exception as e:
+        print(f"⚠️ Vidéo de référence non gardée ({e})")
     plugin = StylePluginStore.get_plugin(plugin["id"], include_script_body=False) or plugin
     return {
         "plugin": plugin,

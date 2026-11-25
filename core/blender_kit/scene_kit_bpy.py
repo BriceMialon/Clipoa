@@ -43,6 +43,25 @@ if STYLE == "roblox":
         scene.display.shadow_focus = 0.3
     except Exception:
         pass
+if STYLE == "paper2d":
+    # lumière douce de jour, ombres légères, relief du décor (les persos 2D restent plats)
+    for _attr, _val in (("shadow_intensity", 0.4), ("show_cavity", True), ("cavity_type", "WORLD"),
+                        ("cavity_ridge_factor", 0.6), ("cavity_valley_factor", 1.0), ("show_object_outline", False)):
+        try:
+            setattr(_sh, _attr, _val)
+        except Exception:
+            pass
+    try:
+        scene.display.light_direction = (0.35, -0.6, 0.72)
+        scene.display.shadow_shift = 0.1
+        scene.display.shadow_focus = 0.6
+    except Exception:
+        pass
+    try:
+        # les références sont claires et lumineuses : on relève l'exposition (persos blancs bien blancs)
+        scene.view_settings.exposure = 0.45
+    except Exception:
+        pass
 try:
     scene.display.render_aa = "11"
 except Exception:
@@ -79,6 +98,9 @@ def mat(rgba, name=None):
         rgba = (0.6, 0.6, 0.6, 1.0)
     if CUR_TINT and not _is_glow(rgba):
         rgba = (rgba[0] * CUR_TINT[0], rgba[1] * CUR_TINT[1], rgba[2] * CUR_TINT[2], rgba[3])
+    if STYLE == "paper2d" and not _is_glow(rgba):
+        # références : décor lisible et lumineux même la nuit (jamais de bouillie sombre)
+        rgba = tuple(max(0.0, min(1.0, c)) ** 0.8 for c in rgba[:3]) + (rgba[3],)
     key = tuple(round(c, 3) for c in rgba)
     if key in _MATS:
         return _MATS[key]
@@ -148,6 +170,8 @@ SKY = hex_rgba(PAL.get("sky"), (0.30, 0.62, 0.98, 1.0) if TOD == "day" else ((0.
 GROUND = hex_rgba(PAL.get("ground"), (0.30, 0.68, 0.32, 1.0))
 ACCENT = hex_rgba(PAL.get("accent"), (1.0, 0.85, 0.25, 1.0))
 NIGHT = TOD == "night"
+if STYLE == "paper2d" and NIGHT:
+    SKY = tuple(SKY[i] * 0.5 + (0.30, 0.37, 0.55)[i] * 0.5 for i in range(3)) + (1.0,)
 FLAT2D = STYLE in ("paper2d", "flat_vector")
 
 world = bpy.data.worlds.new("ClipoaWorld")
@@ -666,7 +690,7 @@ for li, L in enumerate(SPEC.get("locations", [])):
         box((ox + 7.0, 1.5, 3.0), (0.3, 12, 6.0), wall)
         if t == "school":
             box((ox, 6.8, 2.8), (6, 0.1, 2.4), (0.12, 0.3, 0.2, 1.0))
-        if STYLE == "roblox":
+        if STYLE in ("roblox", "paper2d"):
             furnish_interior(ox, t, wall)
         il = bpy.data.lights.new("Indoor", type="POINT")
         il.energy = 380
@@ -694,7 +718,7 @@ for li, L in enumerate(SPEC.get("locations", [])):
             slots.append((px, py))
     if L.get("sign_text"):
         prop("sign", ox + 2.6, 3.2, None, L["sign_text"])
-    if t not in INDOOR and STYLE == "roblox":
+    if t not in INDOOR and STYLE in ("roblox", "paper2d"):
         # profondeur : fond de décor (maisons / sapins lointains) + toile de ciel par lieu
         for k in range(9):
             prop("pine", ox + random.uniform(-26, 26), random.uniform(18, 30))
@@ -871,7 +895,7 @@ def set_emotion(parts, emotion, frame):
         return
     key = (rn, emotion)
     if key not in FACES:
-        e = build_face(rn, emotion)
+        e = build_face_2d(rn, emotion) if STYLE == "paper2d" else build_face(rn, emotion)
         e.scale = (0, 0, 0)
         e.keyframe_insert("scale", frame=0)
         FACES[key] = e
@@ -883,6 +907,8 @@ def set_emotion(parts, emotion, frame):
 
 
 def make_char(cid, loc, rot_z=0.0):
+    if STYLE == "paper2d":
+        return make_char_2d(cid, loc, rot_z)
     c = CHARS.get(cid, {})
     model = CHAR_MODELS.get(str(c.get("model") or ""))
     if STYLE == "roblox" and model:
@@ -959,7 +985,7 @@ def animate(parts, action, f0, f1):
         for f in range(f0, f1 + 1, step):
             a = 0.5 if ((f - f0) // step) % 2 == 0 else -0.5
             for o, s in ((al, 1), (ar, -1), (ll, -1), (lr, 1)):
-                o.rotation_euler = (a * s, 0, 0)
+                o.rotation_euler = p2_limb_rot(a * s) if STYLE == "paper2d" else (a * s, 0, 0)
                 o.keyframe_insert("rotation_euler", frame=f)
     elif action == "jump":
         for k, f in enumerate(range(f0, f1 + 1, 3)):
@@ -968,7 +994,7 @@ def animate(parts, action, f0, f1):
         root.location = base
         root.keyframe_insert("location", frame=f1 + 1)
     elif action == "point":
-        ar.rotation_euler = (math.radians(-80), 0, 0)
+        ar.rotation_euler = p2_limb_rot(math.radians(-75)) if STYLE == "paper2d" else (math.radians(-80), 0, 0)
         ar.keyframe_insert("rotation_euler", frame=f0)
         ar.rotation_euler = (0, 0, 0)
         ar.keyframe_insert("rotation_euler", frame=f1 + 1)
@@ -988,7 +1014,8 @@ def animate(parts, action, f0, f1):
         root.keyframe_insert("location", frame=f1 + 1)
     else:  # idle / talk : léger balancement des bras
         for k, f in enumerate(range(f0, f1 + 1, 6)):
-            al.rotation_euler = (0.12 if k % 2 else -0.05, 0, 0)
+            _a = 0.12 if k % 2 else -0.05
+            al.rotation_euler = p2_limb_rot(-_a) if STYLE == "paper2d" else (_a, 0, 0)
             al.keyframe_insert("rotation_euler", frame=f)
 
 
@@ -1018,9 +1045,79 @@ CAM_OFF = {
     "pov":    ((0.5, 1.4, 2.7), (0.4, 0.4, 2.7), 2.4),
     "tilt":   ((0.0, -14.0, 1.5), (0.0, -14.0, 16.0), 3.0),
 }
+if STYLE == "paper2d":
+    # références : caméra à hauteur d'yeux, persos grands dans le cadre, jamais de dos (découpes face caméra)
+    CAM_OFF.update({
+        "wide":   ((1.2, -8.0, 2.4), (0.5, -6.8, 2.3), 1.7),
+        "medium": ((0.7, -4.6, 2.35), (0.25, -4.0, 2.35), 2.0),
+        "close":  ((0.25, -2.9, 2.6), (0.08, -2.5, 2.6), 2.4),
+        "face":   ((0.1, -1.9, 2.6), (0.03, -1.6, 2.6), 2.55),
+        "back":   ((0.7, -4.6, 2.35), (0.25, -4.0, 2.35), 2.0),
+        "low":    ((0.9, -3.6, 0.9), (0.5, -3.2, 1.0), 2.2),
+    })
+    cam_d.lens = 32
+    try:
+        cam_d.dof.use_dof = True
+        cam_d.dof.aperture_fstop = 1.6
+    except Exception:
+        pass
 CHAR_SPOT = [(0.0, 2.0), (-1.8, 2.8), (1.8, 2.8), (-3.2, 3.6), (3.2, 3.6)]
 cut_frames = set()
 placed = {}
+
+
+
+def _show_holder(name, before, pivot):
+    """Regroupe les objets créés pour un « show » sous un pivot qu'on peut faire apparaître / disparaître."""
+    bpy.context.view_layer.update()
+    holder = bpy.data.objects.new(name, None)
+    scene.collection.objects.link(holder)
+    holder.location = pivot
+    bpy.context.view_layer.update()
+    inv = holder.matrix_world.inverted()
+    for o in list(scene.objects):
+        if o.name in before or o.parent is not None or o is holder:
+            continue
+        mw = o.matrix_world.copy()
+        o.parent = holder
+        o.matrix_parent_inverse = inv
+        o.matrix_world = mw
+    return holder
+
+
+def _show_pop(holder, f0, f1):
+    """Le « show » surgit au début de la phrase (petit rebond) et disparaît à la coupe."""
+    for fr, sc in ((0, 0.0), (max(1, f0 - 1), 0.0), (f0 + 2, 1.15), (f0 + 4, 1.0), (max(f0 + 5, f1), 1.0), (f1 + 1, 0.0)):
+        holder.scale = (sc, sc, sc)
+        holder.keyframe_insert("scale", frame=fr)
+
+
+def show_item(sh, at, f0, f1, idx):
+    """Ce que dit la phrase, montré pendant le plan : un objet à côté du perso ou un grand mot qui surgit."""
+    side = 1 if idx % 2 == 0 else -1
+    before = set(o.name for o in scene.objects)
+    kind = str(sh.get("kind") or "")
+    txt = str(sh.get("text") or "")
+    if kind == "text":
+        col = hex_rgba(sh.get("color"), ACCENT)
+        o = text3d(txt, (at.x, at.y - 1.2, 4.3), 0.62, col)
+        try:
+            o.data.extrude = 0.06
+            o.data.bevel_depth = 0.015
+        except Exception:
+            pass
+        pivot = Vector((at.x, at.y - 1.2, 4.3))
+    else:
+        prop(kind, at.x + side * 1.9, at.y - 0.6, sh.get("color"), txt)
+        pivot = Vector((at.x + side * 1.9, at.y - 0.6, 0.0))
+    holder = _show_holder("Show_%d" % idx, before, pivot)
+    if STYLE == "paper2d":
+        try:
+            _p2_billboard(holder)
+        except Exception:
+            pass
+    _show_pop(holder, f0, f1)
+
 
 for si, S in enumerate(SHOTS):
     f0, f1 = int(S["f0"]), int(S["f1"])
@@ -1039,7 +1136,7 @@ for si, S in enumerate(SHOTS):
             focus_pos = parts[0].location.copy()
             animate(parts, S.get("action", "idle"), f0, f1)
             set_emotion(parts, emo, f0)
-            if S.get("camera") == "back":
+            if S.get("camera") == "back" and STYLE != "paper2d":
                 # le perso se retourne vers ce qu'il regarde (télé, fenêtre, lac) : on le voit de dos
                 r0 = parts[0]
                 if r0.rotation_mode != "XYZ":
@@ -1063,9 +1160,15 @@ for si, S in enumerate(SHOTS):
     p0 = focus_pos + Vector((a[0] * side, a[1], a[2]))
     p1 = focus_pos + Vector((b[0] * side, b[1], b[2]))
     tgt = focus_pos + Vector((0, 0, aim_z)) if kind != "pov" else focus_pos + Vector((0, -6, 1.8))
-    if kind == "back":
+    if kind == "back" and STYLE != "paper2d":
         tgt = focus_pos + Vector((0, 4.5, aim_z))
     tgt1 = focus_pos + Vector((0, 7, 22)) if kind == "tilt" else tgt
+    if STYLE == "paper2d":
+        try:
+            cam_d.dof.focus_distance = max(1.0, (focus_pos + Vector((0, 0, 2.3)) - p0).length)
+            cam_d.dof.keyframe_insert("focus_distance", frame=f0)
+        except Exception:
+            pass
     cam.location = p0
     cam.rotation_euler = look(p0, tgt)
     cam.keyframe_insert("location", frame=f0)
@@ -1076,6 +1179,11 @@ for si, S in enumerate(SHOTS):
     cam.keyframe_insert("location", frame=fe)
     cam.keyframe_insert("rotation_euler", frame=fe)
     cut_frames.add(fe)
+    if S.get("show"):
+        try:
+            show_item(S["show"], focus_pos, f0, f1, si)
+        except Exception as _e:
+            print("show:", _e)
 
 # coupes nettes entre plans, mouvement adouci dans chaque plan
 act = cam.animation_data.action if cam.animation_data else None
@@ -1097,3 +1205,11 @@ for fc in (fcurves or []):
 # visages : bascule nette d'une émotion à l'autre
 for _e in FACES.values():
     _set_interp(_e, "CONSTANT")
+
+# style 2D × Monde 3D : décor texturé (pavés, bois, enduit, neige) et mise au point nette d'un plan à l'autre
+if STYLE == "paper2d":
+    p2_apply_textures(dict(_MATS))
+    try:
+        _set_interp(cam_d, "CONSTANT")
+    except Exception:
+        pass

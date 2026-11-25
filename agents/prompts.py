@@ -60,9 +60,12 @@ Format de sortie en JSON :
   "twist_text": "Les premiers mots exacts de la phrase de révélation",
   "caption_keywords": {"yellow": ["prénoms", "chiffres", "objet clé"], "red": ["mots de danger"], "green": ["mots positifs"]},
   "on_screen_notes": [{"text": "100 € → 200 €", "at_phrase": "mots exacts dits à ce moment"}],
+  "hud": [{"at_phrase": "mots exacts dits à ce moment", "lines": ["COMPTEUR : 0", "ALTITUDE : 5 M"]}],
   "social_caption": "Description courte avec 4 hashtags ciblés pour TikTok/YouTube/Instagram"
 }
 « on_screen_notes » : 2 à 4 cartons géants maximum (chiffre choc, résumé, appel à l'action), jamais pendant les 3 premières secondes.
+« hud » : SEULEMENT si la direction artistique demande des compteurs à l'écran (sinon liste vide) : 4 à 10 étapes, chacune calée sur une phrase,
+1 à 2 lignes courtes en MAJUSCULES qui restent affichées en haut jusqu'à l'étape suivante (le chiffre évolue avec l'histoire).
 """
 
 PROMPT_STRATEGE = """Tu es Le Stratège. Tu conçois le calendrier éditorial de la semaine (5 vidéos, du lundi au vendredi).

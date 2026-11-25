@@ -84,20 +84,37 @@ Décris le décor de CETTE histoire (pas un décor générique). Réponds UNIQUE
   "time_of_day": "day|sunset|night",
   "weather": "{'|'.join(WEATHERS)}",
   "palette": {{"sky": "#RRGGBB", "ground": "#RRGGBB", "accent": "#RRGGBB"}},
-  "characters": [{{"id": "hero", "name": "prénom", "model": "un id de la liste", "shirt": "#RRGGBB", "pants": "#RRGGBB", "hat": "#RRGGBB ou none", "hair": "#RRGGBB", "scale": 1.0}}],
+  "characters": [{{"id": "hero", "name": "prénom", "model": "un id de la liste", "shirt": "#RRGGBB", "pants": "#RRGGBB", "hat": "#RRGGBB ou none", "hair": "#RRGGBB", "skin": "#RRGGBB", "hair_style": "short|long|wig|bald", "accessory": "glasses|apron|none", "scale": 1.0}}],
   "locations": [{{"id": "court_id", "type": "{'|'.join(LOCATION_TYPES)}", "ground": "#RRGGBB", "wall": "#RRGGBB", "sign_text": "texte court ou vide",
                  "props": [{{"kind": "{'|'.join(PROP_KINDS)}", "count": 1, "color": "#RRGGBB", "text": "pour sign"}}]}}],
-  "shots": [{{"i": 0, "location": "id d'un lieu", "camera": "{'|'.join(CAMERAS)}", "focus": "id perso", "others": ["id perso"], "action": "{'|'.join(ACTIONS)}", "emotion": "{'|'.join(EMOTIONS)}"}}]
+  "shots": [{{"i": 0, "location": "id d'un lieu", "camera": "{'|'.join(CAMERAS)}", "focus": "id perso", "others": ["id perso"], "action": "{'|'.join(ACTIONS)}", "emotion": "{'|'.join(EMOTIONS)}",
+             "show": {{"kind": "un objet de la liste des objets, ou text", "text": "1 à 3 mots EN MAJUSCULES (pour text/sign)", "color": "#RRGGBB"}}}}]
 }}
 Règles : 2 à 5 lieux qui correspondent à l'histoire ; 1 à 5 personnages ; un objet ou panneau qui montre ce que dit chaque phrase
 (panneaux en majuscules, 3 mots max) ; exactement un élément « shots » par plan listé (même numéro i) ; ne jamais enchaîner deux
 fois le même cadrage ; premier plan en « drone » ou « wide » ; gros plan « close » ou très gros plan visage « face » sur les émotions
 et la révélation ; « back » = vu de dos (le perso regarde un objet : télé, porte, lac) ; « high » = plongée.
+« show » = ce que la phrase de CE plan raconte, montré À L'IMAGE au moment exact où elle est dite (un objet qui apparaît à côté du perso :
+une voiture quand on parle de voiture, des pièces quand on parle d'argent, un panneau « INTERDIT » pour une règle, ou « text » = un grand mot
+qui surgit). Tout ce qui est dit doit se voir : choisis aussi l'« action » qui correspond au verbe (court → run, montre → point, tombe → fall).
 Chaque plan a une « emotion » lisible sur le visage du perso (sourire, larmes « cry », peur, surprise…) : c'est ce qui rend la vidéo vivante.
 Intérieurs meublés comme une vraie maison (sofa, tv, rug, frame, window, bookshelf, table + pancakes/plate/mug…) ;
 extérieurs avec de la profondeur (plusieurs maisons, sapins, lampadaires, voitures, bus) ; « weather » = snow si l'histoire se passe en hiver.
 Modèles de personnages disponibles :
 {models}"""
+
+
+def _sanitize_show(v: Any) -> Optional[Dict[str, Any]]:
+    """Objet / mot qui illustre la phrase du plan (apparaît pendant ce plan seulement)."""
+    if not isinstance(v, dict):
+        return None
+    kind = str(v.get("kind") or "").strip().lower()
+    text = re.sub(r"\s+", " ", str(v.get("text") or "")).strip().upper()[:24]
+    if kind not in PROP_KINDS and kind != "text":
+        kind = "text" if text else ""
+    if not kind or (kind == "text" and not text):
+        return None
+    return {"kind": kind, "text": text, "color": _hex(v.get("color"))}
 
 
 def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
@@ -124,6 +141,10 @@ def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
             "model": c.get("model") if c.get("model") in CHAR_MODELS else "villageois_01",
             "shirt": _hex(c.get("shirt")), "pants": _hex(c.get("pants")),
             "hat": _hex(c.get("hat")) or "none", "hair": _hex(c.get("hair")), "scale": scale,
+            # styles dessinés (2D × 3D, Explainer) : teint, coiffure et accessoire lisibles
+            "skin": _hex(c.get("skin")),
+            "hair_style": c.get("hair_style") if c.get("hair_style") in ("short", "long", "wig", "bald") else "short",
+            "accessory": c.get("accessory") if c.get("accessory") in ("glasses", "apron", "none") else "none",
         })
     for L in (raw.get("locations") or [])[:5]:
         if not isinstance(L, dict):
@@ -168,6 +189,7 @@ def _sanitize(raw: Dict[str, Any], n_shots: int) -> Optional[Dict[str, Any]]:
             "camera": cam, "focus": focus, "others": others,
             "action": s.get("action") if s.get("action") in ACTIONS else "idle",
             "emotion": s.get("emotion") if s.get("emotion") in EMOTIONS else "neutral",
+            "show": _sanitize_show(s.get("show")),
         })
     return out
 

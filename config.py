@@ -16,11 +16,27 @@ for p in [DOWNLOADS_DIR, AUDIO_DIR, VIDEOS_DIR, RENDERS_DIR, TRANSCRIPTS_DIR]:
 
 # Binaries (portable across machines — never hardcode a single user's home path)
 VENV_BIN = BASE_DIR / "venv" / "bin"
-FFMPEG_PATH = str(VENV_BIN / "ffmpeg") if (VENV_BIN / "ffmpeg").exists() else (shutil.which("ffmpeg") or "ffmpeg")
+RUNTIME_DIR = BASE_DIR / "runtime"
+
+
+def _bundled_ffmpeg() -> str:
+    """ffmpeg livré par le paquet Python imageio-ffmpeg (aucune installation à faire pour un nouvel utilisateur)."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+FFMPEG_PATH = str(VENV_BIN / "ffmpeg") if (VENV_BIN / "ffmpeg").exists() else (shutil.which("ffmpeg") or _bundled_ffmpeg())
 YT_DLP_PATH = str(VENV_BIN / "yt-dlp") if (VENV_BIN / "yt-dlp").exists() else (shutil.which("yt-dlp") or "yt-dlp")
 _DEFAULT_CLAUDE_CLI = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
 CLAUDE_CLI_PATH = os.getenv("CLAUDE_CLI_PATH", _DEFAULT_CLAUDE_CLI)
-BLENDER_PATH = os.getenv("BLENDER_PATH", shutil.which("blender") or "/Applications/Blender.app/Contents/MacOS/Blender")
+_RUNTIME_BLENDER = RUNTIME_DIR / "Blender.app" / "Contents" / "MacOS" / "Blender"
+BLENDER_PATH = os.getenv("BLENDER_PATH") or shutil.which("blender") or (
+    "/Applications/Blender.app/Contents/MacOS/Blender" if Path("/Applications/Blender.app/Contents/MacOS/Blender").exists()
+    else str(_RUNTIME_BLENDER)  # Blender installé automatiquement par Clipoa (core/tools_setup.py)
+)
 
 # Security, Network & Resource Guardrails
 CLIPOA_ALLOW_LAN = os.getenv("CLIPOA_ALLOW_LAN", "false").lower() in ("1", "true", "yes")

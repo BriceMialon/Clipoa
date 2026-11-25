@@ -18,6 +18,9 @@
   <link rel="stylesheet" href="/static/css/clipoa-ui.css?v=2">
 </head>
 <body>
+{% macro brand(key, label, color, size=22) -%}
+<span class="brand-logo" style="width:{{ size }}px; height:{{ size }}px;"><img src="/static/logos/{{ key }}.svg" alt="{{ label }}" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='/static/logos/{{ key }}.png';}else{this.parentNode.classList.add('nologo');this.remove();}"><b style="background:{{ color }};">{{ label[:1] }}</b></span>
+{%- endmacro %}
 
   <!-- Hidden SVG Optical Refraction Filter (Apple Liquid Glass Lensing) -->
   <svg width="0" height="0" style="position:absolute; pointer-events:none;" aria-hidden="true">
@@ -113,6 +116,13 @@
           <button type="button" data-theme="dark" onclick="applyTheme('dark')"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Sombre</button>
         </div>
         <div class="sidebar-quota-card" onclick="showView('reglages')" title="Gérer tes moteurs IA & quotas">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); margin-bottom:10px;">
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span class="dot {{ 'ok' if el_status.connected else 'warn' }}" id="top-el-dot"></span>
+              <span>ElevenLabs</span>
+            </span>
+            <span id="top-el-text" style="color:var(--muted);">{% if el_status.connected and el_status.character_limit %}{{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }} crédits{% elif el_status.connected %}Branché{% else %}Non branché{% endif %}</span>
+          </div>
           {% if claude_status.connected %}
           <!-- Claude Opus 5.5 -->
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
@@ -160,31 +170,16 @@
       <header class="workspace-topbar">
         <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre IA pour les questions">
           <form class="ai-taskbar-bar" style="width:100%;" onsubmit="event.preventDefault(); askAiHelp();">
-            <button type="button" class="ai-tb-status" onclick="toggleAiTaskbarDrawer()" title="Ouvrir ou fermer l'aide IA">
-              <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-tb-dot"></span>
-              <span>✦</span>
-              <span class="ai-tb-lbl">Aide IA</span>
-            </button>
 
-            <select id="ai-tb-model" class="ai-tb-model" title="Choisir le modèle IA qui répond" onchange="saveAiTaskbarModel()">
+            <!-- Modèles : Claude Opus 5.5, + Gemini Neon Medium seulement si Antigravity est connecté -->
+            <select id="ai-tb-model" class="ai-tb-model" title="Modèle IA qui répond" onchange="saveAiTaskbarModel()">
+              <option value="claude:opus" selected>Claude Opus 5.5</option>
               {% if agy_status.connected %}
-              <optgroup label="Antigravity ✓" id="ai-tb-agy-group">
-                {% for am in agy_status.models %}
-                <option value="antigravity:{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
-                {% endfor %}
-              </optgroup>
-              {% endif %}
-              {% if claude_status.connected %}
-              <optgroup label="Claude ✓">
-                <option value="claude:opus" {{ 'selected' if (not agy_status.connected) else '' }}>Claude Opus 5.5 (Medium)</option>
-              </optgroup>
-              {% endif %}
-              {% if not claude_status.connected and not agy_status.connected %}
-              <option value="auto:">Connecter une IA</option>
+              <option value="antigravity:gemini-4-neon-medium">Gemini Neon Medium</option>
               {% endif %}
             </select>
 
-            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Pose ta question à l’IA…' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide IA…' }}" onfocus="if (aiHelpHistory.length) toggleAiTaskbarDrawer(true)" autocomplete="off">
+            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur Clipoa ?' if (claude_status.connected or agy_status.connected) else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
 
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
           </form>
@@ -195,7 +190,7 @@
                 <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-drawer-dot"></span>
                 <span>Aide IA Clipoa</span>
                 <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
-                  {{ 'Connecté · choisis ton modèle ci-dessus' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide' }}
+                  {{ 'Réponses courtes, avec le nom exact des onglets et boutons' if (claude_status.connected or agy_status.connected) else 'Connecte Claude pour activer l’aide' }}
                 </span>
               </div>
               <div style="display:flex; gap:6px; align-items:center;">
@@ -211,7 +206,7 @@
               <div class="ai-msg assistant">
                 <div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>
                 {% if claude_status.connected or agy_status.connected %}
-                Salut ! Pose-moi n'importe quelle question sur Clipoa. Tu peux choisir Claude ou Antigravity dans la barre en haut.
+                Salut ! Pose-moi ta question sur Clipoa : créer une vidéo, copier le style d'une vidéo, publier, comprendre tes statistiques…
                 {% else %}
                 Pour activer l'aide IA en direct, connecte Claude ou Antigravity dans « Connexions ».
                 {% endif %}
@@ -219,27 +214,40 @@
             </div>
 
             <div class="ai-quick-row">
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer un short rapidement ?')">Comment créer un short ?</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment utiliser un style DA comme 3D Roblox ou Fête en folie ?')">Utiliser un style DA</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment modifier le script généré avant de lancer la vidéo ?')">Modifier mon script</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment générer une scène 3D Blender avec Antigravity ?')">Scène 3D Blender</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer une vidéo de A à Z ?')">Créer une vidéo</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment copier le style d’une vidéo que j’aime ?')">Copier le style d’une vidéo</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment voir et modifier le script avant de fabriquer la vidéo ?')">Modifier mon script</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment publier ma vidéo sur YouTube, TikTok et Instagram ?')">Publier ma vidéo</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Pourquoi certaines de mes vidéos marchent moins bien ?')">Comprendre mes stats</button>
             </div>
           </div>
         </div>
 
         <div class="topbar-right">
-          <button type="button" class="pill-chip" data-view="reglages" onclick="showView('reglages')" title="Crédits ElevenLabs & Connexions">
-            <span class="dot {{ 'ok' if el_status.connected else 'warn' }}" id="top-el-dot"></span>
-            <span id="top-el-text">
-              {% if el_status.connected and el_status.character_limit %}
-                ElevenLabs · {{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }} crédits
-              {% elif el_status.connected %}
-                ElevenLabs · Branché
+          <!-- Compte actif (chaîne YouTube, Instagram, TikTok…) : change les vidéos affichées et le compte de publication -->
+          <div class="ws-switch" id="ws-switch">
+            <button type="button" class="pill-chip" onclick="toggleWsMenu()" title="Changer de compte">
+              {% if workspace %}
+                {% if workspace.avatar %}<img class="ws-avatar" src="{{ workspace.avatar }}" alt="" referrerpolicy="no-referrer">{% else %}{{ brand(workspace.platform, workspace.name, '#666', 22) }}{% endif %}
+                <span class="ws-name">{{ workspace.name }}</span>
               {% else %}
-                ElevenLabs · Non branché
+                <span>Connecter un compte</span>
               {% endif %}
-            </span>
-          </button>
+              <span style="opacity:.6;">▾</span>
+            </button>
+            <div class="ws-menu" id="ws-menu">
+              {% for a in workspace_accounts %}
+              <button type="button" class="ws-item {{ 'actif' if workspace and workspace.id == a.id else '' }}" data-id="{{ a.id }}" onclick="selectWorkspace(this.dataset.id)">
+                {% if a.avatar %}<img class="ws-avatar" src="{{ a.avatar }}" alt="" referrerpolicy="no-referrer">{% else %}{{ brand(a.platform, a.name, '#666', 24) }}{% endif %}
+                <span style="display:flex; flex-direction:column; align-items:flex-start; min-width:0;">
+                  <b>{{ a.name }}</b><small>{{ a.platform_label }}</small>
+                </span>
+                {{ brand(a.platform, a.platform_label, '#999', 14) }}
+              </button>
+              {% endfor %}
+              <button type="button" class="ws-item ws-add" onclick="toggleWsMenu(false); showView('auto')">＋ Connecter un compte</button>
+            </div>
+          </div>
           <button type="button" class="icon-btn" onclick="openModal('modal-phone')" title="Ouvrir sur ton téléphone (QR Wi-Fi)">
             <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
           </button>
@@ -260,8 +268,7 @@
         <section id="view-accueil" class="view actif">
 
           <div class="home-hero">
-            <div class="home-hello"><span class="dot {{ 'ok' if claude_status.connected or gemini_status.connected else 'warn' }}"></span><span id="home-hello-text">Bonjour</span> · {{ week_range_label }}</div>
-            <h1 class="home-title">Qu'est-ce qu'on crée <span class="grad-text">aujourd'hui</span>&nbsp;?</h1>
+            <h1 class="home-title"><span id="home-hello-text">Bonjour</span>{% if workspace_name %}, <span class="grad-text" id="home-hello-name">{{ workspace_name }}</span>{% endif %}</h1>
 
             <div class="quick-studio-box home-prompt">
               <div class="quick-mode-tabs" id="home-quick-tabs">
@@ -272,11 +279,7 @@
               </div>
               <textarea id="home-quick-input" class="quick-prompt-input" rows="2" placeholder="Décris ta vidéo avec tes mots : le sujet, le ton, la durée…" onkeydown="if(event.key==='Enter' && (event.metaKey||event.ctrlKey)) submitHomeQuickPrompt()"></textarea>
               <div class="quick-prompt-foot">
-                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                  <button type="button" class="btn btn-ghost btn-sm" onclick="showView('creer')">
-                    <span id="home-style-label">Style auto</span> ▾
-                  </button>
-                </div>
+                <div></div>
                 <button type="button" class="btn btn-coral" id="home-quick-submit" onclick="submitHomeQuickPrompt()">Fabriquer →</button>
               </div>
             </div>
@@ -288,9 +291,9 @@
                 <span class="hs-ico hot"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
                 <span class="hs-title">Créer</span><span class="hs-sub">Une idée, l'équipe fait le reste</span>
               </button>
-              <button type="button" class="home-shortcut" onclick="showView('analyse'); document.getElementById('scan-url')?.focus();">
+              <button type="button" class="home-shortcut" onclick="showView('analyse')">
                 <span class="hs-ico"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/></svg></span>
-                <span class="hs-title">Copier</span><span class="hs-sub">Refaire un Short qui marche</span>
+                <span class="hs-title">S’inspirer</span><span class="hs-sub">Les vidéos IA qui cartonnent</span>
               </button>
               <button type="button" class="home-shortcut" onclick="showView('montage')">
                 <span class="hs-ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20"/></svg></span>
@@ -374,7 +377,6 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Nouvelle vidéo</h1>
-              <p class="page-sub">Décris ton idée ou colle ton script, choisis un style. L'équipe s'occupe du reste.</p>
             </div>
           </div>
 
@@ -399,10 +401,7 @@
             </div>
 
             <div class="fab-input-head">
-              <div class="fab-mode-seg" role="tablist" aria-label="Source du texte">
-                <button type="button" class="fab-mode-btn actif" id="fab-mode-idea" onclick="setFabInputMode('idea')">Générer depuis une idée</button>
-                <button type="button" class="fab-mode-btn" id="fab-mode-script" onclick="setFabInputMode('custom_script')">J'ai déjà mon script</button>
-              </div>
+              <span id="fab-input-kind" style="display:none;"></span>
               <div class="fab-dur-bar" id="fab-dur-bar" title="Durée approximative du script et de la vidéo">
                 <span class="fab-dur-label">Durée</span>
                 <button type="button" class="dur-pill" data-dur="30" onclick="setTargetDuration(30, this)">30s</button>
@@ -413,57 +412,21 @@
               </div>
             </div>
 
-            <!-- Titre optionnel (en mode "J'ai déjà mon script") -->
+            <!-- Titre optionnel (affiché quand un script complet est collé) -->
             <input type="text" id="fab-custom-title" class="input-sm" style="display:none; margin-bottom:8px;" placeholder="Titre / texte d'accroche (optionnel)…">
 
-            <!-- Zone Idée ou Script perso -->
-            <textarea id="main-topic" class="big-input" rows="3" oninput="updateFabScriptMeter()" placeholder="Décris ton idée de vidéo (ex : Dans ma ville, plus t'es riche plus ta maison est haute…)"></textarea>
+            <!-- Un seul champ : idée OU script (détection automatique) -->
+            <textarea id="main-topic" class="big-input" rows="4" oninput="onMainTopicInput()" placeholder="Écris ton idée en quelques mots (ex : Dans ma ville, plus t'es riche plus ta maison est haute…) ou colle directement ton script."></textarea>
 
-            <!-- Vidéo d'exemple : l'agent regarde la vidéo, en déduit le style et le reproduit avec TON histoire -->
-            <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <input type="url" id="fab-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Optionnel : lien d'une vidéo dont tu veux le style (YouTube, Short, Reel, TikTok)" oninput="updateCreateCTA()">
-              <span style="font-size:11.5px; color:var(--muted);">Clipoa reproduit son style avec ton histoire.</span>
-            </div>
-
-            <!-- Action Étape 1 : Générer le script avant la vidéo (en mode Idée) -->
-            <div id="fab-gen-script-row" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:10px;">
-              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                <select id="fab-script-model" class="input-sm" style="min-width:210px;" title="Modèle pour écrire le script">
-                  {% if claude_status.connected %}
-                  <option value="claude:claude-opus-5-5-medium">Claude Opus 5.5 (Medium)</option>
-                  {% endif %}
-                  {% if agy_status.connected %}
-                  <option value="antigravity:gemini-4-neon-medium" {{ 'selected' if not claude_status.connected else '' }}>Antigravity · Gemini 4 Neon (Medium)</option>
-                  {% endif %}
-                </select>
-                <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">
-                  ✍️ Générer le script
-                </button>
-                <button type="button" class="btn btn-ghost btn-xs" onclick="toggleEl('fab-script-adv-drawer')" title="Choisir ou importer ton propre template de script">
-                  ⚙️ Paramètres de script avancés
-                </button>
-              </div>
+            <!-- Un seul bouton : l'IA écrit le script (en direct) ; une fois écrit, on peut le modifier -->
+            <div id="fab-script-actions" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;">
+              <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">✨ Générer le script avec l'IA</button>
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
             </div>
 
-            <!-- Paramètres de script avancés : Template personnalisé -->
-            <div id="fab-script-adv-drawer" style="display:none; margin-top:10px; padding:12px 14px; border-radius:14px; background:var(--glass-soft); border:1px solid var(--border);">
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-                <span style="font-size:12px; font-weight:700; color:var(--ink);">📄 Template de script (Claude & Antigravity s'adaptent automatiquement)</span>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <select id="fab-template-select" class="input-sm" style="flex:1; min-width:220px;" onchange="onScriptTemplateChange()">
-                  {% for tpl in script_templates %}
-                  <option value="{{ tpl.id }}">{{ tpl.name }}{{ ' (Par défaut)' if tpl.is_default else ' (Perso)' }}</option>
-                  {% endfor %}
-                </select>
-                <button type="button" class="btn btn-ghost btn-xs" id="fab-tpl-del-btn" style="display:none;" onclick="deleteSelectedScriptTemplate()">Supprimer</button>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
-                <input type="text" id="fab-tpl-name" class="input-sm" style="width:180px;" placeholder="Nom de ton template…">
-                <input type="file" id="fab-tpl-file" accept=".md,.txt,.markdown" style="display:none;" onchange="uploadCustomScriptTemplate(this)">
-                <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('fab-tpl-file').click()">↑ Importer un fichier (.md / .txt)</button>
-              </div>
+            <!-- Vidéo d'exemple : l'agent regarde la vidéo, en déduit le style et le reproduit avec TON histoire -->
+            <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <input type="url" id="fab-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Optionnel : lien d'une vidéo dont tu veux le style (YouTube, Short, Reel, TikTok)" oninput="syncRefUrlLock()">
             </div>
 
             <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + aperçu mis en forme + valider / modifier) -->
@@ -477,35 +440,25 @@
                   <div class="progress-fill" id="fab-gen-progress-bar" style="width:5%; transition:width .25s ease;"></div>
                 </div>
               </div>
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span style="font-size:12.5px; font-weight:700; color:var(--ink);">📝 Script généré</span>
-                  <span id="fab-review-meta" style="font-size:11.5px; color:var(--muted);"></span>
-                  <span id="fab-review-validated-badge" style="display:none; font-size:11px; font-weight:700; color:var(--ok); background:var(--ok-soft); padding:2px 8px; border-radius:99px;">✓ Validé</span>
-                </div>
-                <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
-                  <div class="fab-mode-seg" style="padding:2px;">
-                    <button type="button" class="fab-mode-btn actif" id="fab-view-pretty-btn" style="padding:3px 9px; font-size:11px;" onclick="setFabScriptViewMode('pretty')">👁️ Aperçu</button>
-                    <button type="button" class="fab-mode-btn" id="fab-view-raw-btn" style="padding:3px 9px; font-size:11px;" onclick="setFabScriptViewMode('raw')">✏️ Éditer</button>
-                  </div>
-                  <button type="button" class="btn btn-primary btn-xs" id="fab-validate-script-btn" onclick="validateFabScript()">✓ Valider</button>
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="generateFabriqueScript()">↻ Régénérer</button>
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="clearGeneratedFabScript()">Effacer</button>
-                </div>
+              <!-- Simple : le script (affiché proprement), 1 bouton pour le retoucher à la main, 1 champ pour le faire changer par l'IA.
+                   Le script affiché est celui utilisé par « Fabriquer » (pas de bouton Valider). -->
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
+                <span style="font-size:13px; font-weight:700; color:var(--ink);">📝 Ton script</span>
+                <button type="button" class="btn btn-ghost btn-xs" id="fab-edit-toggle" onclick="toggleFabScriptEdit()">✏️ Modifier à la main</button>
               </div>
-              <input type="text" id="fab-review-title" class="input-sm" style="margin-bottom:8px;" placeholder="Titre de la vidéo…">
+              <input type="hidden" id="fab-review-title">
               <div id="fab-review-formatted" class="script-formatted-view"></div>
-              <textarea id="fab-review-text" class="code-editor" rows="14" style="display:none; width:100%; font-size:12px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()" placeholder="Fiche projet, Personnages, Script plan par plan, Musiques (MUS-xx) et Effets sonores (SFX-xx)…"></textarea>
+              <textarea id="fab-review-text" class="code-editor" rows="14" style="display:none; width:100%; font-size:12.5px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()"></textarea>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-                <input type="text" id="fab-refine-input" class="input-sm" style="flex:1; min-width:200px;" placeholder="Demander à l'IA de remodifier (ex : rends la fin plus sombre, ajoute un perso, change la musique…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
-                <button type="button" class="btn btn-ghost btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Modifier avec l'IA</button>
+                <input type="text" id="fab-refine-input" class="input-sm" style="flex:1; min-width:200px;" placeholder="Que veux-tu changer ? (ex : une fin plus triste, un perso en plus…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
+                <button type="button" class="btn btn-primary btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Changer avec l’IA</button>
               </div>
             </div>
 
             <!-- ===== STYLE DA ===== -->
             <div class="style-plaques-label">
               <span>Style</span>
-              <span style="font-size:11.5px; font-weight:500; color:var(--muted);" id="active-style-hint">Auto</span>
+              <span id="active-style-hint" style="display:none;"></span>
             </div>
 
             <div id="cine-warning" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:rgba(255,190,60,0.12); border:1px solid rgba(255,190,60,0.45); font-size:12.5px; line-height:1.45; color:var(--ink);">
@@ -516,14 +469,10 @@
                 <button type="button" class="btn btn-primary btn-xs" id="cine-install-btn" onclick="installCineEngine()">Installer le moteur Ciné</button>
               </div>
             </div>
+            <div id="style-ref-lock" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; color:var(--ink);">
+              🎞️ <b>Style copié depuis ta vidéo</b> : Clipoa regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
+            </div>
             <div class="style-plaques-strip" id="style-plaques-strip">
-              <button type="button" class="style-plaque actif" data-splaque="auto" onclick="selectStylePlaque('auto', this)">
-                <div class="sp-art sp-auto">
-                  <div style="font-size:24px; color:#fff; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.3));">✦</div>
-                </div>
-                <span class="sp-name">Auto</span>
-              </button>
-
               {% for pl in style_plugins %}
               <button type="button" class="style-plaque" data-splaque="plugin:{{ pl.id }}" data-plugin-id="{{ pl.id }}" onclick="selectStylePlaque('plugin:{{ pl.id }}', this)">
                 <div class="sp-art {{ pl.gradient_css }} {{ 'has-cover' if pl.cover_url else '' }}" {% if pl.cover_url %}style="background-image:url('{{ pl.cover_url }}');"{% endif %}>
@@ -534,13 +483,6 @@
               </button>
               {% endfor %}
 
-              <button type="button" class="style-plaque" data-splaque="3d" onclick="selectStylePlaque('3d', this)">
-                <div class="sp-art sp-3d">
-                  <div style="font-size:26px; margin:auto 0;">🧊</div>
-                </div>
-                <span class="sp-name">3D Blender</span>
-              </button>
-
               <button type="button" class="style-plaque" data-splaque="schema" onclick="selectStylePlaque('schema', this)">
                 <div class="sp-art sp-schema">
                   <div style="margin:auto 0; font-weight:800; font-size:15px; color:#34D399;">+312%</div>
@@ -548,20 +490,7 @@
                 <span class="sp-name">Schéma animé</span>
               </button>
 
-              <button type="button" class="style-plaque" data-splaque="broll" onclick="selectStylePlaque('broll', this)">
-                <div class="sp-art sp-broll">
-                  <div style="font-size:24px; margin:auto 0;">🎞️</div>
-                </div>
-                <span class="sp-name">Ta vidéo B-roll</span>
-              </button>
 
-              <button type="button" class="style-plaque" data-splaque="new_plugin" onclick="openPluginEditor()">
-                <div class="sp-art sp-add-plugin">
-                  <div style="font-size:26px; color:var(--accent); font-weight:700;">＋</div>
-                  <div style="font-size:10px; font-weight:700; color:var(--muted); line-height:1.25;">Nouveau<br>style</div>
-                </div>
-                <span class="sp-name">Nouveau style</span>
-              </button>
             </div>
 
             <!-- Bandeau DA active quand un style est sélectionné -->
@@ -575,8 +504,9 @@
               </div>
               <div style="display:flex; gap:6px; flex-shrink:0; flex-wrap:wrap;">
                 <button type="button" class="btn btn-ghost btn-xs" id="ap-edit-btn" onclick="openPluginEditor(activePluginId)">Éditer</button>
-                <button type="button" class="btn btn-ghost btn-xs" onclick="selectStylePlaque('auto')" title="Retirer ce style">✕</button>
               </div>
+              <!-- Vidéo de référence : à quoi ressemble ce style -->
+              <div id="ap-preview" style="width:100%; display:none; gap:14px; align-items:flex-start; flex-wrap:wrap; margin-top:4px;"></div>
             </div>
 
             <!-- Champs techniques pilotés automatiquement par le style (cachés) -->
@@ -585,12 +515,12 @@
             <input type="checkbox" id="fab-retention-boost" checked style="display:none;">
 
             <!-- ===== ÉTAPE 2 : RENDU & IA DE GÉNÉRATION (toujours simple et visible) ===== -->
-            <div class="step-block" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
-              <div class="step-label">
-                <span>2 · Moteur de rendu 9:16</span>
-                <span id="render-lock-hint" style="text-transform:none; letter-spacing:0; font-weight:600; color:var(--accent);"></span>
-              </div>
-              <div class="pick-grid">
+            <div class="step-block" style="margin-top:0; padding-top:0;">
+              <!-- Outil de rendu : choisi en coulisses par l'IA selon le style / la vidéo d'exemple (rien d'affiché) -->
+              <span id="render-lock-hint" style="display:none;"></span>
+              <b id="auto-tool-label" style="display:none;">Fond animé</b>
+              <!-- Le style décide de l'outil (Roblox → Blender, fond animé → motion, B-roll → ta vidéo) : plus de choix manuel -->
+              <div class="pick-grid" style="display:none;" aria-hidden="true">
                 <button type="button" class="pick-card actif" id="rend-card-motion" onclick="selectRenderType('motion')">
                   <div class="pick-top"><span class="pick-title">Fond animé</span><span class="pick-badge">Auto</span></div>
                   <div class="pick-sub">Motion 9:16 + voix + sous-titres</div>
@@ -622,7 +552,7 @@
             <!-- IA qui génère (juste après le moteur de rendu : Claude Opus 5.5 Medium vs Antigravity Neon Medium) -->
             <div class="step-block" style="margin-top:14px;">
               <div class="step-label">
-                <span>3 · IA qui génère</span>
+                <span>2 · IA qui génère</span>
                 <span id="engine-active-hint" style="text-transform:none; letter-spacing:0; font-weight:600; color:var(--ink);"></span>
               </div>
               <div class="pick-grid">
@@ -662,7 +592,7 @@
             <!-- Voix compacte -->
             <div class="step-block" style="margin-top:14px;">
               <div class="step-label">
-                <span>4 · Voix</span>
+                <span>3 · Voix</span>
                 <div style="display:flex; gap:5px; text-transform:none; letter-spacing:0;">
                   <button type="button" class="chip actif" id="vmode-auto" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('auto')">Auto</button>
                   <button type="button" class="chip" id="vmode-manual" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('manual')">Choisir</button>
@@ -746,17 +676,6 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Mes styles</h1>
-              <p class="page-sub">Tes directions artistiques : personnages, décors et règles que Claude applique à chaque vidéo.</p>
-            </div>
-            <button type="button" class="btn btn-coral" onclick="openPluginEditor()">+ Nouveau style</button>
-          </div>
-
-          <div class="card" style="margin-bottom:14px; padding:14px 16px;">
-            <div style="font-weight:700; font-size:14px; color:var(--ink);">Créer un style à partir d'une vidéo</div>
-            <div style="font-size:12.5px; color:var(--muted); margin:4px 0 10px;">Colle le lien d'une vidéo que tu aimes : l'IA la regarde, décrit son style (rendu, couleurs, rythme, textes, son) et l'ajoute à tes styles.</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <input type="url" id="plugin-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Lien YouTube, Short, Reel, TikTok ou X">
-              <button type="button" class="btn btn-primary btn-sm" id="plugin-ref-btn" onclick="createStyleFromReference()">Analyser la vidéo</button>
             </div>
           </div>
 
@@ -904,7 +823,6 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Publier</h1>
-              <p class="page-sub">Envoie ou programme tes vidéos sur YouTube, TikTok, Instagram et Facebook.</p>
             </div>
             <button type="button" class="btn btn-ghost btn-sm" onclick="showView('perf')">Voir mes statistiques ›</button>
           </div>
@@ -914,7 +832,6 @@
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
               <div>
                 <div class="section-title" style="font-size:15px;">Mes comptes</div>
-                <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">Connecte tes réseaux une fois, Clipoa publie ensuite tout seul.</div>
               </div>
             </div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:10px;">
@@ -922,7 +839,7 @@
               <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 13px; border-radius:14px; background:var(--glass-soft); border:1px solid {{ 'rgba(50,215,96,0.34)' if acc.auto_api else 'var(--border)' }};">
                 <div style="min-width:0; flex:1;">
                   <div style="display:flex; align-items:center; gap:7px; font-weight:600; font-size:13.5px; color:var(--ink);">
-                    <span style="width:8px; height:8px; border-radius:50%; background:{{ acc.color }}; flex-shrink:0;"></span>
+                    {{ brand(key, acc.short_name, acc.color, 20) }}
                     <span>{{ acc.short_name }}</span>
                   </div>
                   <div style="font-size:11.5px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:{{ 'var(--ok)' if acc.auto_api else 'var(--muted)' }};">
@@ -980,7 +897,7 @@
                 <div class="plat-row" id="pub-platforms">
                   {% for key, acc in social_accounts.items() %}
                   <div class="plat-pill {{ 'selected' if acc.auto_api else '' }}" data-plat="{{ key }}" data-oauth="{{ acc.oauth_provider }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" data-connected="{{ '1' if acc.auto_api else '0' }}" style="{{ '' if acc.auto_api else 'opacity:0.78; border-style:dashed;' }}" onclick="togglePulsePlatform(this)">
-                    {{ acc.short_name }}
+                    <span style="display:inline-flex; align-items:center; gap:6px;">{{ brand(key, acc.short_name, acc.color, 18) }}{{ acc.short_name }}</span>
                     <div style="font-size:10.5px; font-weight:600; color:{{ 'var(--ok)' if acc.auto_api else 'var(--accent)' }}; margin-top:2px;">{{ ('✓ ' ~ acc.label) if acc.auto_api else 'Brancher →' }}</div>
                   </div>
                   {% endfor %}
@@ -1057,9 +974,19 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Statistiques</h1>
-              <p class="page-sub">Les vues, l'engagement et le diagnostic IA de tes vidéos publiées en direct des réseaux.</p>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" id="an-sync-btn" onclick="syncPulseAnalytics()">↻ Rafraîchir mes chiffres</button>
+            <button type="button" class="btn btn-coral btn-sm" id="cs-sync-btn" onclick="syncChannelStats()">↻ Mettre à jour</button>
+          </div>
+
+          <div class="card lg-sheen" style="margin-bottom:16px;">
+            <div id="cs-head" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
+            <div id="cs-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
+            <div style="display:flex; gap:6px; margin-top:10px;" id="cs-sort">
+              <button type="button" class="chip actif" data-v="recent" onclick="setCsSort('recent', this)">Plus récentes</button>
+              <button type="button" class="chip" data-v="best" onclick="setCsSort('best', this)">Meilleur score</button>
+              <button type="button" class="chip" data-v="worst" onclick="setCsSort('worst', this)">À améliorer</button>
+            </div>
+            <div id="cs-list" style="display:flex; flex-direction:column; gap:10px; margin-top:12px;"></div>
           </div>
 
           <div class="card lg-sheen">
@@ -1130,109 +1057,31 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">S’inspirer</h1>
-              <p class="page-sub">Copie la recette d'un Short qui marche, scanne un concurrent ou explore les tendances.</p>
+              <p class="page-sub">Les vidéos faites à l’IA qui cartonnent en ce moment sur TikTok et Instagram Reels : leur score, pourquoi elles marchent, et un clic pour copier leur style.</p>
             </div>
-            <select id="an-engine" class="input-sm" style="width:auto; font-size:12.5px;">
-              <option value="gemini">Gemini Flash (Gratuit)</option>
-              <option value="claude">Claude {{ (claude_status.model or 'opus')|capitalize }}</option>
-            </select>
+            <button type="button" class="btn btn-coral" id="insp-scan-btn" onclick="scanInspiration()">↻ Actualiser le radar</button>
           </div>
 
-          <!-- Bloc 1 : Scanner @concurrent ou analyser/copier un short précis -->
-          <div class="card lg-sheen" style="margin-bottom:18px;">
-            <div class="section-head-row">
-              <div class="section-title">Copier une vidéo ou scanner un @concurrent</div>
-              <select id="scan-cookies" class="input-sm" style="width:auto; padding:5px 10px; font-size:12px;">
-                <option value="">Sans cookies</option>
-                <option value="chrome">Cookies Chrome</option>
-                <option value="safari">Cookies Safari</option>
-              </select>
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <input type="text" id="scan-url" class="input-sm" style="flex:1; min-width:220px; padding:12px 15px; font-size:14.5px;" placeholder="Colle un @compte concurrent (YouTube / TikTok) ou le lien direct d'un Short / Reel…">
-              <button type="button" class="btn btn-coral" id="scan-btn" onclick="scanOrAnalyze()">Analyser & Copier →</button>
-            </div>
-            <div id="scan-results" style="margin-top:14px;"></div>
-          </div>
-
-          <!-- Bloc 2 : Radar Viral Tendances (< 90s) -->
-          <div class="card lg-sheen" id="ext-analytics-box">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-              <div class="section-title">Radar des formats courts qui explosent (&lt; 90s)</div>
-              <div style="display:flex; gap:6px;" id="ext-lang-pills">
-                <button type="button" class="chip {{ 'actif' if (external_report.lang or 'fr') == 'fr' else '' }}" data-lang="fr" onclick="selectExtLang('fr', this)">Français</button>
-                <button type="button" class="chip {{ 'actif' if external_report.lang == 'en' else '' }}" data-lang="en" onclick="selectExtLang('en', this)">Anglais</button>
-                <button type="button" class="chip {{ 'actif' if external_report.lang == 'intl' else '' }}" data-lang="intl" onclick="selectExtLang('intl', this)">International</button>
+          <div class="card lg-sheen">
+            <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+              <div style="display:flex; gap:6px;" id="insp-plat">
+                <button type="button" class="chip actif" data-v="all" onclick="setInspFilter('plat', 'all', this)">Tous</button>
+                <button type="button" class="chip" data-v="tiktok" onclick="setInspFilter('plat', 'tiktok', this)">TikTok</button>
+                <button type="button" class="chip" data-v="instagram" onclick="setInspFilter('plat', 'instagram', this)">Reels</button>
+              </div>
+              <div style="display:flex; gap:6px;" id="insp-days">
+                <button type="button" class="chip" data-v="7" onclick="setInspFilter('days', 7, this)">7 jours</button>
+                <button type="button" class="chip" data-v="14" onclick="setInspFilter('days', 14, this)">14 jours</button>
+                <button type="button" class="chip actif" data-v="30" onclick="setInspFilter('days', 30, this)">30 jours</button>
+              </div>
+              <div style="display:flex; gap:6px;" id="insp-lang">
+                <button type="button" class="chip actif" data-v="fr" onclick="setInspFilter('lang', 'fr', this)">Français</button>
+                <button type="button" class="chip" data-v="en" onclick="setInspFilter('lang', 'en', this)">Anglais</button>
+                <button type="button" class="chip" data-v="all" onclick="setInspFilter('lang', 'all', this)">Les deux</button>
               </div>
             </div>
-
-            <div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:12px;" id="ext-niches-list">
-              {% for n in analytics_niches %}
-              <button type="button" class="chip {{ 'actif' if loop.first else '' }}" data-niche="{{ n.id }}" onclick="this.classList.toggle('actif')">{{ n.label }}</button>
-              {% endfor %}
-            </div>
-
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <input type="text" id="ext-custom-niche" class="input-sm" style="flex:1; min-width:180px;" placeholder="Niche précise (ex : Storytelling, Immobilier, IA, Cuisine…)">
-              <button type="button" class="btn btn-primary btn-sm" id="ext-scan-btn" onclick="scanExternalNiches()">Scanner la toile</button>
-            </div>
-
-            <div id="ext-loading" style="display:none; margin-top:12px;">
-              <div style="font-size:12.5px; color:var(--muted);"><span class="pulse-dot"></span>Scan des meilleurs clips courts & tendances…</div>
-              <div class="progress-track"><div class="progress-fill" style="width:65%;"></div></div>
-            </div>
-
-            <div id="ext-results" style="margin-top:20px;">
-              {% if external_report %}
-              <div style="font-size:14.5px; color:var(--ink); font-weight:600; line-height:1.5; max-width:720px;">{{ external_report.summary }}</div>
-
-              <div class="trend-tags">
-                {% for s in external_report.hot_sectors %}<span class="trend-tag">{{ s }}</span>{% endfor %}
-                {% for f in external_report.winning_formats %}<span class="trend-tag" style="background:var(--indigo-soft); border-color:transparent;">{{ f }}</span>{% endfor %}
-              </div>
-
-              {% if external_report.recommended_angles %}
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;">
-                {% for ang in external_report.recommended_angles %}
-                <button type="button" class="btn btn-ghost btn-sm" data-angle="{{ ang }}" onclick="useTrendAngle(this.dataset.angle)">✦ {{ ang }}</button>
-                {% endfor %}
-              </div>
-              {% endif %}
-
-              {% if external_report.top_videos %}
-              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
-                <div style="font-weight:700; color:var(--ink); font-size:15px;">Mur des pépites · {{ external_report.lang_label or 'Français' }}</div>
-                <div style="display:flex; gap:6px;" id="wall-plat-filter">
-                  <button type="button" class="chip actif" onclick="filterWallPlatform('all', this)">Tous</button>
-                  <button type="button" class="chip" onclick="filterWallPlatform('youtube', this)">YouTube</button>
-                  <button type="button" class="chip" onclick="filterWallPlatform('tiktok', this)">TikTok</button>
-                  <button type="button" class="chip" onclick="filterWallPlatform('instagram', this)">Reels</button>
-                </div>
-              </div>
-
-              <div class="viral-wall" id="viral-wall-grid">
-                {% for tv in external_report.top_videos %}
-                {% set plat = tv.platform or 'youtube' %}
-                <div class="wall-card" data-plat="{{ plat }}">
-                  <div class="wall-thumb plat-{{ plat }}">
-                    {% if tv.thumbnail %}<img src="{{ tv.thumbnail }}" alt="" loading="lazy">{% endif %}
-                    <span class="wall-plat-badge {{ plat }}">{{ 'Reels' if plat == 'instagram' else ('TikTok' if plat == 'tiktok' else 'Shorts') }}</span>
-                    <div class="wall-overlay">
-                      {% if tv.views %}<span class="wall-views">{{ '{:,}'.format(tv.views).replace(',', ' ') }} vues</span>{% elif tv.likes %}<span class="wall-views">{{ '{:,}'.format(tv.likes).replace(',', ' ') }} likes</span>{% endif %}
-                      <div class="wall-title">{{ tv.title }}</div>
-                      <div class="wall-meta">{{ tv.channel }}{{ (' · ' ~ tv.duration ~ 's') if tv.duration else '' }}</div>
-                    </div>
-                  </div>
-                  <div class="wall-actions">
-                    <a class="btn btn-ghost btn-xs" style="flex:1;" href="{{ tv.url }}" target="_blank" rel="noopener">Voir ↗</a>
-                    <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="{{ tv.url }}" data-title="{{ tv.title }}" onclick="openCloneModal(this.dataset.url, this.dataset.title)">Copier</button>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-              {% endif %}
-              {% endif %}
-            </div>
+            <div id="insp-status" style="font-size:12.5px; color:var(--muted);"></div>
+            <div class="viral-wall" id="insp-wall"></div>
           </div>
         </section>
 
@@ -1307,7 +1156,6 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Connexions</h1>
-              <p class="page-sub">Connecte Claude, Antigravity et ElevenLabs pour fabriquer tes vidéos.</p>
             </div>
           </div>
 
@@ -1318,7 +1166,7 @@
             <div class="conn-opt-plaque lg-sheen">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <div class="conn-mini-ico" style="margin-bottom:0;">✳</div>
+                  <div class="conn-mini-ico" style="margin-bottom:0;">{{ brand('claude', 'Claude', '#D97757', 30) }}</div>
                   <span style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if claude_status.connected else 'var(--accent)' }};">
                     {{ '✓ Branché' if claude_status.connected else '● À brancher' }}
                   </span>
@@ -1389,7 +1237,7 @@
             <div class="conn-opt-plaque lg-sheen">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <div class="conn-mini-ico" style="margin-bottom:0;">🪐</div>
+                  <div class="conn-mini-ico" style="margin-bottom:0;">{{ brand('antigravity', 'Antigravity', '#4285F4', 30) }}</div>
                   <span id="reg-agy-status" style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if agy_status.connected else 'var(--muted)' }};">
                     {{ '✓ Connecté' if agy_status.connected else 'À connecter' }}
                   </span>
@@ -1452,7 +1300,7 @@
             <div class="conn-opt-plaque lg-sheen">
               <div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <div class="conn-mini-ico" style="margin-bottom:0;">🎙️</div>
+                  <div class="conn-mini-ico" style="margin-bottom:0;">{{ brand('elevenlabs', 'ElevenLabs', '#111111', 30) }}</div>
                   <span id="reg-el-status" style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if el_status.connected else 'var(--muted)' }};">
                     {{ '✓ Branché' if el_status.connected else 'Pas branché' }}
                   </span>
@@ -1502,7 +1350,7 @@
             <div class="conn-social-pills">
               {% for key, acc in social_accounts.items() %}
               <button type="button" class="social-connect-pill" data-plat="{{ key }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" onclick="connectSocialOAuth(this.dataset.plat, 'reglages', this.dataset.ready === '1')">
-                <span style="width:8px; height:8px; border-radius:50%; background:{{ acc.color }};"></span>
+                {{ brand(key, acc.short_name, acc.color, 18) }}
                 <span>{{ acc.short_name }}</span>
                 {% if acc.auto_api %}
                 <span style="color:var(--ok); font-size:11.5px;">✓ Connecté</span>
@@ -1515,11 +1363,10 @@
               {% endfor %}
             </div>
 
-            <button type="button" class="btn btn-ghost btn-xs" onclick="toggleEl('oauth-setup-drawer')">Réglages avancés ▾</button>
           </div>
 
-          <!-- Tiroir Avancé OAuth & Relais Cloudflare -->
-          <div id="oauth-setup-drawer" class="options-drawer card" style="margin-top:12px;">
+          <!-- Réglages techniques OAuth / relais : jamais montrés aux utilisateurs (configurés par l'éditeur de Clipoa) -->
+          <div id="oauth-setup-drawer" class="options-drawer card" style="display:none !important;" hidden aria-hidden="true">
             <div class="field" style="grid-column:1/-1; background:var(--glass-soft); padding:12px 14px; border-radius:14px; border:1px solid var(--border);">
               <label>Relais OAuth 1-Clic SaaS (Cloudflare Workers HTTPS)</label>
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
@@ -2078,9 +1925,9 @@
   <script>
     let createEngine = 'claude';
     let selectedRenderType = 'motion';
-    let selectedStylePlaque = 'auto';
+    let selectedStylePlaque = ''; // plus de style « Auto » : un vrai style est toujours choisi
     let activePluginId = '';
-    let fabInputMode = 'idea'; // 'idea' | 'custom_script'
+    let fabInputMode = 'idea'; // 'idea' | 'custom_script' (détecté automatiquement depuis le champ unique)
     let targetDurationSec = 60;
     let pluginsFilterStatus = 'all';
     let voiceProvider = 'free';
@@ -2298,9 +2145,9 @@
     function submitHomeQuickPrompt() {
       const q = val('home-quick-input');
       if (homeQuickMode === 'clone') {
+        // Copier une vidéo = coller son lien dans Nouvelle vidéo (le style est copié, la liste des styles se verrouille)
+        if (q && /^https?:\/\//.test(q)) return useInspirationLink(q);
         showView('analyse');
-        if (q) { document.getElementById('scan-url').value = q; scanOrAnalyze(); }
-        else document.getElementById('scan-url')?.focus();
         return;
       }
       if (homeQuickMode === 'cut') {
@@ -2348,6 +2195,15 @@
       const scale = Math.max(0.4, Math.min(3.0, (durSec || 60) / 60));
       const eng = (engOverride || createEngine || 'claude') === 'antigravity' ? 'antigravity' : 'claude';
       const rMode = (pl && pl.render_mode === 'blender3d') ? 'blender3d' : 'motion';
+      // Benchmark par style (mesuré sur les vraies fabrications, sinon valeur de départ propre au style)
+      const styleKey = pl && pl.id ? pl.id : '_motion';
+      const st = ((LEARNED_ESTIMATES && LEARNED_ESTIMATES.styles) || {})[styleKey];
+      if (st && st[eng]) {
+        const e = st[eng];
+        const tSec = Math.max(12, Math.round(e.sec_60s * (0.45 + 0.55 * scale)));
+        const qPct = Math.min(100, Math.round(e.pct_60s * (0.5 + 0.5 * scale) * 10) / 10);
+        return { timeSec: tSec, timeLbl: '~' + formatDurShort(tSec), quotaPct: qPct, eng, measured: !!e.measured, samples: e.samples || 0 };
+      }
       const baseMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.baselines_60s) || {};
       const quotaMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.quota_pct_60s) || {};
       const baseTime = baseMap[`${eng}:${rMode}`] || (rMode === 'blender3d' ? (eng === 'antigravity' ? 115 : 135) : (eng === 'antigravity' ? 42 : 55));
@@ -2358,12 +2214,23 @@
       return { timeSec, timeLbl, quotaPct, eng };
     }
 
+    // Un seul bouton : afficher proprement ⇄ modifier à la main
+    function toggleFabScriptEdit(forceEdit) {
+      const editing = typeof forceEdit === 'boolean' ? forceEdit : fabScriptViewMode !== 'raw';
+      setFabScriptViewMode(editing ? 'raw' : 'pretty');
+      const btn = document.getElementById('fab-edit-toggle');
+      if (btn) btn.textContent = editing ? '✓ Terminé' : '✏️ Modifier à la main';
+      if (editing) document.getElementById('fab-review-text')?.focus();
+    }
+
     function setFabScriptViewMode(mode) {
       fabScriptViewMode = (mode === 'raw') ? 'raw' : 'pretty';
       const prettyEl = document.getElementById('fab-review-formatted');
       const rawEl = document.getElementById('fab-review-text');
       document.getElementById('fab-view-pretty-btn')?.classList.toggle('actif', fabScriptViewMode === 'pretty');
       document.getElementById('fab-view-raw-btn')?.classList.toggle('actif', fabScriptViewMode === 'raw');
+      const editBtn = document.getElementById('fab-edit-toggle');
+      if (editBtn) editBtn.textContent = fabScriptViewMode === 'raw' ? '✓ Terminé' : '✏️ Modifier à la main';
       if (fabScriptViewMode === 'pretty') {
         renderFormattedScript(rawEl ? rawEl.value : '');
         if (prettyEl) prettyEl.style.display = 'block';
@@ -2500,23 +2367,42 @@
       toast('Template supprimé.');
     }
 
+    // Champ unique : une idée courte ou un script complet, détecté automatiquement
+    function detectFabInputMode(txt) {
+      const t = (txt || '').trim();
+      if (!t) return 'idea';
+      const words = t.split(/\s+/).filter(Boolean).length;
+      const sentences = (t.match(/[.!?…](\s|$)/g) || []).length;
+      return (words >= 35 || (words >= 20 && sentences >= 3) || /\n.*\n/.test(t)) ? 'custom_script' : 'idea';
+    }
+
+    // Le style choisit l'outil ; en « Auto », on déduit l'outil de l'idée (3D / Roblox → Blender, sinon fond animé)
+    function autoRenderTypeForText(txt) {
+      const t = (txt || '').toLowerCase();
+      if (/\b(roblox|minecraft|3d|blender|blocky|cubique)\b/.test(t) && BLENDER_AVAILABLE) return 'blender3d';
+      return 'motion';
+    }
+
+    function onMainTopicInput() {
+      const mode = detectFabInputMode(val('main-topic'));
+      if (mode !== fabInputMode) setFabInputMode(mode);
+      else updateFabScriptMeter();
+      if (selectedStylePlaque === 'auto') selectRenderType(autoRenderTypeForText(val('main-topic')));
+      updateCreateCTA();
+    }
+
     function setFabInputMode(mode) {
       fabInputMode = mode === 'custom_script' ? 'custom_script' : 'idea';
       document.getElementById('fab-mode-idea')?.classList.toggle('actif', fabInputMode === 'idea');
       document.getElementById('fab-mode-script')?.classList.toggle('actif', fabInputMode === 'custom_script');
       const titleInp = document.getElementById('fab-custom-title');
-      const genRow = document.getElementById('fab-gen-script-row');
-      const revBox = document.getElementById('fab-script-review-box');
       const ta = document.getElementById('main-topic');
       if (titleInp) titleInp.style.display = fabInputMode === 'custom_script' ? 'block' : 'none';
-      if (genRow) genRow.style.display = fabInputMode === 'idea' ? 'flex' : 'none';
-      if (revBox && fabInputMode === 'custom_script') revBox.style.display = 'none';
-      if (ta) {
-        ta.rows = fabInputMode === 'custom_script' ? 6 : 3;
-        ta.placeholder = fabInputMode === 'custom_script'
-          ? 'Colle ou écris ton script exact mot pour mot…'
-          : 'Décris ton idée de vidéo (ex : Dans ma ville, plus t’es riche plus ta maison est haute…)';
-      }
+      if (ta) ta.rows = fabInputMode === 'custom_script' ? 7 : 4;
+      const kind = document.getElementById('fab-input-kind');
+      if (kind) kind.textContent = fabInputMode === 'custom_script'
+        ? ''
+        : '';
       updateFabScriptMeter();
       updateCreateCTA();
     }
@@ -2612,7 +2498,7 @@
         if (st) st.textContent = `✓ Modifié (${res.engine_label || eng})`;
         toast('Script mis à jour par l’IA !');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '✨ Modifier avec l’IA'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✨ Changer avec l’IA'; }
       }
     }
 
@@ -2749,20 +2635,71 @@
         toast(e.message || 'Erreur pendant la génération du script.');
       } finally {
         clearInterval(pulseTimer);
-        if (btn) { btn.disabled = false; btn.textContent = '✍️ Générer le script'; }
+        if (btn) { btn.disabled = false; btn.textContent = '✨ Régénérer le script avec l’IA'; }
       }
     }
 
     // ===== Plaquettes 9:16 "La façon de faire" & Plugins de Style (DA) =====
+    // Un lien vidéo collé = on copie SON style : la liste des styles est verrouillée tant que le lien est là
+    function refUrlLocksStyle() {
+      const u = val('fab-ref-url');
+      return /^https?:\/\/\S+\.\S+/.test(u);
+    }
+
+    function syncRefUrlLock() {
+      const locked = refUrlLocksStyle();
+      const strip = document.getElementById('style-plaques-strip');
+      if (strip) {
+        strip.style.opacity = locked ? '0.35' : '';
+        strip.style.pointerEvents = locked ? 'none' : '';
+        strip.setAttribute('aria-disabled', locked ? 'true' : 'false');
+      }
+      const banner = document.getElementById('style-ref-lock');
+      if (banner) banner.style.display = locked ? 'block' : 'none';
+      const bar = document.getElementById('active-plugin-bar');
+      if (bar) bar.style.display = locked ? 'none' : '';
+      const hint = document.getElementById('active-style-hint');
+      if (hint && locked) hint.textContent = 'Copié depuis ta vidéo';
+      updateCreateCTA();
+    }
+
+    // Style par défaut (il n'y a plus de « Auto ») : 3D Roblox s'il existe, sinon le premier style
+    function selectDefaultStyle() {
+      const pl = STYLE_PLUGINS.find(p => p.id === 'roblox_3d') || STYLE_PLUGINS[0];
+      if (pl) selectStylePlaque('plugin:' + pl.id);
+      else selectStylePlaque('3d');
+    }
+
+    let stylePreviewFor = '';
+    async function loadStylePreview(pluginId, force = false) {
+      const box = document.getElementById('ap-preview');
+      if (!box) return;
+      if (!pluginId) { box.style.display = 'none'; box.innerHTML = ''; stylePreviewFor = ''; return; }
+      if (pluginId === stylePreviewFor && !force) return;
+      stylePreviewFor = pluginId;
+      box.style.display = 'flex';
+      box.innerHTML = '<span style="font-size:12px; color:var(--muted);">Chargement de la vidéo de référence…</span>';
+      let pv = {};
+      try { pv = await apiJson('/api/plugins/' + encodeURIComponent(pluginId) + '/preview'); } catch (e) { pv = {}; }
+      if (stylePreviewFor !== pluginId) return;
+      // Seulement la vidéo : pas de lien vers le site d'origine, pas d'ajout ni de changement (c'est l'éditeur de Clipoa qui fournit les références)
+      if (pv.kind !== 'video' || !pv.url) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      box.innerHTML = `<video src="${escHtml(pv.url)}" muted autoplay loop playsinline controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata" style="width:180px; aspect-ratio:9/16; border-radius:14px; background:#000; object-fit:cover;"></video>
+        <span style="font-size:12px; font-weight:700; color:var(--ink);">À quoi ressemble ce style</span>`;
+    }
+
+
     function renderActivePluginBar() {
       const bar = document.getElementById('active-plugin-bar');
       if (!bar) return;
       const pl = STYLE_PLUGINS.find(p => p.id === activePluginId);
       if (!pl) {
         bar.classList.remove('show');
+        loadStylePreview('');
         return;
       }
       bar.classList.add('show');
+      loadStylePreview(pl.id);
       const thumb = document.getElementById('ap-thumb');
       if (thumb) {
         thumb.innerHTML = pl.cover_url
@@ -2779,6 +2716,7 @@
         metricsEl.innerHTML = `
           <span class="plugin-metric-pill">⏱ ${escHtml(m.timeLbl)} (${escHtml(durTag)})</span>
           <span class="plugin-metric-pill cost">⚡ ~${m.quotaPct}% quota (${engLbl})</span>
+          <span class="plugin-metric-pill" title="Calculé à partir des vraies fabrications de ce style">${m.measured ? `📏 mesuré sur ${m.samples} vidéo${m.samples > 1 ? 's' : ''}` : '📏 estimation (se précise à chaque vidéo)'}</span>
         `;
       }
     }
@@ -2812,7 +2750,8 @@
     }
 
     function selectStylePlaque(key, btnEl = null) {
-      if (key === 'new_plugin') return openPluginEditor();
+      if (key === 'new_plugin') return;
+      if (refUrlLocksStyle()) return toast('Un lien vidéo est collé : Clipoa copie le style de cette vidéo. Efface le lien pour choisir un style.');
       selectedStylePlaque = key;
       document.querySelectorAll('#style-plaques-strip .style-plaque').forEach(el => {
         el.classList.toggle('actif', el.dataset.splaque === key);
@@ -2849,7 +2788,7 @@
         if (key === 'auto') {
           if (th) th.value = 'dark_luxury';
           if (sb) sb.value = 'submagic_yellow';
-          selectRenderType('motion');
+          selectRenderType(autoRenderTypeForText(val('main-topic')), true);
         } else if (key === '3d') {
           labelName = '3D Blender';
           selectRenderType('blender3d');
@@ -2995,8 +2934,8 @@
       const topElTxt = document.getElementById('top-el-text');
       if (topElTxt) {
         topElTxt.textContent = (st.connected && st.character_limit)
-          ? `ElevenLabs · ${remNum} crédits`
-          : (st.connected ? 'ElevenLabs · Branché' : 'ElevenLabs · Non branché');
+          ? `${remNum} crédits`
+          : (st.connected ? 'Branché' : 'Non branché');
       }
       if (!silent) toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
     }
@@ -3053,6 +2992,8 @@
     async function refreshAntigravityStatus(probe = true, silent = false) {
       if (!silent) toast('Vérification Antigravity CLI…');
       const st = await apiJson('/api/antigravity/status?probe=' + (probe ? '1' : '0'));
+      // la vraie vérification du quota (mini-requête à Antigravity) tourne en arrière-plan : on relit le résultat ensuite
+      if (probe) setTimeout(() => refreshAntigravityStatus(false, true), 35000);
       const ok = !!st.connected;
       AI_CONNECTED_PROVIDERS.antigravity = ok;
       const badge = document.querySelector('#eng-card-antigravity .pick-badge');
@@ -3112,6 +3053,8 @@
       });
       const brollBox = document.getElementById('render-extra-broll');
       if (brollBox) brollBox.style.display = selectedRenderType === 'broll' ? 'block' : 'none';
+      const toolLbl = document.getElementById('auto-tool-label');
+      if (toolLbl) toolLbl.textContent = ({ motion: 'Fond animé', broll: 'Ta vidéo (B-roll)', blender3d: 'Scène 3D Blender' })[selectedRenderType] || 'Fond animé';
 
       const lockBox = document.getElementById('render-locked-banner');
       const lockTxt = document.getElementById('render-locked-text');
@@ -3157,7 +3100,9 @@
       const isLocked = (selectedRenderType === 'blender3d' && !BLENDER_AVAILABLE);
       btn.disabled = isLocked;
       btn.style.opacity = isLocked ? '0.45' : '1';
-      if (activePl) {
+      if (refUrlLocksStyle()) {
+        btn.textContent = 'Fabriquer dans le style de ta vidéo →';
+      } else if (activePl) {
         btn.textContent = isLocked ? 'Blender indisponible' : `Fabriquer en ${activePl.name} →`;
       } else {
         btn.textContent = isLocked ? 'Blender indisponible' : 'Fabriquer la vidéo →';
@@ -3182,6 +3127,222 @@
       const hello = document.getElementById('home-hello-text');
       if (hello) hello.textContent = (h >= 18 || h < 5) ? 'Bonsoir' : 'Bonjour';
     })();
+
+    window.addEventListener('DOMContentLoaded', () => {
+      try { if (!selectedStylePlaque || selectedStylePlaque === 'auto') selectDefaultStyle(); } catch (e) { /* Fabrique absente */ }
+    });
+
+
+
+
+    // ===== Outils de fabrication (Connexions) =====
+    let toolsTimer = null;
+    async function loadToolsStatus() {
+      const box = document.getElementById('tools-list');
+      if (!box) return;
+      const d = await apiJson('/api/tools');
+      const tools = d.tools || {};
+      let installing = false;
+      box.innerHTML = Object.entries(tools).map(([k, t]) => {
+        if (t.installing) installing = true;
+        const state = t.ok ? '<span style="color:var(--ok); font-weight:700;">✓ Prêt</span>'
+          : (t.installing ? `<span style="color:var(--accent);"><span class="pulse-dot"></span>${escHtml(t.message || 'Installation…')} ${t.progress ? t.progress + ' %' : ''}</span>`
+          : (t.error ? `<span style="color:var(--danger);">${escHtml(t.error)}</span> <button type="button" class="btn btn-ghost btn-xs" onclick="installBlender()">Réessayer</button>`
+          : (k === 'blender' ? '<button type="button" class="btn btn-primary btn-xs" onclick="installBlender()">Installer</button>'
+          : (t.optional ? '<span style="color:var(--muted);">Facultatif</span>' : '<span style="color:var(--danger);">Manquant</span>'))));
+        return `<div class="kpi-pill" style="display:flex; gap:8px; align-items:center;"><span>${escHtml(t.label)}</span>${state}</div>`;
+      }).join('');
+      clearTimeout(toolsTimer);
+      if (installing) toolsTimer = setTimeout(loadToolsStatus, 3000);
+    }
+    async function installBlender() {
+      await apiJson('/api/tools/blender/install', { method: 'POST' });
+      loadToolsStatus();
+    }
+
+    // ===== Statistiques : chaîne connectée =====
+    let CS = { data: null, sort: 'recent', timer: null };
+    function setCsSort(v, btn) {
+      CS.sort = v;
+      btn?.parentElement?.querySelectorAll('.chip').forEach(c => c.classList.toggle('actif', c === btn));
+      renderChannelStats();
+    }
+    async function loadChannelStats() {
+      CS.data = await apiJson('/api/channel-stats');
+      renderChannelStats();
+      if (CS.data.syncing && !CS.timer) CS.timer = setTimeout(() => { CS.timer = null; loadChannelStats(); }, 3000);
+    }
+    async function syncChannelStats() {
+      CS.data = await apiJson('/api/channel-stats/sync', { method: 'POST' });
+      renderChannelStats();
+      if (!CS.timer) CS.timer = setTimeout(() => { CS.timer = null; loadChannelStats(); }, 2500);
+    }
+    function renderChannelStats() {
+      const d = CS.data || {};
+      const list = document.getElementById('cs-list');
+      const head = document.getElementById('cs-head');
+      const st = document.getElementById('cs-status');
+      const btn = document.getElementById('cs-sync-btn');
+      if (!list) return;
+      if (btn) { btn.disabled = !!d.syncing; btn.textContent = d.syncing ? 'Mise à jour…' : '↻ Mettre à jour'; }
+      const ch = d.channel || {};
+      if (head) head.innerHTML = ch.name ? `<b style="font-size:15px; color:var(--ink);">${escHtml(ch.name)}</b>
+        <span class="kpi-pill"><b>${fmtCount(ch.subscribers)}</b> abonnés</span>
+        <span class="kpi-pill"><b>${fmtCount(ch.total_views)}</b> vues au total</span>
+        <span class="kpi-pill"><b>${fmtCount(d.median_views)}</b> vues par vidéo (médiane)</span>` : '';
+      if (st) st.innerHTML = d.syncing ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Mise à jour…')}`
+        : (d.error ? `⚠️ ${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · score /100 comparé aux autres vidéos de ta chaîne (vues) et à l’engagement.` : 'Clique sur « Mettre à jour » pour récupérer toutes les vidéos de ta chaîne YouTube connectée.'));
+      let vids = (d.videos || []).slice();
+      if (CS.sort === 'best') vids.sort((a, b) => b.score - a.score);
+      if (CS.sort === 'worst') vids.sort((a, b) => a.score - b.score);
+      list.innerHTML = vids.map(v => {
+        const col = v.score >= 65 ? 'var(--ok)' : (v.score >= 40 ? 'var(--accent)' : 'var(--danger)');
+        return `<div style="display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
+          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="flex-shrink:0;"><img src="${escHtml(v.thumbnail || '')}" alt="" loading="lazy" style="width:${v.is_short ? 64 : 112}px; height:${v.is_short ? 112 : 63}px; object-fit:cover; border-radius:10px; background:#000;"></a>
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <span style="font-weight:800; font-size:15px; color:${col};">${v.score}/100</span>
+              <span style="font-weight:700; color:var(--ink); font-size:13.5px;">${escHtml(v.title)}</span>
+              ${v.made_with_clipoa ? '<span class="pick-badge">Clipoa</span>' : ''}
+              ${v.is_short ? '<span class="pick-badge">Short</span>' : ''}
+            </div>
+            <div class="kpi-row" style="margin-top:6px;">
+              <div class="kpi-pill"><b>${fmtCount(v.views)}</b> vues</div>
+              <div class="kpi-pill"><b>${fmtCount(v.likes)}</b> likes</div>
+              <div class="kpi-pill"><b>${fmtCount(v.comments)}</b> comm.</div>
+              <div class="kpi-pill"><b>${escHtml(String(v.engagement))} %</b> eng.</div>
+              <div class="kpi-pill">${escHtml(v.published_at || '')}</div>
+            </div>
+            ${v.why ? `<div style="font-size:12.5px; color:var(--ink-2); margin-top:6px;"><b style="color:${col};">${escHtml(v.verdict || 'Pourquoi')} :</b> ${escHtml(v.why)}</div>` : ''}
+            ${v.next ? `<div style="font-size:12.5px; color:var(--ink-2); margin-top:3px;"><b style="color:var(--accent);">Prochaine fois :</b> ${escHtml(v.next)}</div>` : ''}
+            <div style="margin-top:8px;"><button type="button" class="btn btn-ghost btn-xs" data-id="${escHtml(v.id)}" onclick="remakeVideo(this.dataset.id, this)">✨ Refaire la vidéo avec l’IA</button></div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+
+    // ===== Statistiques : refaire une vidéo en mieux =====
+    async function remakeVideo(id, btn) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Lancement…'; }
+      const engine = (typeof createEngine !== 'undefined' && createEngine === 'antigravity') ? 'antigravity' : 'claude';
+      const res = await apiJson('/api/channel-stats/' + encodeURIComponent(id) + '/remake', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine, voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null }),
+      });
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Refaire la vidéo avec l’IA'; }
+      if (res.error) return toast(res.error);
+      toast('La nouvelle version est en fabrication : elle corrige les points à améliorer.');
+      if (typeof trackJob === 'function') trackJob();
+    }
+
+    // ===== Compte actif (en haut à droite) =====
+    function toggleWsMenu(force) {
+      const m = document.getElementById('ws-menu');
+      if (!m) return;
+      m.classList.toggle('open', typeof force === 'boolean' ? force : !m.classList.contains('open'));
+    }
+    document.addEventListener('click', e => {
+      const w = document.getElementById('ws-switch');
+      if (w && !w.contains(e.target)) toggleWsMenu(false);
+    });
+    async function selectWorkspace(id) {
+      const res = await apiJson('/api/workspace/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (res.error) return toast(res.error);
+      toast('Compte : ' + ((res.current || {}).name || ''));
+      setTimeout(() => location.reload(), 300);
+    }
+
+    // ===== S'inspirer : radar des vidéos IA récentes qui cartonnent =====
+    let INSP = { plat: 'all', days: 30, lang: 'fr', data: null, timer: null };
+    function fmtCount(n) {
+      n = Number(n || 0);
+      if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',') + ' M';
+      if (n >= 1e3) return Math.round(n / 1e3) + ' k';
+      return String(n);
+    }
+    function setInspFilter(kind, v, btn) {
+      INSP[kind] = v;
+      btn?.parentElement?.querySelectorAll('.chip').forEach(c => c.classList.toggle('actif', c === btn));
+      if (kind === 'plat') renderInspiration();
+      else scanInspiration();
+    }
+    async function loadInspiration() {
+      const d = await apiJson('/api/inspiration');
+      INSP.data = d;
+      renderInspiration();
+      if (d.scanning && !INSP.timer) INSP.timer = setTimeout(() => { INSP.timer = null; loadInspiration(); }, 4000);
+    }
+    async function scanInspiration() {
+      const plats = ['tiktok', 'instagram'];
+      const d = await apiJson('/api/inspiration/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang: INSP.lang, platforms: plats, max_age_days: INSP.days }) });
+      if (d.error && !d.scanning) return toast(d.error);
+      INSP.data = d;
+      renderInspiration();
+      if (!INSP.timer) INSP.timer = setTimeout(() => { INSP.timer = null; loadInspiration(); }, 3000);
+    }
+    function useInspirationLink(url) {
+      showView('creer');
+      const inp = document.getElementById('fab-ref-url');
+      if (inp) { inp.value = url; syncRefUrlLock(); inp.scrollIntoView({ block: 'center' }); }
+      toast('Lien ajouté : écris ton idée ou ton script, Clipoa copie le style de cette vidéo.');
+    }
+    async function copyInspirationLink(url) {
+      try { await navigator.clipboard.writeText(url); toast('Lien copié.'); } catch (e) { prompt('Copie ce lien :', url); }
+    }
+    function renderInspiration() {
+      const wall = document.getElementById('insp-wall');
+      const st = document.getElementById('insp-status');
+      const btn = document.getElementById('insp-scan-btn');
+      if (!wall) return;
+      const d = INSP.data || {};
+      if (btn) { btn.disabled = !!d.scanning; btn.textContent = d.scanning ? 'Recherche en cours…' : '↻ Actualiser le radar'; }
+      const vids = (d.videos || []).filter(v => INSP.plat === 'all' || v.platform === INSP.plat);
+      if (st) {
+        st.innerHTML = d.scanning
+          ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Recherche des vidéos IA qui cartonnent…')} (1 à 3 min)`
+          : (d.error ? `⚠️ ${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · ${vids.length} vidéo${vids.length > 1 ? 's' : ''} IA sorties il y a moins de ${d.max_age_days || 30} jours` : 'Clique sur « Actualiser le radar » pour trouver les vidéos IA qui marchent en ce moment.'));
+      }
+      wall.innerHTML = vids.map(v => {
+        const plat = v.platform === 'instagram' ? 'instagram' : 'tiktok';
+        const age = v.age_days != null ? (v.age_days < 1 ? 'aujourd’hui' : `il y a ${Math.round(v.age_days)} j`) : '';
+        const scoreCol = v.score >= 75 ? 'var(--ok)' : (v.score >= 55 ? 'var(--accent)' : 'var(--muted)');
+        return `<div class="wall-card" data-plat="${plat}">
+          <div class="wall-thumb plat-${plat}">
+            ${v.thumbnail ? `<img src="${escHtml(v.thumbnail)}" alt="" loading="lazy">` : ''}
+            <span class="wall-plat-badge ${plat}">${plat === 'instagram' ? 'Reels' : 'TikTok'}</span>
+            <span style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.72); color:#fff; font-weight:800; font-size:12px; padding:3px 8px; border-radius:99px;">${v.score}/100</span>
+            <div class="wall-overlay">
+              <span class="wall-views">${fmtCount(v.views)} vues · ${fmtCount(v.likes)} ❤ · ${escHtml(String(v.engagement || 0))} %</span>
+              <div class="wall-title">${escHtml(v.title || '')}</div>
+              <div class="wall-meta">${escHtml(v.channel || '')}${age ? ' · ' + age : ''}${v.style ? ' · ' + escHtml(v.style) : ''}</div>
+            </div>
+          </div>
+          ${v.why ? `<div style="font-size:12px; line-height:1.4; color:var(--ink); padding:8px 10px 0;"><b style="color:${scoreCol};">Pourquoi ça marche :</b> ${escHtml(v.why)}</div>` : ''}
+          <div class="wall-actions">
+            <button type="button" class="btn btn-ghost btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="copyInspirationLink(this.dataset.url)">Copier le lien</button>
+            <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="useInspirationLink(this.dataset.url)">Faire pareil →</button>
+          </div>
+          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:11.5px; color:var(--muted); padding:0 0 8px;">Voir la vidéo ↗</a>
+        </div>`;
+      }).join('');
+    }
+
+    // Textes des tâches sans emoji
+    function stripEmoji(t) {
+      return String(t || '').replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, '').replace(/\s{2,}/g, ' ').trim();
+    }
+    function cleanJobTitle(job) {
+      let t = (job.video_title || '').trim();
+      if (!t) {
+        t = stripEmoji(job.label || 'Vidéo');
+        t = t.replace(/^(Même style que l['’]exemple|Short|Mon script|Copie)\s*:\s*/i, '');
+        const k = t.indexOf(' : ');
+        if (k > 0 && k < 40) t = t.slice(k + 3);
+      }
+      return stripEmoji(t) || 'Vidéo';
+    }
 
     let toastTimer = null;
     function toast(msg) {
@@ -3284,6 +3445,9 @@
       document.querySelectorAll('.subnav-btn').forEach(b => b.classList.toggle('actif', b.dataset.sub === target));
       window.scrollTo({ top: 0, behavior: 'smooth' });
       if (target === 'auto') syncPostizFields();
+      if (target === 'analyse' && !INSP.data) loadInspiration();
+      if (target === 'reglages') loadToolsStatus();
+      if (target === 'perf' && !CS.data) { loadChannelStats().then(() => { if (!(CS.data.videos || []).length && !CS.data.syncing && !CS.data.error) syncChannelStats(); }); }
       requestAnimationFrame(syncSidebarLiquidPill);
     }
 
@@ -3380,8 +3544,10 @@
 
           const rightBadge = job.status === 'done'
             ? `<span style="color:var(--ok); font-weight:700; font-size:13px;">✓ Prêt</span>`
-            : (job.status === 'paused_quota'
-              ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Pause quota (${p}%)</span>`
+            : (job.status === 'paused_restart'
+              ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Reprise auto (${p}%)</span>`
+              : job.status === 'paused_quota'
+              ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Pause quota (${p}%) · reprise auto</span>`
               : (job.status === 'error'
                 ? `<span style="color:var(--danger); font-weight:700; font-size:13px;">Erreur</span>`
                 : `<b style="color:var(--ink); font-size:13.5px;">${p}%</b>`));
@@ -3397,6 +3563,8 @@
           const liveIndicator = job.status === 'running'
             ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
                  <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">⏱ ${remEstTxt}</b>
+                 ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null && !(job.params && job.params.engine === 'antigravity'))
+                   ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
                </div>
                <div class="step-pills">
                  <span class="step-pill ${p >= 40 ? 'done' : (p >= 5 ? 'active' : '')}">${p >= 40 ? '✓ ' : ''}1. Script IA</span>
@@ -3408,7 +3576,7 @@
 
           const actions = job.status === 'done' && job.session_id
             ? `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-                 <button class="btn btn-coral btn-sm" onclick="openFinishedVideo('${job.session_id}')">▶ Voir dans Mes vidéos</button>
+                 <button class="btn btn-coral btn-sm" onclick="openFinishedVideo('${job.session_id}')">Voir dans mes vidéos</button>
                  <a class="btn btn-ghost btn-sm" href="/download/${job.session_id}" download>Télécharger</a>
                  <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
                </div>`
@@ -3425,11 +3593,13 @@
                    </div>`
                 : ''));
 
+          // Titre propre : titre de la vidéo (sinon le libellé sans emoji ni préfixe technique)
+          const cleanTitle = cleanJobTitle(job);
           return `<div class="job-card ${cls}">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <b style="color:var(--ink); font-size:14px;">${escHtml(job.label || 'Vidéo')}</b>${rightBadge}
+              <b style="color:var(--ink); font-size:14px;">${escHtml(cleanTitle)}</b>${job.status === 'done' ? '' : rightBadge}
             </div>
-            <div style="font-size:12.5px; color:var(--muted); margin-top:4px;">${escHtml(job.step || '')}</div>
+            ${job.status === 'done' ? '' : `<div style="font-size:12.5px; color:var(--muted); margin-top:4px;">${escHtml(stripEmoji(job.step || ''))}</div>`}
             ${job.status === 'running' ? `<div class="progress-track"><div class="progress-fill" style="width:${p || 5}%;"></div></div>${liveIndicator}` : ''}
             ${actions}
           </div>`;
@@ -3510,24 +3680,14 @@
         </div>`;
       }).join('');
 
-      const createCard = `<button type="button" class="plugin-create-card" onclick="openPluginEditor()">
-        <div style="width:48px; height:48px; border-radius:16px; background:var(--accent-soft, rgba(255,91,68,0.14)); color:var(--accent); display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:700;">＋</div>
-        <div style="font-family:var(--font-display); font-size:15.5px; font-weight:700; color:var(--ink);">Créer un nouveau style</div>
-        <div style="font-size:12.5px; color:var(--muted); max-width:220px; line-height:1.45;">Ajoute un nouveau style (Roblox, 2D, Dessin animé, Manga…) avec tes planches de modèles et ton script.</div>
-      </button>`;
 
-      grid.innerHTML = cardsHtml + createCard;
+      grid.innerHTML = cardsHtml;
     }
 
     function renderStylePlaquesStrip() {
       const strip = document.getElementById('style-plaques-strip');
       if (!strip) return;
-      const autoHtml = `<button type="button" class="style-plaque ${selectedStylePlaque === 'auto' ? 'actif' : ''}" data-splaque="auto" onclick="selectStylePlaque('auto', this)">
-        <div class="sp-art sp-auto">
-          <div style="font-size:24px; color:#fff; filter:drop-shadow(0 2px 8px rgba(0,0,0,0.3));">✦</div>
-        </div>
-        <span class="sp-name">Auto</span>
-      </button>`;
+      const autoHtml = '';
 
       const pluginsHtml = STYLE_PLUGINS.map(pl => {
         const key = 'plugin:' + pl.id;
@@ -3536,21 +3696,13 @@
         return `<button type="button" class="style-plaque ${selectedStylePlaque === key ? 'actif' : ''}" data-splaque="${escHtml(key)}" data-plugin-id="${escHtml(pl.id)}" onclick="selectStylePlaque('${escHtml(key)}', this)">
           <div class="sp-art ${escHtml(pl.gradient_css || 'sp-plug-custom')} ${pl.cover_url ? 'has-cover' : ''}" ${coverAttr}>
             ${pl.cover_url ? '' : `<div style="font-size:26px; margin:auto 0;">${escHtml(pl.icon || '🧩')}</div>`}
-            <div class="sp-meta-strip">⏱ ${escHtml(mPl.timeLbl)}</div>
+            <div class="sp-meta-strip" title="${mPl.measured ? 'Mesuré sur ' + mPl.samples + ' vidéo(s)' : 'Estimation, se précise à chaque vidéo'}">⏱ ${escHtml(mPl.timeLbl)} · ${mPl.quotaPct}%</div>
           </div>
           <span class="sp-name">${escHtml(pl.name)}</span>
         </button>`;
       }).join('');
 
       const builtinsHtml = `
-        <button type="button" class="style-plaque ${selectedStylePlaque === '3d' ? 'actif' : ''}" data-splaque="3d" onclick="selectStylePlaque('3d', this)">
-          <div class="sp-art sp-3d">
-            <span class="sp-pill-top">${BLENDER_AVAILABLE ? 'Mac 3D' : 'Blender'}</span>
-            <div style="font-size:26px; margin:auto 0;">🧊</div>
-            
-          </div>
-          <span class="sp-name">3D Blender</span>
-        </button>
         <button type="button" class="style-plaque ${selectedStylePlaque === 'schema' ? 'actif' : ''}" data-splaque="schema" onclick="selectStylePlaque('schema', this)">
           <div class="sp-art sp-schema">
             <span class="sp-pill-top">Tech & Data</span>
@@ -3558,19 +3710,6 @@
             
           </div>
           <span class="sp-name">Schéma animé</span>
-        </button>
-        <button type="button" class="style-plaque ${selectedStylePlaque === 'broll' ? 'actif' : ''}" data-splaque="broll" onclick="selectStylePlaque('broll', this)">
-          <div class="sp-art sp-broll">
-            <div style="font-size:24px; margin:auto 0;">🎞️</div>
-          </div>
-          <span class="sp-name">Ta vidéo B-roll</span>
-        </button>
-        <button type="button" class="style-plaque" data-splaque="new_plugin" onclick="openPluginEditor()">
-          <div class="sp-art sp-add-plugin">
-            <div style="font-size:26px; color:var(--accent); font-weight:700;">＋</div>
-            <div style="font-size:10px; font-weight:700; color:var(--muted); line-height:1.25;">Nouveau<br>style</div>
-          </div>
-          <span class="sp-name">Nouveau style</span>
         </button>`;
 
       strip.innerHTML = autoHtml + pluginsHtml + builtinsHtml;
@@ -3590,9 +3729,10 @@
       }
       if (activePluginId && !STYLE_PLUGINS.some(p => p.id === activePluginId)) {
         activePluginId = '';
-        selectedStylePlaque = 'auto';
+        selectedStylePlaque = '';
       }
       renderStylePlaquesStrip();
+      if (!selectedStylePlaque || selectedStylePlaque === 'auto') selectDefaultStyle();
       renderPluginsGallery();
       renderActivePluginBar();
       updateFabScriptMeter();
@@ -3647,6 +3787,7 @@
     }
 
     async function openPluginEditor(pluginId = '') {
+      if (!pluginId) return toast('La création de styles n’est pas disponible.');
       switchPluginTab('identity');
       const delBtn = document.getElementById('pe-delete-btn');
       if (pluginId) {
@@ -3841,25 +3982,6 @@
       }
     }
 
-    async function createStyleFromReference() {
-      const url = val('plugin-ref-url');
-      if (!url || !/^https?:\/\//.test(url)) return toast('Colle le lien complet de la vidéo (https://…).');
-      const engine = (typeof createEngine !== 'undefined' && createEngine === 'antigravity') ? 'antigravity' : 'claude';
-      if (engine === 'claude' && typeof checkClaudeQuotaGuard === 'function' && !checkClaudeQuotaGuard('clone')) return;
-      const btn = document.getElementById('plugin-ref-btn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Analyse lancée…'; }
-      try {
-        const res = await apiJson('/api/plugins/from-reference', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, engine, engine_model: engine === 'antigravity' ? (val('agy-model') || '') : '' })
-        });
-        if (res.error) return toast(res.error);
-        toast('L’IA regarde la vidéo et crée le style (1 à 3 min). Il apparaîtra dans tes styles.');
-        trackJob();
-      } finally {
-        if (btn) { btn.disabled = false; btn.textContent = 'Analyser la vidéo'; }
-      }
-    }
 
     async function deletePluginById(pluginId) {
       const pl = STYLE_PLUGINS.find(p => p.id === pluginId);
@@ -4040,11 +4162,12 @@
       const revTitle = revVisible ? val('fab-review-title') : '';
 
       const isCustomScript = (fabInputMode === 'custom_script') || !!revScript;
-      const custom_script = fabInputMode === 'custom_script' ? mainText : revScript;
-      const customTitle = fabInputMode === 'custom_script' ? val('fab-custom-title') : revTitle;
+      const custom_script = revScript || (fabInputMode === 'custom_script' ? mainText : '');
+      const customTitle = revTitle || (fabInputMode === 'custom_script' ? val('fab-custom-title') : '');
       if (!mainText && !custom_script) {
-        return toast(fabInputMode === 'custom_script' ? 'Colle ou écris ton script ci-dessus.' : 'Décris ton idée ci-dessus.');
+        return toast('Écris ton idée ou colle ton script ci-dessus.');
       }
+
       if (voiceProvider === 'el' && !EL_CONNECTED) return toast('Branche ta clé ElevenLabs ou choisis la voix incluse.');
       const pluginId = activePluginId || '';
       const voice = getSelectedVoiceValue();
@@ -4477,13 +4600,16 @@
       connectSocialOAuth(el.dataset.plat, 'auto', el.dataset.ready === '1');
     }
 
+    // Connexion « native » : un clic → page officielle de connexion (Google, Instagram, Facebook, TikTok) → retour avec le compte branché.
+    // Jamais d'écran technique (identifiants d'app, URI de redirection) côté utilisateur.
     function connectSocialOAuth(platform, returnFrom = 'auto', isReady = false) {
+      const names = { youtube: 'YouTube', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook' };
       if (isReady) {
-        toast('Redirection vers le portail officiel…');
+        toast(`Connexion à ${names[platform] || platform}…`);
         location.href = '/oauth/' + encodeURIComponent(platform) + '/start?from=' + encodeURIComponent(returnFrom || 'auto');
         return;
       }
-      openSocialConnectModal(platform, returnFrom);
+      toast(`La connexion ${names[platform] || platform} arrive très bientôt.`);
     }
 
     let pendingPortalPlatform = '';
@@ -4926,8 +5052,7 @@
     async function analyzeInternalUrl() {
       const url = val('an-my-url');
       if (!url) return toast('Colle le lien de ta vidéo en ligne.');
-      const engine = val('an-engine') || 'gemini';
-      if (engine === 'claude' && !checkClaudeQuotaGuard('analyze', 3)) return;
+      const engine = 'auto';
       const btn = document.getElementById('an-int-btn');
       const ld = document.getElementById('an-int-loading');
       btn.disabled = true; if (ld) ld.style.display = 'block';
@@ -5029,7 +5154,7 @@
       if (pr.plugin_id && STYLE_PLUGINS.some(p => p.id === pr.plugin_id)) {
         selectStylePlaque('plugin:' + pr.plugin_id);
       } else {
-        selectStylePlaque('auto');
+        selectDefaultStyle();
       }
       selectRenderType(pr.render || 'motion');
       selectVoiceProvider(pr.voice_provider || 'free');
@@ -5153,13 +5278,12 @@
       { label: 'Accueil · Tableau de bord', hint: 'Navigation', run: () => showView('accueil') },
       { label: 'Fabrique · Créer une vidéo', hint: 'Studio', run: () => { showView('creer'); document.getElementById('main-topic')?.focus(); } },
       { label: 'Plugins DA · Styles, planches & scripts', hint: 'Plugins', run: () => showView('plugins') },
-      { label: '+ Créer un plugin de style (Roblox, 2D, Cartoon…)', hint: 'Nouveau DA', run: () => openPluginEditor() },
       { label: 'Mes vidéos · Bibliothèque 9:16', hint: 'Navigation', run: () => showView('videos') },
       { label: '▶ Regarder mes vidéos une par une', hint: 'Visionnage', run: () => openTheaterMode(0) },
       { label: 'Montage · Vidéo longue en shorts', hint: 'Découpe', run: () => showView('montage') },
       { label: 'Publier · Calendrier & Auto-Post', hint: 'Diffusion', run: () => showView('auto') },
       { label: 'Statistiques · Mes chiffres', hint: 'Analyse', run: () => showView('perf') },
-      { label: 'Concurrents · Copier ou scanner @compte', hint: 'Radar', run: () => { showView('analyse'); document.getElementById('scan-url')?.focus(); } },
+      { label: 'S’inspirer · Vidéos IA qui cartonnent', hint: 'Radar', run: () => showView('analyse') },
       { label: 'Équipe IA · Les 4 agents', hint: 'Équipe', run: () => showView('equipe') },
       { label: 'Ouvrir Agent Expert Script', hint: 'IA', run: () => openContextScriptAgent() },
       { label: 'Ma semaine IA en 1 clic (5 vidéos)', hint: 'Batch IA', run: () => openModal('modal-week') },
@@ -5267,7 +5391,7 @@
       if (role !== 'user' && metaLabel) {
         html += `<div class="ai-msg-meta"><span>✦ ${escHtml(metaLabel)}</span></div>`;
       }
-      html += escHtml(text);
+      html += role === 'user' ? escHtml(text) : renderAiHelpText(text);
       if (showConnBtn) {
         html += `<div style="margin-top:8px;"><button type="button" class="btn btn-coral btn-xs" onclick="toggleAiTaskbarDrawer(false); showView('reglages')">Ouvrir Connexions →</button></div>`;
       }
@@ -5277,8 +5401,48 @@
       return wrap;
     }
 
+    // Réponses lisibles : **gras**, listes numérotées / à puces, retours à la ligne (texte échappé avant)
+    function renderAiHelpText(text) {
+      let h = escHtml(String(text || '').trim());
+      h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/`([^`]+)`/g, '<code>$1</code>');
+      return h.split(/\n/).map(l => {
+        const m = l.match(/^\s*(\d+[.)]|[-•*])\s+(.*)$/);
+        return m ? `<div style="display:flex; gap:6px; margin-top:3px;"><span style="color:var(--accent); font-weight:700; min-width:14px;">${/\d/.test(m[1]) ? m[1].replace(')', '.') : '•'}</span><span>${m[2]}</span></div>` : (l.trim() ? `<div style="margin-top:3px;">${l}</div>` : '<div style="height:6px;"></div>');
+      }).join('');
+    }
+
+    function persistAiHelp() {
+      try { sessionStorage.setItem('clipoa_help_history', JSON.stringify(aiHelpHistory.slice(-12))); } catch (e) { /* stockage indisponible */ }
+    }
+
+    function restoreAiHelp() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem('clipoa_help_history') || '[]');
+        if (Array.isArray(saved) && saved.length) {
+          aiHelpHistory = saved;
+          saved.forEach(t => appendAiHelpMessage(t.role === 'user' ? 'user' : 'assistant', t.text, t.role === 'user' ? '' : 'Aide IA'));
+        }
+      } catch (e) { /* rien à restaurer */ }
+    }
+
+    document.addEventListener('keydown', e => {
+      const tag = (e.target && e.target.tagName) || '';
+      const typing = /INPUT|TEXTAREA|SELECT/.test(tag) || e.target?.isContentEditable;
+      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        document.getElementById('ai-tb-input')?.focus();
+      } else if (e.key === 'Escape' && document.getElementById('ai-tb-drawer')?.classList.contains('open')) {
+        toggleAiTaskbarDrawer(false);
+      }
+    });
+    document.addEventListener('click', e => {
+      const wrap = document.getElementById('ai-taskbar');
+      if (wrap && !wrap.contains(e.target)) toggleAiTaskbarDrawer(false);
+    });
+
     function clearAiHelp() {
       aiHelpHistory = [];
+      persistAiHelp();
       const body = document.getElementById('ai-tb-messages');
       if (body) {
         body.innerHTML = `<div class="ai-msg assistant"><div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>Conversation effacée. Pose ta question quand tu veux !</div>`;
@@ -5306,11 +5470,11 @@
       if (inp) inp.value = '';
       appendAiHelpMessage('user', msg);
 
-      const rawChoice = (sel?.value || 'claude:sonnet').split(':');
+      const rawChoice = (sel?.value || 'claude:opus').split(':');
       const provider = rawChoice[0] || 'auto';
       const model = rawChoice[1] || '';
 
-      const thinkingEl = appendAiHelpMessage('assistant', 'Réflexion en cours…', sel?.selectedOptions?.[0]?.textContent || 'Aide IA');
+      const thinkingEl = appendAiHelpMessage('assistant', 'Je regarde ça…', sel?.selectedOptions?.[0]?.textContent || 'Aide IA');
       if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
       try {
@@ -5337,6 +5501,7 @@
         aiHelpHistory.push({ role: 'user', text: msg });
         aiHelpHistory.push({ role: 'assistant', text: res.reply });
         if (aiHelpHistory.length > 12) aiHelpHistory = aiHelpHistory.slice(-12);
+        persistAiHelp();
         appendAiHelpMessage('assistant', res.reply, res.model_label || 'Aide IA');
       } catch (e) {
         if (thinkingEl) thinkingEl.remove();
@@ -5351,6 +5516,9 @@
         selectEngine('antigravity');
       }
       initAiTaskbarModel();
+      restoreAiHelp();
+      // crédits Antigravity vérifiés pour de vrai au chargement (résultat relu ~40 s plus tard)
+      if (AI_CONNECTED_PROVIDERS.antigravity) setTimeout(() => refreshAntigravityStatus(false, true), 40000);
       renderPluginsGallery();
       renderActivePluginBar();
       updateFabScriptMeter();
@@ -5378,6 +5546,12 @@
             if (card) { card.style.borderColor = 'var(--accent)'; card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
           }, 150);
         }
+      }
+
+      // L'onglet demandé par l'adresse (?open=…, ?view=…) n'est ouvert qu'une fois : on nettoie l'adresse
+      // pour qu'un rechargement de la page retombe toujours sur l'Accueil.
+      if (!params.get('connected') && !params.get('oauth_error') && location.search) {
+        history.replaceState({}, '', location.pathname);
       }
 
       if (params.get('connected')) {

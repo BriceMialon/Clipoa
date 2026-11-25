@@ -209,6 +209,8 @@ class AntigravityBridge:
         else:
             active_model = models[0]["id"] if models else ""
 
+        if connected:
+            cls.probe_quota_async(force=live_probe)
         return {
             "connected": connected,
             "cli_exists": cli_exists,
@@ -274,6 +276,58 @@ class AntigravityBridge:
             AGY_QUOTA_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
         except Exception:
             pass
+
+    _probe_lock = threading.Lock()
+    PROBE_EVERY_SEC = 15 * 60
+
+    @classmethod
+    def probe_quota(cls, force: bool = False) -> Dict[str, Any]:
+        """
+        Vérification RÉELLE du quota : Antigravity ne donne aucun % restant, et le quota est partagé avec
+        l'app Antigravity (utilisée hors de Clipoa). On envoie donc une mini-requête (« ok ») au modèle choisi :
+        « Individual quota reached. Resets in … » => 0 % jusqu'au reset ; réponse normale => quota disponible.
+        Au plus une fois toutes les 15 min (sauf force=True), en arrière-plan.
+        """
+        st = cls._load_quota_state()
+        now = time.time()
+        if not force and now - float(st.get("probe_at") or 0) < cls.PROBE_EVERY_SEC:
+            return {"skipped": True}
+        cli = cls.find_cli()
+        if not cli or not cls._probe_lock.acquire(blocking=False):
+            return {"skipped": True}
+        try:
+            model = load_settings().get("antigravity", {}).get("model") or "gemini-4-neon-medium"
+            sandbox = STORAGE_DIR / "_agy_sandbox"
+            sandbox.mkdir(parents=True, exist_ok=True)
+            try:
+                res = subprocess.run([cli, "-p", "Réponds uniquement : ok", "--model", model, "--print-timeout", "60s"],
+                                     capture_output=True, text=True, timeout=90, cwd=str(sandbox))
+                out = (res.stdout or "") + "\n" + (res.stderr or "")
+                code = res.returncode
+            except Exception as e:
+                out, code = str(e), -1
+            st = cls._load_quota_state()
+            st["probe_at"] = time.time()
+            if is_quota_error(out):
+                cls._save_quota_state(st)
+                cls.note_quota_error(out)
+                return {"ok": False, "exhausted": True}
+            if code == 0 and out.strip():
+                # Antigravity répond : le quota n'est pas épuisé (on efface un ancien blocage dépassé ou levé)
+                st["exhausted_until"] = 0
+                st["ignore_log_reset"] = cls._scan_logs_reset_at() or st.get("ignore_log_reset")
+                st["probe_ok_at"] = time.time()
+            cls._save_quota_state(st)
+            return {"ok": code == 0, "exhausted": False}
+        finally:
+            cls._probe_lock.release()
+
+    @classmethod
+    def probe_quota_async(cls, force: bool = False) -> None:
+        import sys
+        if "unittest" in sys.modules or os.getenv("CLIPOA_NO_AGY_PROBE"):
+            return  # jamais d'appel réel pendant les tests
+        threading.Thread(target=cls.probe_quota, kwargs={"force": force}, daemon=True).start()
 
     @classmethod
     def note_quota_error(cls, text: str) -> None:
@@ -421,6 +475,7 @@ class AntigravityBridge:
             "resets_at": time.strftime("%H:%M", time.localtime(exhausted_until)) if exhausted else None,
             "resets_in": _fmt(reset_in) if exhausted else None,
             "source": source,
+            "verified_at": time.strftime("%H:%M", time.localtime(float(st.get("probe_at") or 0))) if st.get("probe_at") else None,
             "est_videos_left": max(0, tokens_left // 60000),
         }
 

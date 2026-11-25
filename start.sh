@@ -9,11 +9,20 @@ echo "========================================================"
 echo "🎬 Lancement de Clipoa..."
 echo "========================================================"
 
-# Vérifier si l'environnement virtuel existe
+# Environnement Python + tous les outils (ffmpeg via imageio-ffmpeg, yt-dlp, Whisper, voix…) : rien à installer à la main
 if [ ! -f "$DIR/venv/bin/python" ]; then
     echo "Création de l'environnement virtuel Python..."
     python3 -m venv "$DIR/venv"
-    "$DIR/venv/bin/pip" install flask rich yt-dlp edge-tts requests faster-whisper imageio-ffmpeg
+fi
+REQ="$DIR/requirements.txt"
+STAMP="$DIR/venv/.clipoa_requirements"
+if [ -f "$REQ" ] && ! cmp -s "$REQ" "$STAMP" 2>/dev/null; then
+    echo "Installation / mise à jour des outils de Clipoa..."
+    if "$DIR/venv/bin/pip" install -q -r "$REQ"; then
+        cp "$REQ" "$STAMP"
+    else
+        "$DIR/venv/bin/pip" install -q flask rich yt-dlp edge-tts requests faster-whisper imageio-ffmpeg numpy || true
+    fi
 fi
 
 # Installer automatiquement Node portable + Gemini CLI pour la connexion Google sans clé API

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-# Style « Explainer 2D » (dessin animé vectoriel pastel, vue de face) — exécuté DANS Blender.
+# Style « Explainer 2D » (dessin animé illustré chaleureux, vue de face — réf. vidéos @rosoai) — exécuté DANS Blender.
+# Contours épais brun foncé sur tout, décors intérieurs détaillés (bibliothèque, fenêtre, lambris, parquet),
+# héros chibi dessinés par paper2d_bpy.py (placé avant ce fichier par BlenderEngine).
 # Caméra orthographique de face, éclairage plat, contours fins foncés : chaque lieu est un « panneau »
 # (ciel, soleil, nuages, collines, sol, décor) et la caméra glisse latéralement d'un panneau à l'autre.
 import bpy
@@ -11,7 +13,7 @@ random.seed(SEED)
 scene = bpy.context.scene
 _sh = scene.display.shading
 for _attr, _val in (("light", "FLAT"), ("color_type", "MATERIAL"), ("show_shadows", False), ("show_cavity", False),
-                    ("show_object_outline", True), ("object_outline_color", (0.12, 0.13, 0.2)), ("show_specular_highlight", False)):
+                    ("show_object_outline", True), ("object_outline_color", (0.23, 0.16, 0.12)), ("show_specular_highlight", False)):
     try:
         setattr(_sh, _attr, _val)
     except Exception:
@@ -49,7 +51,17 @@ def mat(rgba):
     return _M[k]
 
 
-def rect(x, z, w, h, col, y=0.0, d=0.1, parent=None):
+INK_E = (0.23, 0.16, 0.12, 1.0)   # contour brun foncé #3B2A20 des références
+T_INK = 0.07
+
+
+def rect(x, z, w, h, col, y=0.0, d=0.1, parent=None, ink=True):
+    if ink and w < 20 and h < 20:
+        _rect(x, z, w + 2 * T_INK, h + 2 * T_INK, INK_E, y + d / 2 + 0.04, d * 0.5, parent)
+    return _rect(x, z, w, h, col, y, d, parent)
+
+
+def _rect(x, z, w, h, col, y=0.0, d=0.1, parent=None):
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=(x, y, z))
     o = bpy.context.active_object
     o.scale = (w, d, h)
@@ -59,7 +71,13 @@ def rect(x, z, w, h, col, y=0.0, d=0.1, parent=None):
     return o
 
 
-def disc(x, z, r, col, y=0.0, verts=32, parent=None, sz=1.0):
+def disc(x, z, r, col, y=0.0, verts=32, parent=None, sz=1.0, ink=True):
+    if ink and r < 10:
+        _disc(x, z, r + T_INK, INK_E, y + 0.05, verts, parent, sz)
+    return _disc(x, z, r, col, y, verts, parent, sz)
+
+
+def _disc(x, z, r, col, y=0.0, verts=32, parent=None, sz=1.0):
     bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=0.08, location=(x, y, z), rotation=(math.radians(90), 0, 0))
     o = bpy.context.active_object
     o.scale = (1.0, 1.0 * sz, 1.0)
@@ -69,7 +87,9 @@ def disc(x, z, r, col, y=0.0, verts=32, parent=None, sz=1.0):
     return o
 
 
-def tri(x, z, w, h, col, y=0.0):
+def tri(x, z, w, h, col, y=0.0, ink=True):
+    if ink:
+        tri(x, z, w + 0.26, h + 0.16, INK_E, y + 0.05, ink=False)
     bpy.ops.mesh.primitive_cone_add(vertices=3, radius1=w / 1.7, depth=0.08, location=(x, y, z), rotation=(math.radians(90), math.radians(30), 0))
     o = bpy.context.active_object
     o.scale = (1.0, h / (w / 1.7) / 1.5, 1.0)
@@ -92,9 +112,14 @@ def label(body, x, z, size, col, y=-0.3):
 
 
 PAL = SPEC.get("palette", {})
-SKY = hex_rgba(PAL.get("sky"), (0.86, 0.92, 0.96, 1.0))
-GROUND = hex_rgba(PAL.get("ground"), (0.86, 0.76, 0.6, 1.0))
-ACCENT = hex_rgba(PAL.get("accent"), (0.86, 0.25, 0.42, 1.0))
+SKY = hex_rgba(PAL.get("sky"), (0.78, 0.89, 0.96, 1.0))
+GROUND = hex_rgba(PAL.get("ground"), (0.86, 0.72, 0.5, 1.0))
+ACCENT = hex_rgba(PAL.get("accent"), (0.85, 0.33, 0.31, 1.0))
+TOD = SPEC.get("time_of_day", "day")
+WOOD = (0.79, 0.54, 0.29, 1.0)
+WOOD_D = (0.62, 0.4, 0.22, 1.0)
+SLATE = (0.31, 0.43, 0.56, 1.0)
+CREAM = (1.0, 0.96, 0.86, 1.0)
 SAGE = (0.62, 0.74, 0.62, 1.0)
 SAGE_D = (0.48, 0.62, 0.5, 1.0)
 NAVY = (0.12, 0.13, 0.2, 1.0)
@@ -114,7 +139,7 @@ def outdoor_panel(ox, t, sign):
     s = disc(ox + 2.6, 12.6, 0.7, SUN, y=20)
     for k in range(8):
         a = k * math.pi / 4
-        rect(ox + 2.6 + math.cos(a) * 1.15, 12.6 + math.sin(a) * 1.15, 0.08, 0.35, (0.95, 0.45, 0.55, 1.0), y=20).rotation_euler = (0, -a + math.pi / 2, 0)
+        rect(ox + 2.6 + math.cos(a) * 1.15, 12.6 + math.sin(a) * 1.15, 0.08, 0.35, (0.95, 0.45, 0.55, 1.0), y=20, ink=False).rotation_euler = (0, -a + math.pi / 2, 0)
     for cx, cz in ((-2.8, 12.2), (1.0, 10.6)):
         for dx, r in ((-0.35, 0.35), (0.1, 0.48), (0.55, 0.33)):
             disc(ox + cx + dx, cz + (0.08 if r > 0.4 else 0), r, WHITE, y=19)
@@ -134,7 +159,8 @@ def outdoor_panel(ox, t, sign):
         rect(hx, 3.9, 1.6, 1.3, (0.97, 0.94, 0.88, 1.0), y=12)
         tri(hx, 4.9, 1.9, 0.8, (0.78, 0.38, 0.3, 1.0), y=12)
     # sol
-    rect(ox, -2.5, 30, 10, GROUND, y=6)
+    rect(ox, -2.5, 30, 10, GROUND, y=6, ink=False)
+    rect(ox, 2.5, 30, 0.1, INK_E, y=5.95, ink=False)
     if t in ("street", "village"):
         rect(ox, 2.0, 30, 0.9, (0.55, 0.55, 0.58, 1.0), y=5.5)
         for k in range(-6, 7):
@@ -143,32 +169,88 @@ def outdoor_panel(ox, t, sign):
         rect(ox, 2.2, 30, 1.4, (0.45, 0.7, 0.9, 1.0), y=5.8)
 
 
+def window(x, z, w=2.4, h=2.6):
+    """Fenêtre à croisillons + rideaux, jour (ciel) ou nuit (bleu nuit + lune)."""
+    night = TOD == "night"
+    glass = (0.16, 0.22, 0.38, 1.0) if night else SKY
+    rect(x, z, w + 0.3, h + 0.3, WOOD, y=20)
+    rect(x, z, w, h, glass, y=19.9, ink=False)
+    if night:
+        disc(x + w * 0.25, z + h * 0.25, 0.22, (0.99, 0.96, 0.85, 1.0), y=19.85)
+        for k in range(5):
+            disc(x + random.uniform(-w / 2.4, w / 2.4), z + random.uniform(-h / 2.6, h / 2.6), 0.03, WHITE, y=19.86, ink=False)
+    rect(x, z, 0.1, h, WOOD, y=19.8, ink=False)
+    rect(x, z, w, 0.1, WOOD, y=19.8, ink=False)
+    for sx in (-1, 1):
+        rect(x + sx * (w / 2 + 0.35), z + 0.1, 0.55, h + 0.6, ACCENT if not night else SLATE, y=19.6)
+    rect(x, z - h / 2 - 0.25, w + 0.7, 0.2, WOOD_D, y=19.5)
+
+
+def bookshelf(x, z0=2.6, w=2.4, h=5.0, rows=4):
+    rect(x, z0 + h / 2, w, h, WOOD_D, y=19)
+    rect(x, z0 + h / 2, w - 0.3, h - 0.3, (0.42, 0.27, 0.16, 1.0), y=18.9, ink=False)
+    cols = [(0.85, 0.33, 0.31, 1.0), (0.31, 0.43, 0.56, 1.0), (0.25, 0.5, 0.37, 1.0), (0.95, 0.75, 0.3, 1.0), (0.93, 0.9, 0.82, 1.0), (0.55, 0.36, 0.55, 1.0)]
+    for rI in range(rows):
+        zb = z0 + 0.15 + rI * (h - 0.3) / rows
+        rect(x, zb, w - 0.2, 0.1, WOOD, y=18.7, ink=False)
+        bx = x - w / 2 + 0.25
+        while bx < x + w / 2 - 0.35:
+            bw = random.uniform(0.12, 0.22)
+            bh = random.uniform(0.55, 0.85) * (h - 0.3) / rows
+            rect(bx + bw / 2, zb + 0.05 + bh / 2, bw, bh, random.choice(cols), y=18.6)
+            bx += bw + 0.05
+
+
+def jar_shelf(x, z):
+    rect(x, z, 2.6, 0.14, WOOD, y=18.8)
+    for k in range(3):
+        jx = x - 0.85 + k * 0.85
+        rect(jx, z + 0.42, 0.5, 0.62, CREAM, y=18.7)
+        rect(jx, z + 0.45, 0.32, 0.22, random.choice([(0.95, 0.75, 0.3, 1.0), (0.85, 0.33, 0.31, 1.0), (0.25, 0.5, 0.37, 1.0)]), y=18.6, ink=False)
+        rect(jx, z + 0.8, 0.56, 0.14, random.choice([ACCENT, SLATE, (0.25, 0.5, 0.37, 1.0)]), y=18.65)
+
+
 def indoor_panel(ox, t, sign):
-    wall = {"shop": (0.97, 0.88, 0.9, 1.0), "office": (0.9, 0.92, 0.95, 1.0), "school": (0.98, 0.94, 0.82, 1.0),
-            "hospital": (0.86, 0.94, 0.9, 1.0)}.get(t, (0.98, 0.88, 0.9, 1.0))
-    rect(ox, 7, 30, 22, wall, y=24)
-    rect(ox, -2.5, 30, 10, (0.82, 0.62, 0.45, 1.0), y=6)
-    # fenêtre
-    rect(ox - 2.2, 8.0, 2.4, 2.4, WHITE, y=20)
-    rect(ox - 2.2, 8.0, 2.2, 2.2, SKY, y=19.9)
-    rect(ox - 2.2, 8.0, 0.08, 2.2, WHITE, y=19.8)
-    rect(ox - 2.2, 8.0, 2.2, 0.08, WHITE, y=19.8)
+    wall = {"shop": (0.97, 0.9, 0.76, 1.0), "office": (0.93, 0.87, 0.74, 1.0), "school": (0.96, 0.9, 0.72, 1.0),
+            "hospital": (0.86, 0.94, 0.9, 1.0)}.get(t, (0.96, 0.89, 0.71, 1.0))
+    rect(ox, 7, 30, 22, wall, y=24, ink=False)
+    # lambris + plinthe + parquet à lattes (intérieurs cosy des références)
+    rect(ox, 3.4, 30, 1.8, tuple(c * 0.86 for c in wall[:3]) + (1.0,), y=23, ink=False)
+    rect(ox, 4.35, 30, 0.14, WOOD, y=22.9, ink=False)
+    rect(ox, 2.65, 30, 0.3, WOOD_D, y=22.8, ink=False)
+    rect(ox, -2.5, 30, 10, WOOD, y=6, ink=False)
+    rect(ox, 2.5, 30, 0.1, INK_E, y=5.95, ink=False)
+    for k in range(-12, 13):
+        rect(ox + k * 1.25, -2.5, 0.04, 10, WOOD_D, y=5.9, ink=False)
+    window(ox - 2.0, 7.2)
     if t in ("house", "room"):
-        rect(ox + 1.0, 3.1, 4.2, 1.3, (0.55, 0.68, 0.55, 1.0), y=10)  # canapé
-        rect(ox + 1.0, 4.2, 4.2, 1.2, (0.5, 0.63, 0.5, 1.0), y=10.2)
-        rect(ox + 3.6, 4.4, 0.08, 3.2, NAVY, y=11)  # lampe
-        tri(ox + 3.6, 6.2, 0.9, 0.7, SUN, y=11)
-    elif t == "shop":
-        rect(ox, 2.0, 7, 1.8, (0.62, 0.42, 0.28, 1.0), y=4)  # comptoir
-        for row in (7.0, 9.0):
-            rect(ox + 2.5, row - 0.35, 3.4, 0.12, (0.62, 0.42, 0.28, 1.0), y=18)
-            for k in range(4):
-                disc(ox + 1.2 + k * 0.85, row + 0.05, 0.25, ACCENT, y=17.9)
+        bookshelf(ox + 2.4, w=2.2, h=4.6)
+        rect(ox - 2.0, 10.0, 1.4, 1.0, WOOD_D, y=20)  # cadre
+        rect(ox - 2.0, 10.0, 1.1, 0.7, (0.55, 0.72, 0.85, 1.0), y=19.9, ink=False)
+        rect(ox - 3.6, 3.1, 1.6, 1.3, (0.75, 0.32, 0.3, 1.0), y=10)  # fauteuil
+        rect(ox - 3.6, 4.1, 1.6, 1.0, (0.68, 0.28, 0.27, 1.0), y=10.2)
     elif t in ("office", "school"):
-        rect(ox + 1.5, 2.6, 3.2, 0.15, (0.7, 0.55, 0.38, 1.0), y=8)
-        rect(ox + 1.5, 3.4, 1.4, 0.9, NAVY, y=8.1)
+        bookshelf(ox + 2.4, w=2.4, h=5.4, rows=5)
+        rect(ox, 2.0, 4.6, 0.3, WOOD, y=8)  # bureau
+        rect(ox, 1.0, 4.4, 1.8, WOOD_D, y=8.1)
+        rect(ox + 1.3, 2.55, 0.18, 0.6, CREAM, y=7.9)  # bougie
+        disc(ox + 1.3, 3.0, 0.1, (1.0, 0.8, 0.3, 1.0), y=7.85)
+        rect(ox - 1.2, 2.25, 1.2, 0.08, CREAM, y=7.9)  # feuille
         if t == "school":
-            rect(ox + 1.0, 8.4, 5, 2.6, (0.2, 0.36, 0.28, 1.0), y=19)
+            rect(ox - 2.0, 10.4, 4.0, 1.8, (0.2, 0.36, 0.28, 1.0), y=19)
+    elif t in ("shop",):
+        # carrelage + étagère à bocaux + comptoir (cuisine / boutique)
+        for kx in range(-6, 7):
+            for kz in range(0, 3):
+                rect(ox + kx * 0.6, 4.75 + kz * 0.6, 0.56, 0.56, (0.97, 0.97, 0.95, 1.0), y=22.5, ink=False)
+        jar_shelf(ox + 2.3, 7.0)
+        rect(ox, 1.7, 7, 1.6, SLATE, y=4)
+        rect(ox, 2.6, 7.2, 0.25, WOOD, y=3.9)
+        for kx in (-2.3, 0.0, 2.3):
+            rect(ox + kx, 1.6, 2.0, 1.2, (0.36, 0.5, 0.64, 1.0), y=3.9)
+            rect(ox + kx, 2.0, 0.5, 0.08, (0.95, 0.75, 0.3, 1.0), y=3.85, ink=False)
+    elif t == "hospital":
+        rect(ox + 2.2, 3.0, 2.6, 0.9, WHITE, y=10)
 
 
 def storefront(ox, sign):
@@ -265,49 +347,17 @@ for li, L in enumerate(SPEC.get("locations", [])):
 
 
 CHARS = {c["id"]: c for c in SPEC.get("characters", [])}
-SKIN_TONES = [(0.98, 0.84, 0.72, 1.0), (0.84, 0.62, 0.45, 1.0), (0.5, 0.33, 0.22, 1.0)]
+FACE_INFO = {}
+# héros chibi des références : grosse tête, grands yeux à pupille brune, nez, joues roses, contour brun
+P2_CHIBI = True
+P2_INK = INK_E
+P2_SKIN = (0.97, 0.83, 0.71, 1.0)
+P2_SKIN_MIX = 0.0
+P2_LINE = 0.055
 
 
 def make_char(cid, x, z0=1.0, y=2.0):
-    c = CHARS.get(cid, {})
-    root = bpy.data.objects.new("C_" + cid, None)
-    scene.collection.objects.link(root)
-    root.location = (x, y, z0)
-    sc = float(c.get("scale", 1.0) or 1.0)
-    root.scale = (sc, 1, sc)
-    skin = hex_rgba(c.get("skin"), SKIN_TONES[hash(cid) % 3])
-    shirt = hex_rgba(c.get("shirt"), WHITE)
-    pants = hex_rgba(c.get("pants"), (0.3, 0.45, 0.35, 1.0))
-    hair = hex_rgba(c.get("hair"), (0.25, 0.17, 0.12, 1.0))
-    apron = hex_rgba(c.get("hat"), None) if c.get("hat") and c.get("hat") != "none" else None
-    # jambes
-    ll = rect(-0.22, 0.55, 0.3, 1.1, pants, parent=root)
-    lr = rect(0.22, 0.55, 0.3, 1.1, pants, parent=root)
-    rect(-0.22, 0.02, 0.38, 0.14, NAVY, parent=root)
-    rect(0.22, 0.02, 0.38, 0.14, NAVY, parent=root)
-    # torse (+ tablier / salopette en couleur d'accent)
-    rect(0, 1.65, 0.95, 1.2, shirt, parent=root)
-    if apron:
-        rect(0, 1.45, 0.7, 0.95, apron, y=-0.06, parent=root)
-    # bras articulés à l'épaule
-    arms = []
-    for sx in (-1, 1):
-        piv = bpy.data.objects.new("Sh", None)
-        scene.collection.objects.link(piv)
-        piv.parent = root
-        piv.location = (sx * 0.6, 0, 2.15)
-        rect(0, -0.5, 0.24, 1.0, shirt, y=0.01, parent=piv)
-        disc(0, -1.05, 0.14, skin, y=0.0, parent=piv)
-        arms.append(piv)
-    # tête ronde
-    disc(0, 2.75, 0.5, skin, y=-0.02, parent=root)
-    disc(0, 3.05, 0.52, hair, y=0.03, parent=root, sz=1.0)
-    rect(0, 3.12, 1.0, 0.35, hair, y=0.02, parent=root)
-    for sx in (-0.17, 0.17):
-        disc(sx, 2.78, 0.06, NAVY, y=-0.08, parent=root)
-        disc(sx * 1.6, 2.6, 0.08, (0.98, 0.6, 0.62, 1.0), y=-0.07, parent=root)
-    rect(0, 2.55, 0.22, 0.05, NAVY, y=-0.08, parent=root)
-    return root, arms[0], arms[1], ll, lr
+    return make_char_2d(cid, (x, y, z0))
 
 
 def animate(parts, action, f0, f1):
@@ -331,8 +381,8 @@ def animate(parts, action, f0, f1):
         root.keyframe_insert("location", frame=f1 + 1)
         for k, f in enumerate(range(f0, f1 + 1, 3)):
             for o, sg in ((ll, 1), (lr, -1)):
-                o.location = (o.location[0], o.location[1], 0.55 + (0.12 if (k % 2 == 0) == (sg > 0) else 0.0))
-                o.keyframe_insert("location", frame=f)
+                o.rotation_euler = (0, 0.35 * sg * (1 if k % 2 == 0 else -1), 0)
+                o.keyframe_insert("rotation_euler", frame=f)
     elif action == "jump":
         for k, f in enumerate(range(f0, f1 + 1, 3)):
             root.location = base + Vector((0, 0, 0.6 if k % 2 else 0.0))
@@ -354,10 +404,58 @@ scene.collection.objects.link(cam)
 scene.camera = cam
 cam.rotation_euler = (math.radians(90), 0, 0)
 FRAMING = {"drone": (17.0, 6.8), "wide": (15.0, 6.2), "tilt": (15.0, 6.2), "medium": (10.0, 3.6), "low": (10.0, 3.6),
-           "close": (6.0, 3.2), "pov": (10.0, 3.6)}
-SPOTS = [0.0, -1.7, 1.7, -3.2, 3.2]
+           "close": (6.0, 3.3), "pov": (10.0, 3.6), "face": (4.6, 3.55), "back": (10.0, 3.6), "high": (15.0, 6.2)}
+SPOTS = [0.0, -2.0, 2.0, -3.8, 3.8]
 placed = {}
 prev_loc = None
+
+
+def _show_holder(name, before, pivot):
+    """Regroupe les objets créés pour un « show » sous un pivot qu'on peut faire apparaître / disparaître."""
+    bpy.context.view_layer.update()
+    holder = bpy.data.objects.new(name, None)
+    scene.collection.objects.link(holder)
+    holder.location = pivot
+    bpy.context.view_layer.update()
+    inv = holder.matrix_world.inverted()
+    for o in list(scene.objects):
+        if o.name in before or o.parent is not None or o is holder:
+            continue
+        mw = o.matrix_world.copy()
+        o.parent = holder
+        o.matrix_parent_inverse = inv
+        o.matrix_world = mw
+    return holder
+
+
+def _show_pop(holder, f0, f1):
+    """Le « show » surgit au début de la phrase (petit rebond) et disparaît à la coupe."""
+    for fr, sc in ((0, 0.0), (max(1, f0 - 1), 0.0), (f0 + 2, 1.15), (f0 + 4, 1.0), (max(f0 + 5, f1), 1.0), (f1 + 1, 0.0)):
+        holder.scale = (sc, sc, sc)
+        holder.keyframe_insert("scale", frame=fr)
+
+
+def show_item(sh, x, f0, f1, idx):
+    """Ce que dit la phrase, montré pendant le plan : objet dessiné à côté du héros ou carton-mot crème qui surgit."""
+    side = 1 if idx % 2 == 0 else -1
+    before = set(o.name for o in scene.objects)
+    kind = str(sh.get("kind") or "")
+    txt = str(sh.get("text") or "")
+    if kind == "text" or kind not in ("sign", "price_sign", "stock_screen", "subscribe", "box", "coins", "table", "desk", "shelf", "door",
+                                      "fridge", "lamp", "tree", "pine", "house", "townhall", "market", "castle", "car", "bench", "bed", "tv", "monitor"):
+        w = max(1.6, 0.34 * len(txt or "!") + 0.6)
+        rect(x, 5.7, w, 1.0, CREAM, y=1.2)
+        label(txt or "!", x, 5.7, 0.5, hex_rgba(sh.get("color"), INK_E), y=1.05)
+        pivot = Vector((x, 1.1, 5.7))
+    else:
+        flat_prop(kind, x + side * 2.2, sh.get("color"), txt)
+        pivot = Vector((x + side * 2.2, 4.0, 2.4))
+    holder = _show_holder("Show_%d" % idx, before, pivot)
+    if kind != "text":
+        holder.location.y -= 2.6  # devant le décor, juste derrière le héros
+    _show_pop(holder, f0, f1)
+
+
 for si, S in enumerate(SHOTS):
     f0, f1 = int(S["f0"]), int(S["f1"])
     ox = LOC_X.get(S.get("location"), 0.0)
@@ -369,11 +467,14 @@ for si, S in enumerate(SHOTS):
             n = len([1 for kk in placed if kk[0] == S.get("location")])
             placed[key] = make_char(cid, ox + SPOTS[n % len(SPOTS)])
         parts = placed[key]
+        emo = S.get("emotion") or "neutral"
         if k == 0:
             fx = parts[0].location.x
             animate(parts, S.get("action", "idle"), f0, f1)
+            p2_set_emotion(parts[0], emo, f0)
         else:
             animate(parts, "idle", f0, f1)
+            p2_set_emotion(parts[0], emo if emo in ("happy", "sad", "surprised") else "neutral", f0)
     scale, cz = FRAMING.get(S.get("camera"), FRAMING["medium"])
     cx = fx if scale < 14 else ox
     # glissé latéral rapide (whip-pan) quand on change de lieu, coupe nette sinon
@@ -389,3 +490,8 @@ for si, S in enumerate(SHOTS):
     cam.keyframe_insert("location", frame=max(f0 + 1, f1 - 1))
     cam_d.keyframe_insert("ortho_scale", frame=max(f0 + 1, f1 - 1))
     prev_loc = S.get("location")
+    if S.get("show"):
+        try:
+            show_item(S["show"], fx, f0, f1, si)
+        except Exception as _e:
+            print("show:", _e)

@@ -84,6 +84,7 @@ from core.analytics_engine import AnalyticsEngine, PRESET_NICHES
 from core.night_factory import NightFactory
 from core.blender_engine import BlenderEngine
 from core.settings_store import (
+    get_claude_quota_summary,
     load_settings,
     save_settings,
     CLAUDE_PLAN_BUDGETS,
@@ -344,6 +345,10 @@ def _persist_jobs():
         pass
 
 
+RESUMABLE_KINDS = ("make", "clone", "style_ref")
+MAX_AUTO_RESUMES = 3
+
+
 def _load_persisted_jobs():
     if not JOBS_FILE.exists():
         return
@@ -352,15 +357,61 @@ def _load_persisted_jobs():
             items = json.load(f)
         for j in items:
             if j.get("status") == "running":
-                j["status"] = "error"
-                j["error"] = "Interrompu par un redémarrage du serveur"
-                j["step"] = "Interrompu — relance la génération"
+                if j.get("kind") in RESUMABLE_KINDS and int(j.get("auto_resumes") or 0) < MAX_AUTO_RESUMES:
+                    # coupé par un arrêt de Clipoa / du Mac : on reprend tout seul à la dernière étape sauvegardée
+                    j["status"] = "paused_restart"
+                    j["step"] = "⏸️ Coupé par un arrêt — reprise automatique à la dernière étape sauvegardée…"
+                else:
+                    j["status"] = "error"
+                    j["error"] = "Interrompu par un redémarrage du serveur"
+                    j["step"] = "Interrompu — clique sur Reprendre"
             JOBS[j["id"]] = j
     except Exception:
         pass
 
 
 _load_persisted_jobs()
+
+
+def _auto_resume_watcher():
+    """
+    Reprise automatique des fabrications :
+    - coupées par un arrêt (status paused_restart) → reprises quelques secondes après le démarrage ;
+    - en pause « quota Claude atteint » → reprises dès que le quota est revenu (reset de la fenêtre 5 h).
+    Chaque reprise repart de la dernière étape sauvegardée (checkpoints), jamais de zéro.
+    """
+    time.sleep(8)
+    while True:
+        try:
+            to_launch = []
+            quota_ok = None
+            with JOBS_LOCK:
+                jobs = list(JOBS.values())
+            for j in jobs:
+                if int(j.get("auto_resumes") or 0) >= MAX_AUTO_RESUMES or j.get("kind") not in RESUMABLE_KINDS:
+                    continue
+                if j.get("status") == "paused_restart":
+                    to_launch.append(j["id"])
+                elif j.get("status") == "paused_quota" and time.time() - float(j.get("updated_at") or 0) > 240:
+                    if quota_ok is None:
+                        try:
+                            q = get_claude_quota_summary()
+                            quota_ok = float(q.get("remaining_pct") or 0) >= max(6.0, float(q.get("est_pct_per_video") or 5) * 1.5)
+                        except Exception:
+                            quota_ok = False
+                    if quota_ok:
+                        to_launch.append(j["id"])
+            for jid in to_launch:
+                with JOBS_LOCK:
+                    if jid in JOBS:
+                        JOBS[jid]["auto_resumes"] = int(JOBS[jid].get("auto_resumes") or 0) + 1
+                _launch_pipeline_job(jid)
+        except Exception as e:
+            print(f"⚠️ Reprise automatique : {e}")
+        time.sleep(120)
+
+
+threading.Thread(target=_auto_resume_watcher, daemon=True).start()
 
 
 def get_lan_ip() -> str:
@@ -377,6 +428,13 @@ def get_lan_ip() -> str:
 
 def _create_job(kind: str, label: str, params: dict = None, resume_session_id: str = "") -> str:
     job_id = f"job_{uuid.uuid4().hex[:10]}"
+    params = dict(params or {})
+    if kind in ("make", "clone", "style_ref") and "account" not in params:
+        try:
+            from core import workspace as _ws
+            params["account"] = _ws.owner_tag()
+        except Exception:
+            params["account"] = None
     sess = resume_session_id or f"{kind}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
     with JOBS_LOCK:
         JOBS[job_id] = {
@@ -428,10 +486,11 @@ def _finish_job(job_id: str, result=None, error: str = None):
             else:
                 JOBS[job_id]["status"] = "done"
                 JOBS[job_id]["progress"] = 100
-                JOBS[job_id]["step"] = "Terminé — enregistré dans Mes Shorts"
+                JOBS[job_id]["step"] = "Vidéo prête"
                 JOBS[job_id]["result"] = result
                 if isinstance(result, dict):
                     if result.get("session_id"):
+                        _tag_render_account(result["session_id"], (JOBS[job_id].get("params") or {}).get("account"))
                         JOBS[job_id]["session_id"] = result["session_id"]
                         JOBS[job_id]["video_title"] = (result.get("script") or {}).get("title") or result["session_id"]
                     elif result.get("clips"):
@@ -439,6 +498,19 @@ def _finish_job(job_id: str, result=None, error: str = None):
                         JOBS[job_id]["session_id"] = first.get("session_id", "")
                         JOBS[job_id]["video_title"] = f"{len(result['clips'])} short(s) extrait(s)"
             _persist_jobs()
+
+
+def _tag_render_account(session_id: str, account) -> None:
+    """Rattache la vidéo au compte (espace) actif quand elle a été lancée."""
+    if not account or not _is_safe_id(session_id):
+        return
+    meta = RENDERS_DIR / session_id / "metadata.json"
+    try:
+        data = json.loads(meta.read_text(encoding="utf-8")) if meta.exists() else {}
+        data["account"] = account
+        meta.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 _FR_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
@@ -490,6 +562,7 @@ def _load_renders():
                                 rtype = data.get("type", "short")
                                 item["type"] = rtype
                                 item["plugin_id"] = data.get("plugin_id", "")
+                                item["account"] = data.get("account") or {}
                                 item["plugin_name"] = data.get("plugin_name", "")
                                 item["type_label"] = data.get("plugin_name") or _TYPE_LABELS.get(rtype, "Short IA")
                                 item["validated"] = bool(data.get("validated", False))
@@ -502,6 +575,16 @@ def _load_renders():
                                 )
                         except Exception:
                             pass
+                    # Jamais d'identifiant interne (« custom_1795486262_f2377c ») affiché comme titre
+                    if not isinstance(item.get("script"), dict):
+                        item["script"] = {}
+                    if not str(item["script"].get("title") or "").strip():
+                        fallback = ""
+                        try:
+                            fallback = str((json.loads(meta_file.read_text(encoding="utf-8")) if meta_file.exists() else {}).get("video_title") or "")
+                        except Exception:
+                            fallback = ""
+                        item["script"] = dict(item["script"], title=fallback.strip() or f"Vidéo du {dt.day} {_FR_MONTHS[dt.month - 1]}")
                     renders.append(item)
     return renders
 
@@ -577,7 +660,13 @@ def _build_week_overview(renders, publish_queue, night_tasks):
 
 @app.route("/")
 def index():
-    renders = _load_renders()
+    from core import workspace as _ws
+    try:
+        ws_accounts = _ws.list_accounts(fetch_avatars=True)
+        ws_current = _ws.current(ws_accounts)
+    except Exception:
+        ws_accounts, ws_current = [], None
+    renders = [r for r in _load_renders() if _ws.belongs(r, (ws_current or {}).get("id"))]
     claude_status = ClaudeBridge.check_status(live_probe=False)
     el_status = VoiceEngine.get_elevenlabs_status()
     drive_status = DriveClient.get_status()
@@ -608,6 +697,9 @@ def index():
         unvalidated_count=unvalidated_count,
         week_range_label=week_range_label,
         week_days=week_days,
+        workspace_accounts=ws_accounts,
+        workspace=ws_current,
+        workspace_name=(ws_current or {}).get("name", ""),
         themes=THEMES,
         subtitle_styles=SUBTITLE_STYLES,
         edge_voices=EDGE_VOICES,
@@ -957,6 +1049,8 @@ def api_drive_sync():
 def api_plugins():
     if request.method == "GET":
         return jsonify({"plugins": StylePluginStore.list_plugins(include_script_body=False)})
+    # Les utilisateurs ne créent plus leurs propres styles : seuls les styles livrés sont proposés
+    return jsonify({"error": "La création de styles n'est pas disponible."}), 403
     data = request.json or {}
     try:
         created = StylePluginStore.create_plugin(data)
@@ -1029,6 +1123,21 @@ def api_plugin_sheet_item(plugin_id, filename):
         return jsonify({"error": str(ve)}), 400
 
 
+@app.route("/api/plugins/<plugin_id>/preview", methods=["GET"])
+def api_plugin_preview(plugin_id):
+    """Vidéo à montrer quand on clique sur un style (référence, sinon exemple récent fait dans ce style)."""
+    return jsonify(StylePluginStore.style_preview(plugin_id, RENDERS_DIR))
+
+
+@app.route("/api/plugins/<plugin_id>/reference-video", methods=["GET"])
+def api_plugin_reference_video(plugin_id):
+    # Lecture seule : les vidéos de référence sont fournies avec Clipoa (assets/style_refs/<id>.mp4)
+    fpath = StylePluginStore.get_reference_video_path(plugin_id)
+    if not fpath:
+        return "Video not found", 404
+    return send_file(str(fpath), conditional=True)
+
+
 @app.route("/api/plugins/<plugin_id>/script", methods=["POST"])
 def api_plugin_upload_script(plugin_id):
     try:
@@ -1097,7 +1206,7 @@ def _launch_pipeline_job(job_id: str):
                 from core.style_analyzer import create_style_from_reference
                 made = create_style_from_reference(
                     params["url"], engine=params.get("engine") or "claude", model=params.get("engine_model") or None,
-                    progress=lambda pct, msg: cb(int(pct * 0.4), msg),
+                    progress=lambda pct, msg: cb(int(pct * 0.4), msg), hidden=True,
                 )
                 with JOBS_LOCK:
                     params["plugin_id"] = made["plugin"]["id"]
@@ -1345,7 +1454,7 @@ def api_thumb_proxy():
     if not img_url.startswith("https://"):
         return "Bad URL", 400
     host = (urlparse(img_url).hostname or "").lower()
-    allowed_suffixes = ("ytimg.com", "cdninstagram.com", "fbcdn.net", "muscdn.com", "tiktokcdn.com", "tiktokcdn-us.com", "tiktokcdn-eu.com")
+    allowed_suffixes = ("ytimg.com", "cdninstagram.com", "fbcdn.net", "muscdn.com", "tiktokcdn.com", "tiktokcdn-us.com", "tiktokcdn-eu.com", "ibyteimg.com")
     if not any(host == suf or host.endswith("." + suf) for suf in allowed_suffixes):
         return "Forbidden host", 403
     try:
@@ -1500,6 +1609,94 @@ def api_analytics_external_scan():
         return jsonify({"report": rep})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ---------- Espaces (compte choisi en haut à droite) ----------
+
+@app.route("/api/workspace", methods=["GET"])
+def api_workspace():
+    from core import workspace as _ws
+    accs = _ws.list_accounts(fetch_avatars=False)
+    return jsonify({"accounts": accs, "current": _ws.current(accs)})
+
+
+@app.route("/api/workspace/select", methods=["POST"])
+def api_workspace_select():
+    from core import workspace as _ws
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify({"current": _ws.select(str(data.get("id") or ""))})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+
+# ---------- Outils de fabrication prêts à l'emploi (ffmpeg, yt-dlp, Whisper, voix, Blender…) ----------
+
+@app.route("/api/tools", methods=["GET"])
+def api_tools_status():
+    from core import tools_setup
+    return jsonify(tools_setup.status())
+
+
+@app.route("/api/tools/blender/install", methods=["POST"])
+def api_tools_blender_install():
+    from core import tools_setup
+    started = tools_setup.start_blender_install()
+    return jsonify({"started": started, **tools_setup.status()})
+
+
+# ---------- Statistiques : toutes les vidéos de la chaîne connectée, score et pourquoi ----------
+
+@app.route("/api/channel-stats", methods=["GET"])
+def api_channel_stats_get():
+    from core import channel_stats
+    return jsonify(channel_stats.load())
+
+
+@app.route("/api/channel-stats/sync", methods=["POST"])
+def api_channel_stats_sync():
+    from core import channel_stats
+    started = channel_stats.start_sync()
+    return jsonify({"started": started, **channel_stats.load()})
+
+
+@app.route("/api/channel-stats/<video_id>/remake", methods=["POST"])
+def api_channel_stats_remake(video_id):
+    """Refait la vidéo en mieux avec l'IA (points à améliorer de Statistiques)."""
+    from core import channel_stats
+    if not re.match(r"^[A-Za-z0-9_-]{6,20}$", video_id or ""):
+        return jsonify({"error": "Vidéo invalide"}), 400
+    try:
+        req = channel_stats.remake_request(video_id)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    data = request.get_json(silent=True) or {}
+    payload = dict(req["payload"], engine=data.get("engine") or "claude", voice=data.get("voice") or None)
+    with app.test_client() as c:
+        r = c.post(req["route"], json=payload, headers={k: v for k, v in request.headers.items() if k.lower() in ("x-clipoa-token", "authorization", "cookie")})
+    return (r.get_data(), r.status_code, {"Content-Type": "application/json"})
+
+
+# ---------- S'inspirer : radar des vidéos IA récentes qui cartonnent ----------
+
+@app.route("/api/inspiration", methods=["GET"])
+def api_inspiration_get():
+    from core import inspiration_radar
+    return jsonify(inspiration_radar.load())
+
+
+@app.route("/api/inspiration/scan", methods=["POST"])
+def api_inspiration_scan():
+    from core import inspiration_radar
+    data = request.get_json(silent=True) or {}
+    lang = str(data.get("lang") or "fr").lower()
+    plats = data.get("platforms") if isinstance(data.get("platforms"), list) else None
+    try:
+        days = max(3, min(90, int(data.get("max_age_days") or 30)))
+    except (TypeError, ValueError):
+        days = 30
+    started = inspiration_radar.start_scan(lang, plats, days)
+    return jsonify({"started": started, **inspiration_radar.load()})
 
 
 # ---------- Night Factory (Créer des vidéos pendant que je dors) ----------
@@ -2138,7 +2335,8 @@ def api_make_like():
 
 @app.route("/api/plugins/from-reference", methods=["POST"])
 def api_plugin_from_reference():
-    """Crée seulement un style (plugin) à partir d'une vidéo d'exemple."""
+    """Crée seulement un style (plugin) à partir d'une vidéo d'exemple — désactivé (plus de création de styles)."""
+    return jsonify({"error": "La création de styles n'est pas disponible. Colle le lien dans la Fabrique pour copier son style."}), 403
     data = request.json or {}
     url = (data.get("url") or "").strip()
     if not url:
@@ -2642,7 +2840,7 @@ def api_assistant_help():
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude (ou choisis Antigravity / Gemini dans le sélecteur).",
+            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude." + (" Tu peux aussi choisir « Gemini Neon Medium » dans la barre." if agy_ok else ""),
         }), 200
     if chosen_provider == "antigravity" and not agy_ok:
         return jsonify({
@@ -2670,20 +2868,27 @@ def api_assistant_help():
     styles_str = ", ".join(f"{p['name']} ({p.get('est_time_label', '~1 min')})" for p in plugins) or "aucun"
 
     system_prompt = (
-        "Tu es l'assistant d'aide intégré de Clipoa, une application locale de création de vidéos courtes (Shorts, TikTok, Reels).\n"
-        "Réponds en français, de manière claire, concrète, amicale et concise (4 à 8 lignes max, étapes numérotées si utile).\n"
-        "Guide l'utilisateur uniquement sur les vraies fonctionnalités de Clipoa :\n"
-        "- Accueil : vue rapide, shorts à valider, boîte de création rapide.\n"
-        "- Fabrique : créer un short à partir d'une idée OU coller son propre script mot pour mot (« J'ai mon script »), "
-        "choisir la durée cible (30s, 45s, 1 min, 1m30, 2 min), choisir un style DA, un moteur (Claude, Antigravity ou Gemini), la 3D Blender, la voix, les sous-titres Submagic, et le Mode Nuit.\n"
-        f"- Plugins DA (Styles disponibles : {styles_str}) : chaque style a une image d'aperçu, une Direction Artistique (DA), "
-        "une estimation temps + tokens/quota (calibrée sur 1 min et ajustée selon la durée), et on peut créer ses propres plugins avec planches de modèles et scripts.\n"
-        "- Montage : découper une vidéo longue (YouTube ou fichier) en shorts 9:16.\n"
-        "- Concurrents : coller un lien TikTok/Short ou @compte pour analyser et copier la structure.\n"
-        "- Mes vidéos : visionner, valider en 1 clic, retoucher avec ses mots, télécharger MP4.\n"
-        "- Publier : programmer et auto-publier sur YouTube, TikTok, Instagram, Facebook.\n"
-        "- Connexions : brancher Claude Pro/Max, Antigravity CLI (agy), Gemini gratuit (Google AI Studio), ElevenLabs, Blender 3D et réseaux sociaux.\n"
-        "Ne mentionne jamais de fonctions qui n'existent pas. Si l'utilisateur demande comment faire une action, indique le nom exact de l'onglet et du bouton."
+        "Tu es l'assistant d'aide intégré de Clipoa, une application de création de vidéos courtes faites à l'IA (Shorts, TikTok, Reels).\n"
+        "Réponds en français, clair, concret et court (3 à 7 lignes, étapes numérotées si utile). "
+        "Donne toujours le nom exact de l'onglet et du bouton. Ne parle jamais d'une fonction qui n'existe pas.\n"
+        "Fonctions de Clipoa :\n"
+        "- Accueil : vue rapide, vidéos à valider, création rapide.\n"
+        "- Créer > Nouvelle vidéo : un seul champ où l'on écrit une idée en quelques mots OU colle son script complet ; "
+        "durée (30 s à 2 min) ; bouton « ✨ Générer le script avec l'IA » (facultatif : le script s'écrit en direct puis se modifie à la main "
+        "ou avec « Modifier avec l'IA ») ; sans ce bouton la vidéo est fabriquée directement. "
+        f"Choix d'un style ({styles_str}) : un clic sur un style montre sa vidéo de référence. "
+        "Champ « lien d'une vidéo dont tu veux le style » : coller un lien TikTok / Reel / Short copie son style (la liste des styles se bloque). "
+        "L'outil de rendu (3D Blender, animation, etc.) est choisi automatiquement : l'utilisateur n'a rien à régler. "
+        "Ensuite : IA qui génère, voix, musique et bruitages, bouton « Fabriquer ».\n"
+        "- Créer > Découper une vidéo : transformer une vidéo longue en Shorts 9:16.\n"
+        "- Créer > S'inspirer : radar des vidéos IA récentes qui cartonnent sur TikTok et Reels, avec score /100 et pourquoi elles marchent ; "
+        "boutons « Copier le lien » et « Faire pareil → » (envoie le lien dans Nouvelle vidéo).\n"
+        "- Créer > Pilote auto : préparer les vidéos de la semaine.\n"
+        "- Mes vidéos : regarder, valider, retoucher, télécharger.\n"
+        "- Publier : programmer et publier sur YouTube, TikTok, Instagram, Facebook.\n"
+        "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec Clipoa ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
+        "- Connexions : brancher Claude, Antigravity, ElevenLabs et ses réseaux sociaux.\n"
+        "Les utilisateurs ne peuvent pas créer de nouveaux styles."
     )
 
     conv_lines = []
@@ -2703,12 +2908,12 @@ def api_assistant_help():
             if c_model not in ("opus", "sonnet", "haiku"):
                 c_model = claude_st.get("model") or "sonnet"
             reply = ClaudeBridge.query(user_prompt, system_prompt=system_prompt, action="help_assistant", model=c_model)
-            label = f"Claude {c_model.capitalize()}"
+            label = "Claude Opus 5.5" if c_model == "opus" else f"Claude {c_model.capitalize()}"
             used_model = c_model
         elif chosen_provider == "antigravity":
             a_model = model_req or agy_st.get("model") or ""
             reply = AntigravityBridge.query(user_prompt, system_prompt=system_prompt, model=a_model or None, timeout=90)
-            label = f"Antigravity ({a_model})" if a_model else "Antigravity"
+            label = "Gemini Neon Medium" if (a_model or "").startswith("gemini-4-neon") else (f"Antigravity ({a_model})" if a_model else "Antigravity")
             used_model = a_model
         else:
             g_model = model_req or gemini_st.get("model") or "gemini-3-flash-preview"
@@ -2727,7 +2932,7 @@ def api_assistant_help():
     except ClaudeQuotaExceededError as qe:
         return jsonify({
             "ok": False,
-            "error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity ou Gemini dans la barre !",
+            "error": f"Quota Claude atteint ({qe})." + (" Choisis « Gemini Neon Medium » dans la barre pour continuer." if agy_ok else " Réessaie un peu plus tard."),
             "connected_providers": conn_map,
         }), 429
     except Exception as e:
@@ -2787,4 +2992,10 @@ def run_app(port=8080):
 
 
 if __name__ == "__main__":
+    # premier lancement : installe tout seul les outils manquants (Blender pour les styles 3D) en arrière-plan
+    try:
+        from core import tools_setup
+        threading.Thread(target=tools_setup.auto_setup_on_launch, daemon=True).start()
+    except Exception as _e:
+        print(f"⚠️ Outils : {_e}")
     run_app()

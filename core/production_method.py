@@ -410,6 +410,33 @@ def plan_sfx(
     return kept
 
 
+def plan_hud(script: Dict[str, Any], duration: float, words: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    """Compteurs permanents (« ALTITUDE : 5 M ») : chaque étape reste affichée jusqu'à la suivante, calée sur la voix."""
+    steps: List[Dict[str, Any]] = []
+    for h in (script.get("hud") or []) if isinstance(script.get("hud"), list) else []:
+        if not isinstance(h, dict):
+            continue
+        lines = [str(x).strip()[:40] for x in (h.get("lines") or []) if str(x).strip()][:2]
+        if not lines:
+            continue
+        st = 0.0 if not steps else -1.0
+        if h.get("at_phrase") and words:
+            idx = _find_phrase(words, str(h["at_phrase"]))
+            if idx >= 0:
+                st = float(words[idx]["start"])
+        if st < 0:
+            try:
+                st = float(h.get("start", -1))
+            except (TypeError, ValueError):
+                st = -1.0
+        if 0 <= st < duration:
+            steps.append({"lines": lines, "start": round(st, 2)})
+    steps.sort(key=lambda x: x["start"])
+    for i, s in enumerate(steps):
+        s["end"] = round(steps[i + 1]["start"] if i + 1 < len(steps) else duration, 2)
+    return [s for s in steps if s["end"] > s["start"]][:12]
+
+
 def plan_notes(
     script: Dict[str, Any],
     shots: List[Dict[str, Any]],
@@ -513,13 +540,16 @@ def build_plan(
         "sfx": sfx,
         "keywords": classify_keywords(script, words),
         "notes": plan_notes(script, segs, shots, duration, hook_end, words),
+        "hud": plan_hud(script, duration, words) if ov.get("hud") else [],
+        "hud_color": ov.get("hud_color") or "",
         "music": {
             "db": music_db,
             "cut_before_twist_s": float(ov.get("music_cut_before_twist_s", 0.6)) if twist_t is not None else 0.0,
         },
         "captions": {
-            "mode": ov.get("caption_mode") if ov.get("caption_mode") in ("chunk", "one_word", "none") else "chunk",
+            "mode": ov.get("caption_mode") if ov.get("caption_mode") in ("chunk", "one_word", "two_words", "none") else "chunk",
             "note_color": ov.get("note_color") or "",
+            "note_look": ov.get("note_look") if ov.get("note_look") in ("text", "card") else "text",
             "keyword_colors": bool(ov.get("keyword_colors", True)),
             # « cine » : sous-titres des vidéos de référence (Montserrat Black géant, mots-clés Luckiest Guy colorés)
             "look": "cine" if (ov.get("caption_look") == "cine" or ov.get("visual_style") == "cine3d") else "",

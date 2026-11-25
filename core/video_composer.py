@@ -32,6 +32,22 @@ SUBTITLE_STYLES: Dict[str, Dict[str, str]] = {
         "hook_bg": "&H0055AA00",
         "bar_color": "#00FF88",
     },
+    "clean_white": {
+        "label": "Blanc net (contour noir)",
+        "active_color": "&H00FFFFFF",   # tout blanc, comme les contes 2D × 3D de référence
+        "base_color": "&H00FFFFFF",
+        "outline_color": "&H00000000",
+        "hook_bg": "&H00241A1E",
+        "bar_color": "#FFFFFF",
+    },
+    "warm_cream": {
+        "label": "Crème chaleureux (dessin animé)",
+        "active_color": "&H008AE0FF",   # #FFE08A : mot prononcé jaune crème
+        "base_color": "&H00FFFFFF",
+        "outline_color": "&H00202A3B",  # contour brun foncé #3B2A20
+        "hook_bg": "&H00DCF4FF",
+        "bar_color": "#FFE08A",
+    },
     "cyber_cyan": {
         "label": "Cyber Cyan",
         "active_color": "&H00FFE500",   # #00E5FF
@@ -241,7 +257,10 @@ class VideoComposer:
         notes: Optional[List[Dict[str, Any]]] = None,
         caption_mode: str = "chunk",
         note_color: str = "",
+        note_look: str = "text",
         look: str = "",
+        hud: Optional[List[Dict[str, Any]]] = None,
+        hud_color: str = "",
     ) -> str:
         """
         Creates a Submagic/TikTok-grade Advanced SubStation Alpha (.ass) file:
@@ -267,6 +286,8 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Default,Arial Black,72,{base_color},{active_color},{outline_color},&H80000000,-1,0,0,0,100,100,1,0,1,7,3,5,70,70,0,1
 Style: Hook,Arial Black,62,&H00FFFFFF,&H00FFFFFF,{hook_bg},&H0007080B,-1,0,0,0,100,100,1,0,3,18,0,8,80,80,260,1
 Style: Note,Arial Black,92,&H0000E6FF,&H0000E6FF,&H000A0B0F,&H80000000,-1,0,0,0,100,100,1,0,1,8,4,5,60,60,0,1
+Style: Hud,Arial Black,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,6,2,7,56,56,150,1
+Style: NoteCard,Arial Black,70,&H00202A3B,&H00202A3B,&H00DCF4FF,&H00202A3B,-1,0,0,0,100,100,1,0,3,24,0,5,60,60,0,1
 Style: Cine,Montserrat Black,104,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,2,5,60,60,0,1
 Style: CineKey,Luckiest Guy,118,&H0000E6FF,&H0000E6FF,&H00000000,&H64000000,0,0,0,0,100,100,1,0,1,9,2,5,60,60,0,1
 
@@ -283,6 +304,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             hook_anim = r"{\fad(120,250)\fscx86\fscy86\t(0,180,\fscx100\fscy100)}"
             events.append(f"Dialogue: 1,{hook_start},{hook_end},Hook,,0,0,0,,{hook_anim}{wrapped_hook}")
 
+        # 1a. Compteurs permanents en haut à gauche (« ALTITUDE : 5 M »), chaque étape jusqu'à la suivante
+        hx_h = str(hud_color or "#FFD23F").lstrip("#")
+        hud_col = f"&H{hx_h[4:6]}{hx_h[2:4]}{hx_h[0:2]}&" if len(hx_h) == 6 else "&H3FD2FF&"
+        for step in (hud or []):
+            try:
+                h_lines = [cls._escape_ass_text(str(x)) for x in (step.get("lines") or [])][:2]
+                h_start, h_end = float(step.get("start", 0.0)), float(step.get("end", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if not h_lines or h_end <= h_start:
+                continue
+            body = h_lines[0] + ("\\N{\\1c" + hud_col + "}" + h_lines[1] if len(h_lines) > 1 else "")
+            events.append(
+                f"Dialogue: 3,{cls._format_ass_time(h_start)},{cls._format_ass_time(h_end)},Hud,,0,0,0,,{{\\an7\\pos(56,150)}}{body}"
+            )
+
         # 1b. Cartons de texte géants aux moments clés (méthode : « 100 € → 200 € », « ↑ LIEN EN BIO ↑ »)
         for note in (notes or []):
             try:
@@ -296,14 +333,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             px, py = (note.get("pos") or [540, 400])[:2]
             n_col = ""
             hx = str(note_color or "").lstrip("#")
-            if len(hx) == 6:
+            if len(hx) == 6 and note_look == "card":
+                n_col = rf"\1c&H{hx[4:6]}{hx[2:4]}{hx[0:2]}&"
+            elif len(hx) == 6:
                 # ASS = &HBBGGRR : texte de la couleur du style, contour blanc fin
                 n_col = rf"\1c&H{hx[4:6]}{hx[2:4]}{hx[0:2]}&\3c&H00FFFFFF&\bord5"
             if look == "cine":
                 n_col += r"\fnLuckiest Guy"
             n_anim = rf"{{\an5\pos({int(px)},{int(py)})\fad(90,160)\fscx70\fscy70\t(0,140,\fscx100\fscy100){n_col}}}"
             events.append(
-                f"Dialogue: 2,{cls._format_ass_time(n_start)},{cls._format_ass_time(n_end)},Note,,0,0,0,,{n_anim}{n_txt}"
+                f"Dialogue: 2,{cls._format_ass_time(n_start)},{cls._format_ass_time(n_end)},{'NoteCard' if note_look == 'card' else 'Note'},,0,0,0,,{n_anim}{n_txt}"
             )
 
         # Mots-clés colorés
@@ -318,7 +357,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         if caption_mode == "none":
             chunks = []  # style sans sous-titres (ex. Explainer 2D) : seulement les grandes étiquettes
         else:
-            chunks = cls._chunk_words(words, max_words=1) if caption_mode == "one_word" else cls._chunk_words(words)
+            chunks = cls._chunk_words(words, max_words={"one_word": 1, "two_words": 2}.get(caption_mode, 3))
         if look == "cine" and chunks:
             # Vidéos de référence : UN mot à la fois, Montserrat Black 104 blanc contour 9 à y=1230 ;
             # mots-clés en MAJUSCULES Luckiest Guy 118 (jaune idée, rouge perte, vert gain), petit « pop » d'entrée.
@@ -515,6 +554,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             notes=(plan or {}).get("notes"),
             caption_mode=((plan or {}).get("captions") or {}).get("mode", "chunk"),
             note_color=((plan or {}).get("captions") or {}).get("note_color", ""),
+            note_look=((plan or {}).get("captions") or {}).get("note_look", "text"),
+            hud=(plan or {}).get("hud"),
+            hud_color=(plan or {}).get("hud_color", ""),
             look=((plan or {}).get("captions") or {}).get("look", ""),
         )
 

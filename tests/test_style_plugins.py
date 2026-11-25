@@ -211,20 +211,22 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
             with patch("core.style_plugins.PLUGINS_DIR", pdir), patch(
                 "core.style_plugins.PLUGINS_INDEX_FILE", pdir / "plugins.json"
             ):
-                # 1. Create custom plugin
-                r_create = self.client.post(
-                    "/api/plugins",
-                    json={
+                # 0. La création de styles par l'utilisateur est désactivée
+                self.assertEqual(self.client.post("/api/plugins", json={"name": "X"}).status_code, 403)
+                # 1. Create custom plugin (côté serveur seulement)
+                created = StylePluginStore.create_plugin({
                         "name": "Style Manga Noir",
                         "category": "Anime / Manga",
                         "icon": "🖋️",
                         "gradient": "anime",
                         "tagline": "Noir et blanc à fort contraste.",
                         "da_prompt": "Style manga encre noire, trames dynamiques et angles dramatiques.",
-                    },
-                )
-                self.assertEqual(r_create.status_code, 200)
-                pid = r_create.get_json()["plugin"]["id"]
+                })
+                pid = created["id"]
+                StylePluginStore.set_hidden(pid, True)
+                self.assertNotIn(pid, [p["id"] for p in StylePluginStore.list_plugins()])
+                self.assertIsNotNone(StylePluginStore.get_plugin(pid))
+                StylePluginStore.set_hidden(pid, False)
 
                 # 2. Upload valid PNG model sheet
                 fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64

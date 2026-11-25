@@ -81,7 +81,7 @@ class BlenderEngine:
             sp = spec_shots[i] if i < len(spec_shots) else (spec_shots[-1] if spec_shots else {})
             shots.append({"f0": f0, "f1": min(f1, total_frames), "location": sp.get("location"), "camera": sp.get("camera", "medium"),
                           "focus": sp.get("focus"), "others": sp.get("others") or [], "action": sp.get("action", "idle"),
-                          "emotion": sp.get("emotion", "neutral")})
+                          "emotion": sp.get("emotion", "neutral"), "show": sp.get("show")})
         full_spec = dict(spec)
         full_spec["_style"] = style if style in ("roblox", "paper2d", "flat_vector", "explainer2d") else "roblox"
         header = f"""
@@ -110,6 +110,9 @@ ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
 """
         kit_path = cls.KIT_PATH.with_name("scene_kit_explainer_bpy.py") if full_spec["_style"] == "explainer2d" else cls.KIT_PATH
         kit = kit_path.read_text(encoding="utf-8")
+        if full_spec["_style"] in ("paper2d", "explainer2d"):
+            # persos 2D dessin animé + décor texturé : fonctions placées avant le kit (utilisées par lui)
+            kit = cls.KIT_PATH.with_name("paper2d_bpy.py").read_text(encoding="utf-8") + "\n\n" + kit
         Path(script_save_path).write_text(header + "\n" + kit, encoding="utf-8")
         return script_save_path
 
