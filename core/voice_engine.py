@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -245,6 +246,118 @@ class VoiceEngine:
             "el_style": 0.30,
         }
 
+    _NARRATOR_WORDS = ("narrat", "voix off", "voix-off", "off", "commentaire", "conteur", "conteuse", "présentateur", "presentateur", "voix")
+    _FEMALE_HINTS = ("maman", "mère", "mere", "fille", "reine", "sœur", "soeur", "madame", "mme", "femme", "princesse", "grand-mère",
+                     "mamie", "tante", "dame", "copine", "elle", "sorcière", "fée", "fee", "infirmière", "maîtresse")
+    _MALE_HINTS = ("papa", "père", "pere", "fils", "roi", "frère", "frere", "monsieur", "homme", "prince", "papi", "oncle", "garçon", "garcon")
+
+    @classmethod
+    def _speaker_key(cls, name: str) -> str:
+        n = re.sub(r"[*_`«»\"'()\[\]]", "", str(name or "")).strip().lower()
+        if not n or n in ("—", "-", "–", "...", "…", "aucun", "aucune", "silence", "personne"):
+            return ""
+        if any(n == w or n.startswith(w) for w in cls._NARRATOR_WORDS):
+            return ""
+        return n
+
+    @classmethod
+    def _guess_female(cls, key: str) -> bool:
+        if any(h in key for h in cls._MALE_HINTS):
+            return False
+        if any(h in key for h in cls._FEMALE_HINTS):
+            return True
+        first = key.split()[0] if key.split() else key
+        return first.endswith(("a", "ie", "ine", "elle", "ette", "lise", "rine")) and first not in ("luca", "joshua", "nicola")
+
+    @classmethod
+    def _voice_pools(cls, voice: str):
+        """(voix masculines, voix féminines) au format compris par generate_voice, du même fournisseur que la voix choisie."""
+        v = (voice or "").strip()
+        if (v == "auto_el" or v.startswith("el:")) and cls.get_elevenlabs_key():
+            try:
+                res = requests.get("https://api.elevenlabs.io/v1/voices", headers={"xi-api-key": cls.get_elevenlabs_key()}, timeout=12)
+                males, females = [], []
+                for it in (res.json().get("voices", []) if res.status_code == 200 else []):
+                    g = str((it.get("labels") or {}).get("gender") or "").lower()
+                    (females if g == "female" else males).append("el:" + str(it.get("voice_id")))
+                if males or females:
+                    return males or females, females or males
+            except Exception:
+                pass
+        if not v.startswith(("edge:", "gemini:", "fr-")):
+            try:
+                from core import local_tts
+                if v.startswith("qwen:") or local_tts.use_by_default():
+                    return ["qwen:Ryan", "qwen:Aiden", "qwen:Uncle_Fu"], ["qwen:Serena", "qwen:Vivian", "qwen:Sohee"]
+            except Exception:
+                pass
+        gem_key = (load_settings().get("gemini", {}).get("api_key") or os.getenv("GEMINI_API_KEY") or "").strip()
+        if gem_key and not v.startswith(("edge:", "fr-")):
+            return ["gemini:Charon", "gemini:Fenrir", "gemini:Orus", "gemini:Puck"], ["gemini:Aoede", "gemini:Kore", "gemini:Leda", "gemini:Zephyr"]
+        return (["edge:fr-FR-HenriNeural", "edge:fr-FR-RemyMultilingualNeural"],
+                ["edge:fr-FR-DeniseNeural", "edge:fr-FR-VivienneMultilingualNeural", "edge:fr-FR-EloiseNeural"])
+
+    @classmethod
+    def _generate_multi_voice(cls, segments, output_name: str, voice: Optional[str], model_id: Optional[str]):
+        """Une voix par personnage si au moins 2 personnages parlent ; sinon None (voix unique)."""
+        segs = [{"key": cls._speaker_key(s.get("speaker")), "text": str(s.get("text") or "").strip().strip("«»\"' ")}
+                for s in (segments or []) if isinstance(s, dict)]
+        segs = [s for s in segs if s["text"] and s["text"] not in ("—", "-", "–", "...", "…", "Silence", "Aucune", "Aucun")]
+        characters = []
+        for s in segs:
+            if s["key"] and s["key"] not in characters:
+                characters.append(s["key"])
+        if len(characters) < 2:
+            return None
+        males, females = cls._voice_pools(voice)
+        main = (voice or "").strip()
+        assigned: Dict[str, str] = {}
+        mi = fi = 0
+        for c in characters:
+            if cls._guess_female(c):
+                pool, idx = females, fi; fi += 1
+            else:
+                pool, idx = males, mi; mi += 1
+            cand = [p for p in pool if p != main] or pool
+            assigned[c] = cand[idx % len(cand)]
+        print("🎭 Voix par personnage : " + ", ".join(f"{c} → {assigned[c]}" for c in characters))
+
+        # Répliques consécutives du même personnage regroupées (moins d'appels, intonation plus fluide)
+        groups = []
+        for s in segs:
+            v = assigned.get(s["key"]) or main or None
+            if groups and groups[-1][0] == v:
+                groups[-1][1].append(s["text"])
+            else:
+                groups.append([v, [s["text"]]])
+
+        target_dir = AUDIO_DIR / output_name
+        target_dir.mkdir(parents=True, exist_ok=True)
+        parts = []
+        providers = set()
+        for i, (v, texts) in enumerate(groups):
+            r = cls.generate_voice(text=" ".join(texts), output_name=f"{output_name}/part_{i:02d}", voice=v, model_id=model_id)
+            parts.append(r["audio_wav"])
+            providers.add(r.get("provider", ""))
+        audio_wav = target_dir / "speech.wav"
+        audio_mp3 = target_dir / "speech.mp3"
+        # Petit silence entre deux personnages, puis concaténation
+        inputs, filt = [], ""
+        for i, pth in enumerate(parts):
+            inputs += ["-i", str(pth)]
+            filt += f"[{i}:a]apad=pad_dur=0.25[a{i}];"
+        filt += "".join(f"[a{i}]" for i in range(len(parts))) + f"concat=n={len(parts)}:v=0:a=1[out]"
+        subprocess.run([FFMPEG_PATH, "-y", *inputs, "-filter_complex", filt, "-map", "[out]", "-ar", "44100", "-ac", "2", str(audio_wav)],
+                       check=True, capture_output=True)
+        subprocess.run([FFMPEG_PATH, "-y", "-i", str(audio_wav), "-b:a", "192k", str(audio_mp3)], check=True, capture_output=True)
+        return {
+            "provider": "multi:" + "+".join(sorted(p for p in providers if p)),
+            "audio_wav": str(audio_wav),
+            "audio_mp3": str(audio_mp3),
+            "srt_path": "",
+            "voices_by_character": assigned,
+        }
+
     @classmethod
     def _pick_auto_el_voice(cls, tags) -> str:
         """Choisit dans le compte ElevenLabs la voix dont la description colle le mieux au ton du script."""
@@ -276,6 +389,7 @@ class VoiceEngine:
         voice: Optional[str] = None,
         use_elevenlabs: Optional[bool] = None,
         model_id: Optional[str] = None,
+        segments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, str]:
         """
         Synthesizes speech from text and returns paths to audio file (.wav/.mp3).
@@ -287,6 +401,15 @@ class VoiceEngine:
         """
         if not (text or "").strip():
             raise ValueError("Le script vocal est vide — impossible de synthétiser la voix.")
+
+        # Plusieurs personnages qui parlent → une voix par personnage (un simple narrateur garde une seule voix)
+        if segments:
+            try:
+                multi = cls._generate_multi_voice(segments, output_name, voice, model_id)
+                if multi:
+                    return multi
+            except Exception as e:
+                print(f"Voix multiples indisponibles ({e}) — une seule voix pour tout le script.")
 
         target_dir = AUDIO_DIR / output_name
         target_dir.mkdir(parents=True, exist_ok=True)

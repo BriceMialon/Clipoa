@@ -449,6 +449,8 @@ class ShortCrewPipeline:
                 text=script.get("full_spoken_script", ""),
                 output_name=session_id,
                 voice=voice,
+                # Le tableau du script dit qui parle : une voix par personnage s'il y en a plusieurs
+                segments=template_shots if (is_custom_script and isinstance(template_shots, list)) else None,
             )
             cp["voice_transcript"] = AudioTranscriber.transcribe(cp["voice_res"]["audio_wav"])
             save_checkpoint(session_id, cp)
