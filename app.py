@@ -947,7 +947,8 @@ def api_gemini_create():
         except Exception as e:
             _finish_job(job_id, error=str(e))
 
-    threading.Thread(target=_run, daemon=True).start()
+    if not _run_with_job_guard(job_id, _run):
+        return jsonify({"error": "Trop de tâches lourdes en cours, patiente quelques instants.", "job_id": job_id}), 429
     return jsonify({"job_id": job_id})
 
 
@@ -975,7 +976,8 @@ def api_gemini_video():
         except Exception as e:
             _finish_job(job_id, error=str(e))
 
-    threading.Thread(target=_run, daemon=True).start()
+    if not _run_with_job_guard(job_id, _run):
+        return jsonify({"error": "Trop de tâches lourdes en cours, patiente quelques instants.", "job_id": job_id}), 429
     return jsonify({"job_id": job_id})
 
 
