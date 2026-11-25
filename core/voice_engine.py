@@ -241,6 +241,7 @@ class VoiceEngine:
 
         auto_profile = cls._pick_auto_voice_and_emotion(text)
         chosen_voice = (voice or "").strip()
+        explicit_free = chosen_voice.startswith(("edge:", "gemini:", "fr-"))
         style_prompt = auto_profile["style_prompt"]
         el_stability = auto_profile["el_stability"]
         el_style = auto_profile["el_style"]
@@ -261,13 +262,34 @@ class VoiceEngine:
         elif chosen_voice.startswith("edge:"):
             provider = "edge_tts"
             chosen_voice = chosen_voice[5:]
+        elif chosen_voice.startswith("qwen:"):
+            provider = "local_hd"
         elif use_elevenlabs is True and el_key:
             provider = "elevenlabs"
         elif use_elevenlabs is None and el_key and el_cfg.get("enabled", True) and not chosen_voice.startswith("fr-FR-"):
             provider = "elevenlabs"
 
         raw_audio_in = audio_mp3
-        if provider == "elevenlabs" and el_key:
+        # Voix HD locale gratuite : utilisée dès qu'elle est installée, sauf si une autre voix gratuite est choisie
+        if provider in ("gemini_tts", "edge_tts") and not explicit_free:
+            try:
+                from core import local_tts
+                if local_tts.is_ready():
+                    provider = "local_hd"
+                    chosen_voice = ""
+            except Exception:
+                pass
+        if provider == "local_hd":
+            from core import local_tts
+            raw_audio_in = target_dir / "speech_raw.wav"
+            try:
+                local_tts.synthesize(text, raw_audio_in, voice=chosen_voice or None)
+            except Exception as e:
+                print(f"Voix HD locale indisponible ({e}) — bascule automatique vers Edge-TTS.")
+                provider = "edge_tts"
+                raw_audio_in = audio_mp3
+                cls._generate_edge_tts(text, DEFAULT_TTS_VOICE, audio_mp3, srt_path)
+        elif provider == "elevenlabs" and el_key:
             voice_id = chosen_voice or el_cfg.get("default_voice_id") or ELEVENLABS_VOICE_ID or ""
             el_model = model_id or el_cfg.get("model_id") or "eleven_multilingual_v2"
             try:

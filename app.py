@@ -312,6 +312,14 @@ EDGE_VOICES = [
     {"id": "edge:fr-FR-EloiseNeural", "label": "Éloïse (Gratuit · Jeune)"},
 ]
 
+def _local_voices_ctx():
+    try:
+        from core import local_tts
+        return local_tts.status()
+    except Exception:
+        return {"ready": False, "installing": False, "voices": [], "default_voice": ""}
+
+
 JOBS_FILE = STORAGE_DIR / "jobs_history.json"
 JOBS = {}
 JOBS_LOCK = threading.Lock()
@@ -603,6 +611,7 @@ def index():
         themes=THEMES,
         subtitle_styles=SUBTITLE_STYLES,
         edge_voices=EDGE_VOICES,
+        local_voices=_local_voices_ctx(),
         gemini_voices=GEMINI_VOICES,
         custom_voices=custom_voices,
         default_voice=f"edge:{DEFAULT_TTS_VOICE}",
@@ -1670,6 +1679,24 @@ def api_validate_video(render_id):
             pass
         return jsonify({"error": str(e)}), 500
     return jsonify({"id": render_id, "validated": new_val})
+
+
+@app.route("/api/voice/local", methods=["GET"])
+def api_voice_local_status():
+    from core import local_tts
+    return jsonify(local_tts.status())
+
+
+@app.route("/api/voice/local/install", methods=["POST"])
+def api_voice_local_install():
+    from core import local_tts
+    return jsonify(local_tts.start_install())
+
+
+@app.route("/api/voice/local/default", methods=["POST"])
+def api_voice_local_default():
+    from core import local_tts
+    return jsonify(local_tts.set_default_voice(((request.json or {}).get("voice") or "").strip()))
 
 
 @app.route("/api/voice/preview", methods=["POST"])

@@ -663,15 +663,26 @@
               <div class="pick-grid">
                 <button type="button" class="pick-card actif" id="vprov-free" onclick="selectVoiceProvider('free')">
                   <div class="pick-top"><span class="pick-title">Voix Studio</span><span class="pick-badge">Incluse</span></div>
-                  <div class="pick-sub">Français naturel illimité</div>
+                  <div class="pick-sub" id="vprov-free-sub">{{ 'Voix HD naturelle · illimitée' if local_voices.ready else 'Français naturel illimité' }}</div>
                 </button>
                 <button type="button" class="pick-card {{ '' if el_status.connected else 'locked' }}" id="vprov-el" onclick="selectVoiceProvider('el')">
                   <div class="pick-top"><span class="pick-title">ElevenLabs</span><span class="pick-badge {{ '' if el_status.connected else 'lock' }}">{{ 'Branché' if el_status.connected else 'Optionnel' }}</span></div>
                   <div class="pick-sub">{{ (el_status.est_videos_left ~ ' shorts restants') if el_status.connected else 'Ta voix clonée' }}</div>
                 </button>
               </div>
+              <div id="voice-hd-box" style="margin-top:8px; padding:9px 11px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12px; color:var(--muted); display:{{ 'none' if local_voices.ready else 'block' }};">
+                <div style="display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
+                  <span id="voice-hd-text">{% if local_voices.installing %}⏳ {{ local_voices.step }}{% elif local_voices.error %}⚠️ {{ local_voices.error }}{% else %}✨ <b style="color:var(--ink);">Voix HD gratuite</b> : bien plus naturelle, illimitée, calculée sur ton ordinateur (installation unique, ≈ 4 Go).{% endif %}</span>
+                  <button type="button" class="btn btn-primary btn-xs" id="voice-hd-btn" onclick="installLocalVoice()" {{ 'disabled' if local_voices.installing else '' }}>{{ 'Installation…' if local_voices.installing else 'Installer la voix HD' }}</button>
+                </div>
+              </div>
               <div id="voice-manual-box" style="display:none; margin-top:8px;">
                 <select id="fab-voice" class="input-sm">
+                  {% if local_voices.ready %}
+                  {% for vo in local_voices.voices %}
+                  <option value="{{ vo.id }}" data-prov="free" {{ 'selected' if vo.id == local_voices.default_voice else '' }}>{{ vo.label }}</option>
+                  {% endfor %}
+                  {% endif %}
                   {% if el_status.connected %}
                   {% for cv in custom_voices %}
                   <option value="el:{{ cv.voice_id }}" data-prov="el">ElevenLabs · {{ cv.name }}</option>
@@ -3839,6 +3850,39 @@
     })();
 
     // ===== Voix & Garde Quota =====
+    let localVoicePoll = null;
+    function renderLocalVoice(st) {
+      const box = document.getElementById('voice-hd-box');
+      const txt = document.getElementById('voice-hd-text');
+      const btn = document.getElementById('voice-hd-btn');
+      if (!box || !st) return;
+      if (st.ready) {
+        box.style.display = 'none';
+        const sub = document.getElementById('vprov-free-sub');
+        if (sub) sub.textContent = 'Voix HD naturelle · illimitée';
+        if (localVoicePoll) { clearInterval(localVoicePoll); localVoicePoll = null; toast('✓ Voix HD installée — recharge la page pour choisir parmi les voix HD'); }
+        return;
+      }
+      box.style.display = 'block';
+      if (st.installing) {
+        txt.textContent = '⏳ ' + (st.step || 'Installation…') + ' (tu peux continuer à utiliser Clipoa)';
+        btn.disabled = true; btn.textContent = 'Installation…';
+      } else if (st.error) {
+        txt.textContent = '⚠️ ' + st.error;
+        btn.disabled = false; btn.textContent = 'Réessayer';
+      }
+    }
+    async function installLocalVoice() {
+      const st = await apiJson('/api/voice/local/install', { method: 'POST' });
+      renderLocalVoice(st);
+      if (!localVoicePoll) localVoicePoll = setInterval(async () => {
+        const s2 = await apiJson('/api/voice/local');
+        renderLocalVoice(s2);
+        if (!s2.installing && localVoicePoll && !s2.ready) { clearInterval(localVoicePoll); localVoicePoll = null; }
+      }, 4000);
+    }
+    {% if local_voices.installing %}setTimeout(installLocalVoice, 800);{% endif %}
+
     function selectVoiceProvider(prov) {
       voiceProvider = prov === 'el' ? 'el' : 'free';
       document.getElementById('vprov-free')?.classList.toggle('actif', voiceProvider === 'free');
