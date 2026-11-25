@@ -1483,6 +1483,28 @@ class FreeSocialPublisher:
         ):
             used_privacy = "SELF_ONLY"
             init_res = _init_tiktok("SELF_ONLY")
+        sent_to_inbox = False
+        if init_res.status_code != 200 and "unaudited_client_can_only_post_to_private_accounts" in init_res.text:
+            # App TikTok pas encore auditée + compte public : la publication directe est refusée.
+            # Repli : envoi en brouillon dans la boîte de réception TikTok (scope video.upload),
+            # l'utilisateur termine la publication dans l'app TikTok.
+            init_res = requests.post(
+                "https://open.tiktokapis.com/v2/post/publish/inbox/video/init/",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json; charset=UTF-8",
+                },
+                json={
+                    "source_info": {
+                        "source": "FILE_UPLOAD",
+                        "video_size": file_size,
+                        "chunk_size": chunk_size,
+                        "total_chunk_count": total_chunks,
+                    },
+                },
+                timeout=30,
+            )
+            sent_to_inbox = init_res.status_code == 200
         if init_res.status_code != 200:
             return {"ok": False, "message": f"TikTok init {init_res.status_code}: {init_res.text[:220]}"}
 
@@ -1531,6 +1553,14 @@ class FreeSocialPublisher:
                 except Exception:
                     break
 
+        if sent_to_inbox:
+            return {
+                "ok": True,
+                "publish_id": publish_id,
+                "privacy": "INBOX_DRAFT",
+                "message": "Envoyé dans tes brouillons TikTok : ouvre l'app TikTok (notification) pour finir la publication. "
+                "La publication directe arrivera quand l'app Clipoa sera validée par TikTok.",
+            }
         note = (
             "Publié sur TikTok !"
             if used_privacy == "PUBLIC_TO_EVERYONE"
