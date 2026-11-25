@@ -210,7 +210,7 @@ function issuesNow() {
 }
 window.__check = (i) => {
   const n = window.__setupShot(i), found = new Set();
-  for (const k of [0, 0.5, 0.95]) {
+  for (const k of [0, 0.2, 0.4, 0.6, 0.8, 0.97]) {   // Clipoa : 6 instants (un passant peut boucher la caméra)
     const f = Math.min(n - 1, Math.floor(n * k)), dur = shot.end - shot.start, t = f / FPS, p = Math.min(1, t / Math.max(0.001, dur));
     shot.update && shot.update(ctx, t, p, shot);
     const e = camEase(p); cam.position.set(...lerpV(camA.pos, camB.pos, e)); cam.lookAt(...lerpV(camA.target, camB.target, e));
