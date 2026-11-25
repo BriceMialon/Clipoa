@@ -275,7 +275,7 @@ class ShortCrewPipeline:
                     out_dir = Path(voice_res["audio_wav"]).parent
                     py_script = str(out_dir / "scene_3d.py")
                     bg_out = str(out_dir / "blender_bg.mp4")
-                    frames = max(120, min(300, int(min(10, target_duration_sec or 60) * 30)))
+                    frames = max(120, min(180, int(min(6, target_duration_sec or 60) * 30)))
                     ai_ok = AntigravityBridge.generate_blender_script(
                         topic=topic or script.get("title") or "Short 3D",
                         spoken_script=script.get("full_spoken_script", ""),
@@ -291,8 +291,17 @@ class ShortCrewPipeline:
                         _prog(62, f"🧊 [3/4] Rendu 3D Blender ({frames} frames)...")
                         rendered = BlenderEngine.render_script(py_script, bg_out, frames=frames)
                     if not rendered:
-                        BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
-                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=150)
+                        _prog(60, f"🧊 [3/4] Rendu scène 3D Blender ({plugin['name'] if plugin else '3D'})...")
+                        if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):
+                            BlenderEngine.create_roblox_3d_scene(
+                                title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
+                                script_save_path=py_script,
+                                spoken_script=script.get("full_spoken_script", ""),
+                                frames=frames,
+                            )
+                        else:
+                            BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
+                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=frames)
                     if rendered:
                         effective_bg = bg_out
                 except Exception as e:

@@ -1936,6 +1936,8 @@ def api_make():
     else:
         job_label = f"⚡ Short : {display_text}"
 
+    is_3d_job = bool(use_blender_3d or (plugin and plugin.get("render_mode") == "blender3d"))
+    est_total_sec = int(round((140 if is_3d_job else 55) * max(0.6, min(2.2, (target_duration_sec or 60) / 60.0))))
     params = {
         "topic": topic,
         "custom_script": custom_script,
@@ -1947,10 +1949,11 @@ def api_make():
         "theme": theme,
         "subtitle_style": subtitle_style,
         "voice": voice,
-        "use_blender_3d": use_blender_3d,
+        "use_blender_3d": is_3d_job,
         "retention_boost": retention_boost,
         "engine": engine if engine in ("claude", "antigravity") else "claude",
         "engine_model": engine_model,
+        "est_total_sec": est_total_sec,
     }
     job_id = _create_job("make", job_label, params=params)
     _launch_pipeline_job(job_id)

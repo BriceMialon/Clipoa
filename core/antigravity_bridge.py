@@ -438,27 +438,27 @@ class AntigravityBridge:
             "4. Crée une VRAIE scène 3D visuelle fidèle au style (ex : pour 3D Roblox → avatars R6 en blocs + rue/maisons low-poly + ciel bleu ; pour 2D×Monde 3D → village/décor 3D low-poly atmosphérique + personnages stylisés + objet lumineux), avec éclairage soigné et caméra en mouvement fluide (keyframes de frame 1 à frame_end).\n"
             "5. N'utilise aucun fichier externe (textures/HDRI/meshes externes interdits) : tout doit être 100% procédural en `bpy`."
         )
-        da_snippet = (da_context or "")[:2400]
+        da_snippet = (da_context or "")[:900]
         da_block = f"Direction Artistique à respecter :\n{da_snippet}\n" if da_snippet else ""
         sb_lines = []
         if isinstance(visual_storyboard, list):
-            for s in visual_storyboard[:6]:
+            for s in visual_storyboard[:3]:
                 if isinstance(s, dict) and s.get("visual"):
-                    sb_lines.append(f"- {s.get('timestamp_approx', '')}: {str(s.get('visual'))[:220]}")
+                    sb_lines.append(f"- {s.get('timestamp_approx', '')}: {str(s.get('visual'))[:160]}")
         sb_block = ("Storyboard des plans clés :\n" + "\n".join(sb_lines) + "\n") if sb_lines else ""
         user_prompt = (
             f"Sujet : {topic}\n"
-            f"Script parlé (extrait) : {(spoken_script or '')[:600]}\n"
+            f"Script parlé (extrait) : {(spoken_script or '')[:400]}\n"
             f"{sb_block}"
             f"{da_block}"
             f"Durée : {int(frames)} frames à 30 fps.\n"
-            "Retourne uniquement le script Python Blender complet."
+            "Écris un script Python Blender court, propre et rapide (<= 140 lignes)."
         )
 
         try:
             eng = (engine or "antigravity").lower()
             if eng == "antigravity":
-                raw = cls.query(user_prompt, system_prompt=sys_prompt, model=model, timeout=150)
+                raw = cls.query(user_prompt, system_prompt=sys_prompt, model=model, timeout=110)
             elif eng == "gemini":
                 from core.gemini_studio import GeminiStudio
                 raw = GeminiStudio.chat_text(user_prompt, system_prompt=sys_prompt, model=model)

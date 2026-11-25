@@ -3026,9 +3026,17 @@
                 ? `<span style="color:var(--danger); font-weight:700; font-size:13px;">Erreur</span>`
                 : `<b style="color:var(--ink); font-size:13.5px;">${p}%</b>`));
 
+          const estTotal = (job.params && job.params.est_total_sec) ? Number(job.params.est_total_sec) : 90;
+          const remEst = p >= 15 && p < 98
+            ? Math.max(5, Math.round((totalElapsed / Math.max(10, p)) * (100 - p)))
+            : Math.max(5, estTotal - totalElapsed);
+          const remEstTxt = remEst >= 60
+            ? `~${Math.floor(remEst / 60)}m${String(remEst % 60).padStart(2, '0')} restant`
+            : `~${remEst}s restantes`;
+
           const liveIndicator = job.status === 'running'
             ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
-                 <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées
+                 <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">⏱ ${remEstTxt}</b>
                </div>
                <div class="step-pills">
                  <span class="step-pill ${p >= 40 ? 'done' : (p >= 5 ? 'active' : '')}">${p >= 40 ? '✓ ' : ''}1. Script IA</span>

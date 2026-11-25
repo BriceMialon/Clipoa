@@ -166,3 +166,205 @@ text_obj.data.materials.append(mat)
         with open(script_save_path, "w", encoding="utf-8") as f:
             f.write(script_content)
         return script_save_path
+
+    @classmethod
+    def create_roblox_3d_scene(
+        cls,
+        title_text: str,
+        script_save_path: str,
+        spoken_script: str = "",
+        frames: int = 180,
+    ) -> str:
+        """
+        Generates a rich, real procedural 3D Roblox R6 scene in Blender 5.x (EEVEE, 9:16 H.264 MP4):
+        - Automatically picks Variant B (snowy Nordic twilight village, red wooden houses, glowing windows,
+          R6 avatar in green coat & beanie) for dark/horror/melancholy stories, or
+        - Variant A (bright sunny low-poly suburb, blue sky, colorful pastel houses, R6 avatar in blue hoodie)
+          for upbeat/pop stories.
+        """
+        low = f"{title_text} {spoken_script}".lower()
+        dark_keywords = ("horreur", "effray", "nuit", "soir", "dispar", "mort", "fenêtre", "fenetre", "éteint", "eteint", "sombre", "peur", "monstre", "seul", "neige", "glace", "triste", "efface")
+        is_melancholy = any(k in low for k in dark_keywords)
+        frames = max(90, min(300, int(frames or 180)))
+
+        script_content = f'''
+import bpy
+import math
+import random
+
+random.seed(42)
+bpy.ops.wm.read_factory_settings(use_empty=True)
+
+scene = bpy.context.scene
+scene.render.engine = 'BLENDER_EEVEE'
+scene.render.resolution_x = 1080
+scene.render.resolution_y = 1920
+scene.render.resolution_percentage = 100
+scene.render.fps = 30
+scene.frame_start = 1
+scene.frame_end = {frames}
+if hasattr(scene.render.image_settings, 'media_type'):
+    scene.render.image_settings.media_type = 'VIDEO'
+scene.render.image_settings.file_format = 'FFMPEG'
+scene.render.ffmpeg.format = 'MPEG4'
+scene.render.ffmpeg.codec = 'H264'
+scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
+scene.render.use_file_extension = False
+if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
+    scene.eevee.taa_render_samples = 16
+
+IS_MELANCHOLY = {repr(is_melancholy)}
+
+def make_mat(name, rgba, rough=0.45, emit=0.0):
+    m = bpy.data.materials.new(name=name)
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = rgba
+        bsdf.inputs["Roughness"].default_value = rough
+        if emit > 0.0 and "Emission Color" in bsdf.inputs:
+            bsdf.inputs["Emission Color"].default_value = rgba
+            bsdf.inputs["Emission Strength"].default_value = emit
+    return m
+
+def add_box(name, loc, scale, mat, rot=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc, rotation=rot)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.scale = scale
+    obj.data.materials.append(mat)
+    return obj
+
+# World sky
+world = bpy.data.worlds.new("ClipoaWorld")
+scene.world = world
+world.use_nodes = True
+bg = world.node_tree.nodes.get("Background")
+if bg:
+    if IS_MELANCHOLY:
+        bg.inputs[0].default_value = (0.04, 0.07, 0.14, 1.0)
+        bg.inputs[1].default_value = 0.7
+    else:
+        bg.inputs[0].default_value = (0.28, 0.62, 0.98, 1.0)
+        bg.inputs[1].default_value = 1.1
+
+# Sun + Fill lighting
+sun_d = bpy.data.lights.new("Sun", type='SUN')
+sun_d.energy = 1.6 if IS_MELANCHOLY else 3.2
+sun_d.color = (0.65, 0.78, 1.0) if IS_MELANCHOLY else (1.0, 0.96, 0.88)
+sun_o = bpy.data.objects.new("Sun", sun_d)
+scene.collection.objects.link(sun_o)
+sun_o.rotation_euler = (math.radians(48), math.radians(15), math.radians(-30))
+
+# Ground & Road
+ground_mat = make_mat("Ground", (0.86, 0.88, 0.92, 1.0) if IS_MELANCHOLY else (0.28, 0.70, 0.30, 1.0), 0.85)
+road_mat = make_mat("Road", (0.16, 0.18, 0.22, 1.0), 0.75)
+stripe_mat = make_mat("Stripe", (0.95, 0.95, 0.98, 1.0), 0.5)
+
+add_box("Ground", (0, 20, -0.25), (60, 80, 0.5), ground_mat)
+add_box("Road", (0, 20, -0.02), (5.5, 80, 0.08), road_mat)
+for i in range(-2, 18):
+    add_box(f"Stripe_{{i}}", (0, i * 3.5, 0.03), (0.22, 1.4, 0.03), stripe_mat)
+
+# Houses along both sides of the street
+win_warm = make_mat("WinWarm", (1.0, 0.82, 0.42, 1.0), 0.2, emit=3.5 if IS_MELANCHOLY else 0.4)
+win_dark = make_mat("WinDark", (0.04, 0.05, 0.08, 1.0), 0.15)
+roof_mat = make_mat("Roof", (0.90, 0.92, 0.96, 1.0) if IS_MELANCHOLY else (0.35, 0.24, 0.22, 1.0), 0.6)
+house_colors = (
+    [(0.62, 0.18, 0.16, 1.0), (0.48, 0.16, 0.15, 1.0), (0.72, 0.74, 0.78, 1.0)]
+    if IS_MELANCHOLY else
+    [(0.45, 0.68, 0.95, 1.0), (0.92, 0.42, 0.44, 1.0), (0.48, 0.82, 0.52, 1.0), (0.96, 0.82, 0.42, 1.0)]
+)
+
+flicker_win = None
+for side in (-1, 1):
+    for idx in range(7):
+        y = 3.0 + idx * 6.5
+        x = side * 6.2
+        h = random.uniform(4.2, 6.8) if IS_MELANCHOLY else random.uniform(3.4, 5.0)
+        h_mat = make_mat(f"HouseMat_{{side}}_{{idx}}", house_colors[idx % len(house_colors)], 0.55)
+        add_box(f"House_{{side}}_{{idx}}", (x, y, h / 2.0), (4.6, 4.8, h), h_mat)
+        add_box(f"Roof_{{side}}_{{idx}}", (x, y, h + 0.35), (5.0, 5.2, 0.7), roof_mat)
+        # Windows facing road
+        for wy in (-1.2, 1.2):
+            for wz in (1.6, h - 1.3):
+                is_lit = (idx != 2 or side != 1 or wz < 2.0)
+                wmat = win_warm if is_lit else win_dark
+                wx = x - side * 2.32
+                wobj = add_box(f"Win_{{side}}_{{idx}}_{{wy}}_{{wz}}", (wx, y + wy, wz), (0.12, 1.0, 1.1), wmat)
+                if side == -1 and idx == 1 and wz > 2.0 and wy > 0:
+                    flicker_win = wobj
+
+# Low-poly pine trees
+trunk_mat = make_mat("Trunk", (0.34, 0.22, 0.14, 1.0), 0.8)
+leaf_mat = make_mat("Leaves", (0.14, 0.32, 0.22, 1.0) if IS_MELANCHOLY else (0.18, 0.65, 0.26, 1.0), 0.65)
+for side in (-1, 1):
+    for idx in range(8):
+        tx = side * 3.45
+        ty = 1.0 + idx * 5.8
+        add_box(f"Trunk_{{side}}_{{idx}}", (tx, ty, 0.7), (0.32, 0.32, 1.4), trunk_mat)
+        bpy.ops.mesh.primitive_cone_add(vertices=6, radius1=1.05, depth=2.6, location=(tx, ty, 2.4))
+        cone = bpy.context.active_object
+        cone.data.materials.append(leaf_mat)
+
+# Blocky Roblox R6 Hero Avatar walking down the road
+skin_mat = make_mat("Skin", (0.95, 0.82, 0.22, 1.0) if not IS_MELANCHOLY else (0.94, 0.84, 0.72, 1.0), 0.35)
+torso_mat = make_mat("Torso", (0.12, 0.32, 0.24, 1.0) if IS_MELANCHOLY else (0.12, 0.38, 0.88, 1.0), 0.4)
+pants_mat = make_mat("Pants", (0.14, 0.16, 0.22, 1.0) if IS_MELANCHOLY else (0.14, 0.26, 0.56, 1.0), 0.5)
+hat_mat = make_mat("Hat", (0.18, 0.16, 0.20, 1.0) if IS_MELANCHOLY else (0.10, 0.32, 0.85, 1.0), 0.45)
+eye_mat = make_mat("Eye", (0.02, 0.02, 0.02, 1.0), 0.2)
+
+hero = bpy.data.objects.new("RobloxHero", None)
+scene.collection.objects.link(hero)
+hero.location = (0.0, 2.0, 0.0)
+
+def add_part(name, loc, scale, mat):
+    obj = add_box(name, loc, scale, mat)
+    obj.parent = hero
+    return obj
+
+add_part("Torso", (0, 0, 1.65), (1.05, 0.55, 1.15), torso_mat)
+add_part("Head", (0, 0, 2.60), (0.72, 0.72, 0.72), skin_mat)
+add_part("Beanie", (0, 0, 3.02), (0.78, 0.78, 0.30), hat_mat)
+# Flat 2D decal face (2 black dot eyes + mouth line)
+add_part("EyeL", (-0.16, -0.37, 2.66), (0.09, 0.04, 0.11), eye_mat)
+add_part("EyeR", (0.16, -0.37, 2.66), (0.09, 0.04, 0.11), eye_mat)
+add_part("Mouth", (0.0, -0.37, 2.46), (0.26, 0.04, 0.05), eye_mat)
+
+arm_l = add_part("ArmL", (-0.75, 0, 1.65), (0.42, 0.45, 1.10), torso_mat)
+arm_r = add_part("ArmR", (0.75, 0, 1.65), (0.42, 0.45, 1.10), torso_mat)
+leg_l = add_part("LegL", (-0.27, 0, 0.55), (0.46, 0.48, 1.10), pants_mat)
+leg_r = add_part("LegR", (0.27, 0, 0.55), (0.46, 0.48, 1.10), pants_mat)
+
+# Animate Roblox R6 walking forward along the street
+hero.keyframe_insert(data_path="location", frame=1)
+hero.location = (0.0, 16.0, 0.0)
+hero.keyframe_insert(data_path="location", frame={frames})
+
+for f in range(1, {frames} + 1, 12):
+    ang = 0.42 if ((f // 12) % 2 == 0) else -0.42
+    arm_l.rotation_euler = (ang, 0, 0); arm_l.keyframe_insert("rotation_euler", frame=f)
+    arm_r.rotation_euler = (-ang, 0, 0); arm_r.keyframe_insert("rotation_euler", frame=f)
+    leg_l.rotation_euler = (-ang, 0, 0); leg_l.keyframe_insert("rotation_euler", frame=f)
+    leg_r.rotation_euler = (ang, 0, 0); leg_r.keyframe_insert("rotation_euler", frame=f)
+
+# Smooth tracking camera in front of the Roblox R6 avatar
+cam_d = bpy.data.cameras.new("Camera")
+cam_d.lens = 32
+cam_o = bpy.data.objects.new("Camera", cam_d)
+scene.collection.objects.link(cam_o)
+scene.camera = cam_o
+
+cam_o.location = (0.6, -3.6, 2.5)
+cam_o.rotation_euler = (math.radians(85), 0, math.radians(6))
+cam_o.keyframe_insert("location", frame=1)
+cam_o.keyframe_insert("rotation_euler", frame=1)
+
+cam_o.location = (-0.5, 10.5, 2.8)
+cam_o.rotation_euler = (math.radians(82), 0, math.radians(-5))
+cam_o.keyframe_insert("location", frame={frames})
+cam_o.keyframe_insert("rotation_euler", frame={frames})
+'''
+        with open(script_save_path, "w", encoding="utf-8") as f:
+            f.write(script_content)
+        return script_save_path
