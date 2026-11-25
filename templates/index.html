@@ -362,7 +362,7 @@
               {% for wd in week_days %}
               <div class="home-day {{ 'today' if wd.is_today else '' }}" onclick="{{ 'openTheaterById(\"' ~ wd.render_id ~ '\")' if wd.render_id else 'showView(\"auto\")' }}">
                 <span class="hd-name">{{ 'Aujourd’hui' if wd.is_today else wd.label }}</span>
-                <span class="hd-status {{ wd.tone }}">{{ wd.title[:40] if wd.title else wd.status }}</span>
+                <span class="hd-status {{ wd.tone }}">{{ ((wd.title_prefix or '') ~ wd.title[:40]) if wd.title else wd.status }}</span>
               </div>
               {% endfor %}
             </div>
@@ -1242,7 +1242,6 @@
                     {{ '✓ Connecté' if agy_status.connected else 'À connecter' }}
                   </span>
                 </div>
-                <div style="font-weight:700; font-size:15px; color:var(--ink);">Antigravity (agy)</div>
                 <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
                   Modèle par défaut : <b style="color:var(--ink);">Gemini 4 Neon (Medium)</b>.
                 </div>
@@ -1267,13 +1266,8 @@
                     </div>
                   </div>
                 </div>
-                <div style="font-size:11px; color:var(--muted); margin-top:5px;">
-                  {{ agy_status.models|length }} modèles disponibles · {{ agy_status.quota.calls_5h }} appels Clipoa
-                </div>
-                <div id="reg-agy-quota-note" style="font-size:11px; margin-top:4px; line-height:1.4; color:{{ 'var(--danger, #d9534f)' if agy_status.quota.exhausted else 'var(--muted)' }};">
-                  {% if agy_status.quota.exhausted %}⛔ Quota épuisé · reset à {{ agy_status.quota.resets_at }} (dans {{ agy_status.quota.resets_in }})
-                  {% elif agy_status.quota.source == 'calibré' %}Pourcentages recalés sur l'app Antigravity puis décomptés par Clipoa
-                  {% else %}Estimation Clipoa — clique « Ajuster » pour recopier les % de l'app Antigravity{% endif %}
+                <div id="reg-agy-quota-note" style="font-size:11px; margin-top:4px; line-height:1.4; color:var(--danger, #d9534f);{{ '' if agy_status.quota.exhausted else ' display:none;' }}">
+                  {% if agy_status.quota.exhausted %}⛔ Quota épuisé · reset à {{ agy_status.quota.resets_at }} (dans {{ agy_status.quota.resets_in }}){% endif %}
                 </div>
                 <div id="agy-quota-adjust" style="display:none; margin-top:6px; gap:6px; align-items:center; flex-wrap:wrap; font-size:11.5px;">
                   Reste 5h <input id="agy-adj-5h" type="number" min="0" max="100" step="1" placeholder="%" style="width:58px;">
@@ -1283,7 +1277,7 @@
               </div>
 
               <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-                <span style="font-size:11.5px; color:var(--muted);">Scripts, 3D Blender & Aide IA</span>
+                <span></span>
                 <div style="display:flex; gap:5px;">
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="toggleAgyQuotaAdjust()" title="Recopier les % restants affichés dans l'app Antigravity">Ajuster</button>
@@ -1323,19 +1317,18 @@
                   <div class="progress-track" style="margin-top:5px; height:5px;">
                     <div class="progress-fill" id="reg-el-credits-bar" style="width:{{ (100 - (el_status.used_pct or 0))|round(1) if (el_status.connected and el_status.character_limit) else 0 }}%; animation:none;"></div>
                   </div>
+                  <div id="reg-el-reset" style="font-size:11px; color:var(--muted); margin-top:5px;{{ '' if (el_status.connected and el_status.reset_in) else ' display:none;' }}">
+                    {% if el_status.connected and el_status.reset_in %}Crédits rechargés dans {{ el_status.reset_in }} ({{ el_status.reset_at }}){% endif %}
+                  </div>
                 </div>
               </div>
 
               <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-                <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); cursor:pointer;">
-                  <input type="checkbox" id="el-adv-toggle" onchange="document.getElementById('el-adv-btn').style.display = this.checked ? 'inline-flex' : 'none';" style="accent-color:var(--accent); width:13px; height:13px;">
-                  <span>Paramètres avancés</span>
-                </label>
+                <span></span>
                 <div style="display:flex; gap:5px;">
                   {% if el_status.connected %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshElevenLabsCredits()" title="Actualiser les crédits en direct">↻</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="switchElevenLabsAccount()">Changer</button>
-                  <button type="button" class="btn btn-ghost btn-xs" id="el-adv-btn" style="display:none;" onclick="openModal('modal-el-connect')">Configurer</button>
                   {% else %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="openModal('modal-el-connect')">Brancher</button>
                   {% endif %}
@@ -2923,6 +2916,12 @@
           txtEl.textContent = st.message || 'Non connecté';
         }
       }
+      const resetEl = document.getElementById('reg-el-reset');
+      if (resetEl) {
+        const showReset = st.connected && st.reset_in;
+        resetEl.style.display = showReset ? '' : 'none';
+        resetEl.textContent = showReset ? `Crédits rechargés dans ${st.reset_in} (${st.reset_at})` : '';
+      }
       const bar = document.getElementById('reg-el-credits-bar');
       if (bar) {
         bar.style.width = (st.connected && st.character_limit)
@@ -2962,12 +2961,8 @@
       if (r7dBar) r7dBar.style.width = `${ok ? rem7d : 0}%`;
       const note = document.getElementById('reg-agy-quota-note');
       if (note) {
-        note.style.color = aq.exhausted ? red : 'var(--muted)';
-        note.textContent = aq.exhausted
-          ? `⛔ Quota épuisé · reset à ${aq.resets_at} (dans ${aq.resets_in})`
-          : (aq.source === 'calibré'
-            ? "Pourcentages recalés sur l'app Antigravity puis décomptés par Clipoa"
-            : "Estimation Clipoa — clique « Ajuster » pour recopier les % de l'app Antigravity");
+        note.style.display = aq.exhausted ? '' : 'none';
+        note.textContent = aq.exhausted ? `⛔ Quota épuisé · reset à ${aq.resets_at} (dans ${aq.resets_in})` : '';
       }
     }
 

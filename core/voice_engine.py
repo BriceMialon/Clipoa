@@ -38,6 +38,30 @@ class VoiceEngine:
         settings = load_settings()
         return (settings.get("elevenlabs", {}).get("api_key") or ELEVENLABS_API_KEY or "").strip()
 
+    @staticmethod
+    def _format_reset(reset_unix) -> tuple:
+        """(« 12 j 4 h », « 7 déc. ») avant la recharge mensuelle des crédits, ou ("", "")."""
+        try:
+            ts = int(reset_unix or 0)
+        except (TypeError, ValueError):
+            return "", ""
+        if ts <= 0:
+            return "", ""
+        import time
+        from datetime import datetime
+        secs = max(0, ts - int(time.time()))
+        days, rem = divmod(secs, 86400)
+        hours, rem = divmod(rem, 3600)
+        if days:
+            txt = f"{days} j {hours} h"
+        elif hours:
+            txt = f"{hours} h {rem // 60} min"
+        else:
+            txt = f"{max(1, rem // 60)} min"
+        months = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+        dt = datetime.fromtimestamp(ts)
+        return txt, f"{dt.day} {months[dt.month - 1]}"
+
     @classmethod
     def get_elevenlabs_status(cls, api_key: Optional[str] = None) -> Dict[str, Any]:
         key = cls.get_elevenlabs_key(api_key)
@@ -109,6 +133,7 @@ class VoiceEngine:
             remaining = max(0, limit - used)
             # ~1000 chars per 55s short
             est_videos = remaining // 1000
+            reset_in, reset_at = cls._format_reset(sub.get("next_character_count_reset_unix"))
             return {
                 "connected": True,
                 "enabled": bool(settings.get("enabled", True)),
@@ -121,6 +146,8 @@ class VoiceEngine:
                 "default_voice_id": settings.get("default_voice_id", ""),
                 "model_id": settings.get("model_id", "eleven_multilingual_v2"),
                 "message": f"Connecté ({sub.get('tier', 'free')}) · {remaining:,} crédits restants (~{est_videos} shorts)",
+                "reset_in": reset_in,
+                "reset_at": reset_at,
             }
         except Exception as e:
             return {"connected": False, "enabled": False, "message": f"Erreur connexion ElevenLabs : {e}"}

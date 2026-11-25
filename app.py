@@ -612,6 +612,7 @@ def _build_week_overview(renders, publish_queue, night_tasks):
 
     days = []
     for i in range(7):
+        title_prefix = ""
         d = monday + timedelta(days=i)
         d_iso = d.strftime("%Y-%m-%d")
         label = f"{_FR_DAYS[i]} {d.day}"
@@ -638,6 +639,7 @@ def _build_week_overview(renders, publish_queue, night_tasks):
                 status_txt = "À regarder"
                 tone = "warn"
             title = (r_item.get("script") or {}).get("title") or r_item.get("id", "")
+            title_prefix = "Vidéo prête : "
         elif d == today and night_tasks:
             status_txt = f"{len(night_tasks)} en Mode Nuit"
             tone = "indigo"
@@ -653,6 +655,7 @@ def _build_week_overview(renders, publish_queue, night_tasks):
             "status": status_txt,
             "tone": tone,
             "title": title,
+            "title_prefix": title_prefix,
             "render_id": r_item["id"] if r_item else "",
         })
     return week_range, days
