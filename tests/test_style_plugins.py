@@ -49,7 +49,9 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         r = self.client.get("/api/plugins")
         self.assertEqual(r.status_code, 200)
         plugins = r.get_json()["plugins"]
-        self.assertEqual(len(plugins), 4)
+        # les 4 styles de départ sont toujours là (l'utilisateur peut en avoir créé d'autres depuis une vidéo)
+        starters = {"roblox_3d", "2d_monde_3d", "fete_en_folie", "explainer_2d"}
+        self.assertEqual(len([p for p in plugins if p["id"] in starters]), 4)
 
         for pid, expected_img, expected_phrase in (
             ("roblox_3d", "roblox_3d.jpg", "avatars Roblox classiques (R6)"),
