@@ -2761,6 +2761,9 @@
       } else {
         activePluginId = '';
         syncRenderLocksForStyle(null, null);
+        // Repart des réglages par défaut : le thème / les sous-titres d'un style précédent ne doivent pas « coller »
+        if (th) th.value = 'dark_luxury';
+        if (sb) sb.value = 'submagic_yellow';
         if (key === 'auto') {
           if (th) th.value = 'dark_luxury';
           if (sb) sb.value = 'submagic_yellow';

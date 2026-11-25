@@ -282,6 +282,59 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
 ]
 
 
+# Réglages de production par style (méthode Clipoa) — appliqués au montage, au son et à Blender.
+# Valeurs par défaut des styles livrés ; un style peut les surcharger via son champ « production ».
+STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
+    # DA : plans 1-1,5 s (variante pop) à 2-3 s (mélancolie), caméra toujours en mouvement
+    "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.0, "character_style": "r6"},
+    # DA : un plan toutes les 2-3 s ; sous-titres 1-3 mots BLANCS à contour noir (pas de couleurs)
+    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "character_style": "flat2d"},
+    # DA : un plan par phrase (~2,3 s), UN seul mot à la fois, pas de musique marquée (nappe très basse)
+    "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat"},
+}
+
+_PRODUCTION_SPEC: Dict[str, Any] = {
+    "mood": ("enum", ("dark", "tension", "upbeat", "calm")),
+    "music_db": ("float", (-40.0, 0.0)),
+    "shot_min_s": ("float", (0.6, 6.0)),
+    "shot_max_s": ("float", (1.0, 12.0)),
+    "sfx_max": ("int", (0, 40)),
+    "whoosh_min_gap_s": ("float", (2.0, 60.0)),
+    "sfx_repeat_gap_s": ("float", (0.5, 20.0)),
+    "music_cut_before_twist_s": ("float", (0.0, 3.0)),
+    "caption_mode": ("enum", ("chunk", "one_word")),
+    "keyword_colors": ("bool", None),
+    "character_style": ("enum", ("r6", "flat2d")),
+}
+
+
+def sanitize_production(raw: Any) -> Dict[str, Any]:
+    """Ne garde que les réglages de production connus, bornés et typés."""
+    out: Dict[str, Any] = {}
+    if not isinstance(raw, dict):
+        return out
+    for key, (kind, rng) in _PRODUCTION_SPEC.items():
+        if key not in raw or raw[key] in (None, ""):
+            continue
+        val = raw[key]
+        try:
+            if kind == "enum":
+                v = str(val).strip().lower()
+                if v in rng:
+                    out[key] = v
+            elif kind == "bool":
+                out[key] = val if isinstance(val, bool) else str(val).strip().lower() in ("1", "true", "yes", "on", "oui")
+            elif kind == "int":
+                out[key] = int(max(rng[0], min(rng[1], int(float(val)))))
+            else:
+                out[key] = float(max(rng[0], min(rng[1], float(val))))
+        except (TypeError, ValueError):
+            continue
+    if "shot_min_s" in out and "shot_max_s" in out and out["shot_max_s"] < out["shot_min_s"] + 0.4:
+        out["shot_max_s"] = out["shot_min_s"] + 0.4
+    return out
+
+
 def _atomic_write_json(path: Path, data: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_path = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp")
@@ -506,6 +559,7 @@ def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False)
         "status_label": status_label,
         "cover_url": cover_url,
         "starter": bool(raw.get("starter", False)),
+        "production": {**STARTER_PRODUCTION.get(pid, {}), **sanitize_production(raw.get("production"))},
         "created_at": raw.get("created_at") or "",
         "updated_at": raw.get("updated_at") or "",
         **metrics,
@@ -618,6 +672,7 @@ class StylePluginStore:
                 "subtitle_style": str(payload.get("subtitle_style") or DEFAULT_SUBTITLE_STYLE),
                 "est_time_sec": est_time_sec,
                 "est_time_label": str(payload.get("est_time_label") or "").strip()[:32],
+                "production": sanitize_production(payload.get("production")),
                 "script_language": script_lang,
                 "script_filename": script_fname,
                 "script_content": script_content,
@@ -666,6 +721,8 @@ class StylePluginStore:
                 target["da_prompt"] = str(payload.get("da_prompt") or "").strip()[:32000]
             if "narrative_rules" in payload:
                 target["narrative_rules"] = str(payload.get("narrative_rules") or "").strip()[:8000]
+            if "production" in payload:
+                target["production"] = sanitize_production(payload.get("production"))
             if "render_mode" in payload:
                 rm = str(payload.get("render_mode") or "motion").strip().lower()
                 if rm in ("motion", "blender3d", "ai_video", "broll", "custom_script"):

@@ -41,6 +41,9 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
    - **Scénariste** : règles de narration (qui/quoi/enjeu en 10 s, liens « alors/mais/sauf que », phrase 2-4 mots avant le twist, morale + question, CTA jamais avant 15 s) + champs JSON `twist_text`, `caption_keywords`, `on_screen_notes`, `visual_storyboard[].text`.
    - **Le Contrôle** : contrôles techniques objectifs (`audit.technique` : LUFS, résolution, plans, plan moyen, bruitages, twist, alertes) + 4 images réparties sur toute la durée.
    - **Retouche** : réutilise le fond Blender déjà rendu + musique/SFX (métadonnées `blender_bg`, `enable_music`, `enable_sfx`, `storyboard_shots`).
+   - **Réglages de production par style** (`core/style_plugins.py` : `STARTER_PRODUCTION`, `sanitize_production`, champ `production` des plugins) : Roblox = plans 1,2-3 s ; 2D × Monde 3D = plans 1,8-3 s, sous-titres blancs (pas de couleurs), personnages **2D plats** (`character_style: flat2d`) ; Fête en folie = **un seul mot à la fois** (`caption_mode: one_word`), musique très basse (-22 dB), thème `cinema_gold` (désormais réel, + nouveau `pop_flat`).
+   - Mode Nuit + route Gemini (`GeminiStudio.create_short`) passent aussi par la méthode (plan, musique/SFX, Blender multi-plans, version sans musique).
+   - Scripts Blender écrits par l'IA : `_patch_blender5_compat` corrige `primitive_cone_add(radius=)` → `radius1=` ; `enforce_render_settings` impose 540×960 @ 12 fps, durée de la voix, jamais Cycles.
 5. **Interface épurée** :
    - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
    - **Sidebar** : loupe search supprimée à côté du logo Clipoa ; en bas à gauche, Antigravity affiche uniquement le `%`.
@@ -63,13 +66,13 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
-| `tests/` | 59 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
+| `tests/` | 65 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
 ## 4. Tester et redémarrer
 
-### Lancer la suite complète de tests (59 tests)
+### Lancer la suite complète de tests (65 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v

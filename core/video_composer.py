@@ -59,6 +59,14 @@ THEMES: Dict[str, Dict[str, str]] = {
         "label": "Neon Pulse (Dynamique)",
         "description": "Vague lumineuse bi-ton magenta/indigo en mouvement fluide",
     },
+    "cinema_gold": {
+        "label": "Cinema Gold (Fête / Pop)",
+        "description": "Aplats chauds saturés or/corail/turquoise, look flat vector festif",
+    },
+    "pop_flat": {
+        "label": "Pop Flat (Cartoon clair)",
+        "description": "Ciel bleu vif et formes colorées douces, look dessin animé clair",
+    },
 }
 
 
@@ -231,6 +239,7 @@ class VideoComposer:
         hook_duration: float = 3.4,
         keywords: Optional[Dict[str, List[str]]] = None,
         notes: Optional[List[Dict[str, Any]]] = None,
+        caption_mode: str = "chunk",
     ) -> str:
         """
         Creates a Submagic/TikTok-grade Advanced SubStation Alpha (.ass) file:
@@ -294,7 +303,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 kw_color[norm_word(kw)] = KEYWORD_COLORS[col]
 
         # 2. Word-by-word kinetic subtitles (Layer 0, center-lower safe zone y=1120)
-        chunks = cls._chunk_words(words)
+        # « one_word » : un seul mot à la fois au centre (DA type Fête en folie / Christophe)
+        chunks = cls._chunk_words(words, max_words=1) if caption_mode == "one_word" else cls._chunk_words(words)
         for c_idx, chunk in enumerate(chunks):
             next_chunk_start = chunks[c_idx + 1][0]["start"] if c_idx + 1 < len(chunks) else None
 
@@ -382,6 +392,29 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 "scale=1080:1920:flags=bicubic,"
                 "vignette=PI/4"
             )
+        elif theme == "cinema_gold":
+            # Aplats chauds saturés (or -> corail) avec halo turquoise qui dérive : festif, lisible, flat
+            return (
+                f"color=c=#F4A531:s=180x320:d={d}:r=30,"
+                "format=rgb24,"
+                "geq="
+                "r='clip(250 - 40*(Y/320) + 5*exp(-((X-90-40*sin(T*0.6))^2+(Y-90)^2)/2500),0,255)':"
+                "g='clip(178 - 90*(Y/320) + 40*exp(-((X-60+30*cos(T*0.5))^2+(Y-230-20*sin(T*0.4))^2)/3000),0,255)':"
+                "b='clip(50 + 40*(Y/320) + 150*exp(-((X-60+30*cos(T*0.5))^2+(Y-230-20*sin(T*0.4))^2)/3000),0,255)',"
+                "scale=1080:1920:flags=bicubic,"
+                "vignette=PI/6"
+            )
+        elif theme == "pop_flat":
+            # Ciel bleu vif + taches colorées douces qui flottent (look dessin animé clair)
+            return (
+                f"color=c=#4FB3FF:s=180x320:d={d}:r=30,"
+                "format=rgb24,"
+                "geq="
+                "r='clip(70 + 40*(Y/320) + 180*exp(-((X-40-25*sin(T*0.5))^2+(Y-80)^2)/1600),0,255)':"
+                "g='clip(170 + 30*(Y/320) + 60*exp(-((X-140+20*cos(T*0.45))^2+(Y-250)^2)/2200),0,255)':"
+                "b='clip(255 - 70*(Y/320) - 120*exp(-((X-40-25*sin(T*0.5))^2+(Y-80)^2)/1600),0,255)',"
+                "scale=1080:1920:flags=bicubic"
+            )
         else:
             # Default: dark_luxury (ShortCrew signature charcoal + subtle animated tomato/amber aura)
             return (
@@ -445,8 +478,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             style_name=subtitle_style,
             hook_text=hook_text,
             hook_duration=min(3.4, duration * 0.45),
-            keywords=(plan or {}).get("keywords"),
+            keywords=(plan or {}).get("keywords") if ((plan or {}).get("captions") or {}).get("keyword_colors", True) else None,
             notes=(plan or {}).get("notes"),
+            caption_mode=((plan or {}).get("captions") or {}).get("mode", "chunk"),
         )
 
         ass_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")

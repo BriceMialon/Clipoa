@@ -531,15 +531,39 @@ class GeminiStudio:
         )
         voice_transcript = AudioTranscriber.transcribe(voice_res["audio_wav"])
 
+        # Méthode Clipoa (même circuit que la Fabrique) : plan calé sur la voix + musique & bruitages
+        from core.pipeline import ShortCrewPipeline
+        from core.sound_designer import get_wav_duration
+        shots = script.get("visual_storyboard") or []
+        _prog(52, "🎵 [2/4] Plan de production, musique d'ambiance & bruitages...")
+        mixres = ShortCrewPipeline._plan_and_mix(
+            session_id, script, voice_res, voice_transcript, shots,
+            enable_music=True, enable_sfx=True,
+            style_overrides=(plugin or {}).get("production") if isinstance((plugin or {}).get("production"), dict) else None,
+        )
+        plan = mixres["plan"]
+
         effective_bg = background_video
         if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-            _prog(60, "🧊 [3/4] Rendu 3D Blender headless...")
+            _prog(60, f"🧊 [3/4] Rendu 3D Blender multi-plans ({len(plan.get('shots') or [])} plans calés sur la voix)...")
             try:
                 out_dir = Path(voice_res["audio_wav"]).parent
                 py_script = str(out_dir / "gemini_3d.py")
                 bg_out = str(out_dir / "blender_bg.mp4")
-                BlenderEngine.create_sample_3d_script(script.get("hook_screen_text") or (topic or "CLIPOA")[:30], py_script)
-                if BlenderEngine.render_script(py_script, bg_out, frames=150):
+                audio_dur = get_wav_duration(voice_res["audio_wav"])
+                frames = max(72, int(round(audio_dur * 12)))
+                BlenderEngine.create_roblox_3d_scene(
+                    title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:30],
+                    script_save_path=py_script,
+                    spoken_script=script.get("full_spoken_script", ""),
+                    frames=frames,
+                    shots=shots,
+                    audio_duration_sec=audio_dur,
+                    timed_shots=plan.get("shots"),
+                    mood=plan.get("mood"),
+                    character_style=plan.get("character_style") or "r6",
+                )
+                if BlenderEngine.render_script(py_script, bg_out, frames=frames):
                     effective_bg = bg_out
             except Exception as e:
                 print(f"⚠️ Rendu Blender ignoré ({e}).")
@@ -547,13 +571,16 @@ class GeminiStudio:
         _prog(72, "🎬 [3/4] Rendu vertical 1080x1920 + sous-titres Submagic...")
         video_path = VideoComposer.compose_short(
             output_name=session_id,
-            audio_path=voice_res["audio_wav"],
+            audio_path=mixres["audio"],
             script_data=script,
             transcript_data=voice_transcript,
             background_video=effective_bg,
             theme=final_theme,
             subtitle_style=final_sub,
             retention_boost=retention_boost,
+            plan=plan,
+            audio_premixed=mixres["premixed"],
+            alt_audio_path=mixres["no_music"],
         )
 
         _prog(94, "✨ [4/4] Finalisation...")
@@ -577,7 +604,12 @@ class GeminiStudio:
             "video_path": video_path,
             "audit": audit,
             "social_caption": script.get("social_caption", ""),
+            "enable_music": True,
+            "enable_sfx": True,
+            "blender_bg": effective_bg if (effective_bg and effective_bg != background_video) else "",
+            "storyboard_shots": shots,
         }
+        ShortCrewPipeline._finalize_outputs(video_path, plan, result)
         with open(Path(video_path).parent / "metadata.json", "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 

@@ -46,10 +46,48 @@ class BlenderEngine:
             )
             if "BLENDER_EEVEE_NEXT" in patched:
                 patched = patched.replace("'BLENDER_EEVEE_NEXT'", "'BLENDER_EEVEE'").replace('"BLENDER_EEVEE_NEXT"', '"BLENDER_EEVEE"')
+            # Erreurs fréquentes des scripts écrits par l'IA (vues dans les logs) : primitive_cone_add(radius=…)
+            patched = re.sub(r"(primitive_cone_add\([^)]*?)\bradius\s*=", r"\1radius1=", patched)
+            patched = re.sub(r"(primitive_(?:cylinder|uv_sphere|ico_sphere|circle)_add\([^)]*?)\bradius1\s*=", r"\1radius=", patched)
             if patched != code:
                 p.write_text(patched, encoding="utf-8")
         except Exception as e:
             logger.warning(f"Blender 5 compat patch skipped: {e}")
+
+    @classmethod
+    def enforce_render_settings(cls, python_script_path: str, frames: int, fps: int = 12) -> None:
+        """
+        Pour les scripts écrits par l'IA : impose la sortie Clipoa à la fin du script (540x960 @ 12 fps,
+        MP4 H.264, durée = durée de la voix, jamais Cycles) pour que le fond couvre toute la vidéo
+        sans dérapage de durée ni rendu interminable.
+        """
+        footer = f"""
+
+# ===== Réglages imposés par Clipoa (ajoutés automatiquement) =====
+import bpy as _clipoa_bpy
+_cs = _clipoa_bpy.context.scene
+_cs.render.resolution_x = 540
+_cs.render.resolution_y = 960
+_cs.render.resolution_percentage = 100
+_cs.render.fps = {int(fps)}
+_cs.frame_start = 1
+_cs.frame_end = {int(frames)}
+if _cs.render.engine == 'CYCLES':
+    _cs.render.engine = 'BLENDER_WORKBENCH'
+try:
+    _cs.render.image_settings.media_type = 'VIDEO'
+except Exception:
+    pass
+_cs.render.image_settings.file_format = 'FFMPEG'
+_cs.render.ffmpeg.format = 'MPEG4'
+_cs.render.ffmpeg.codec = 'H264'
+_cs.render.use_file_extension = False
+"""
+        try:
+            with open(python_script_path, "a", encoding="utf-8") as f:
+                f.write(footer)
+        except Exception as e:
+            logger.warning(f"Réglages Blender non imposés : {e}")
 
     @classmethod
     def render_script(
@@ -256,6 +294,8 @@ text_obj.data.materials.append(mat)
         shots: Optional[list] = None,
         audio_duration_sec: float = 0.0,
         timed_shots: Optional[list] = None,
+        mood: Optional[str] = None,
+        character_style: str = "r6",
     ) -> str:
         """
         `timed_shots` (plan de production) : [{start, end, desc}] en secondes, calés sur la voix réelle
@@ -266,6 +306,10 @@ text_obj.data.materials.append(mat)
         low = f"{title_text} {spoken_script}".lower()
         dark_keywords = ("horreur", "effray", "nuit", "soir", "dispar", "mort", "fenêtre", "fenetre", "éteint", "eteint", "sombre", "peur", "monstre", "seul", "neige", "glace", "triste", "efface", "miroir", "deuil")
         is_melancholy = any(k in low for k in dark_keywords)
+        if mood:
+            # Même ambiance que le son et le montage (plan de production)
+            is_melancholy = mood in ("dark", "tension")
+        flat2d = (character_style == "flat2d")
 
         fps = 12
         dur_sec = max(6.0, min(120.0, float(audio_duration_sec or (frames / 12.0) or 45.0)))
@@ -377,6 +421,7 @@ scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
 scene.render.use_file_extension = False
 
 IS_MELANCHOLY = {repr(is_melancholy)}
+FLAT2D = {repr(flat2d)}
 SHOT_SPECS = {repr(shot_specs)}
 
 def make_mat(name, rgba, rough=0.45, emit=0.0):
@@ -459,7 +504,7 @@ for side in (-1, 1):
         bpy.context.active_object.data.materials.append(leaf_mat)
 
 def build_r6_avatar(name, loc, torso_rgba, hat_rgba, scale_f=1.0, rot_z=0.0):
-    skin_mat = make_mat(name + "_Skin", (0.94, 0.84, 0.72, 1.0) if IS_MELANCHOLY else (0.95, 0.82, 0.22, 1.0), 0.35)
+    skin_mat = make_mat(name + "_Skin", (1.0, 0.86, 0.72, 1.0) if FLAT2D else ((0.94, 0.84, 0.72, 1.0) if IS_MELANCHOLY else (0.95, 0.82, 0.22, 1.0)), 0.35)
     t_mat = make_mat(name + "_Torso", torso_rgba, 0.4)
     p_mat = make_mat(name + "_Pants", (0.14, 0.16, 0.22, 1.0), 0.5)
     h_mat = make_mat(name + "_Hat", hat_rgba, 0.45)
@@ -470,15 +515,31 @@ def build_r6_avatar(name, loc, torso_rgba, hat_rgba, scale_f=1.0, rot_z=0.0):
     root.rotation_euler = (0, 0, rot_z)
     root.scale = (scale_f, scale_f, scale_f)
     def part(p_name, ploc, pscale, pmat):
+        if FLAT2D:
+            # Personnage « découpe papier » 2D plat (DA 2D × Monde 3D) : profondeur écrasée
+            pscale = (pscale[0], max(0.04, pscale[1] * 0.12), pscale[2])
+            ploc = (ploc[0], ploc[1] * 0.12, ploc[2])
         o = add_box(name + "_" + p_name, ploc, pscale, pmat)
         o.parent = root
         return o
     part("Torso", (0, 0, 1.65), (1.05, 0.55, 1.15), t_mat)
-    part("Head", (0, 0, 2.60), (0.72, 0.72, 0.72), skin_mat)
-    part("Hat", (0, 0, 3.02), (0.78, 0.78, 0.30), h_mat)
-    part("EyeL", (-0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
-    part("EyeR", (0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
-    part("Mouth", (0.0, -0.37, 2.46), (0.26, 0.04, 0.05), e_mat)
+    if FLAT2D:
+        # Grosse tête ronde, grands yeux blancs à pupille noire, joues roses
+        white_mat = make_mat(name + "_EyeW", (0.98, 0.98, 0.98, 1.0), 0.3)
+        cheek_mat = make_mat(name + "_Cheek", (0.98, 0.55, 0.62, 1.0), 0.4)
+        part("Head", (0, 0, 2.75), (1.05, 0.72, 1.0), skin_mat)
+        part("Hat", (0, 0, 3.30), (1.10, 0.78, 0.26), h_mat)
+        for sx in (-0.22, 0.22):
+            part("EyeW" + str(sx), (sx, -0.45, 2.82), (0.26, 0.04, 0.30), white_mat)
+            part("Pupil" + str(sx), (sx, -0.52, 2.80), (0.11, 0.04, 0.14), e_mat)
+            part("Cheek" + str(sx), (sx * 1.7, -0.45, 2.52), (0.18, 0.04, 0.10), cheek_mat)
+        part("Mouth", (0.0, -0.45, 2.42), (0.22, 0.04, 0.05), e_mat)
+    else:
+        part("Head", (0, 0, 2.60), (0.72, 0.72, 0.72), skin_mat)
+        part("Hat", (0, 0, 3.02), (0.78, 0.78, 0.30), h_mat)
+        part("EyeL", (-0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
+        part("EyeR", (0.16, -0.37, 2.66), (0.09, 0.04, 0.11), e_mat)
+        part("Mouth", (0.0, -0.37, 2.46), (0.26, 0.04, 0.05), e_mat)
     al = part("ArmL", (-0.75, 0, 1.65), (0.42, 0.45, 1.10), t_mat)
     ar = part("ArmR", (0.75, 0, 1.65), (0.42, 0.45, 1.10), t_mat)
     ll = part("LegL", (-0.27, 0, 0.55), (0.46, 0.48, 1.10), p_mat)

@@ -385,6 +385,8 @@ class ShortCrewPipeline:
                             shots=all_shots,
                             audio_duration_sec=audio_dur_sec,
                             timed_shots=plan.get("shots"),
+                            mood=plan.get("mood"),
+                            character_style=plan.get("character_style") or "r6",
                         )
                         rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     else:
@@ -399,6 +401,7 @@ class ShortCrewPipeline:
                             model=engine_model,
                         )
                         if ai_ok:
+                            BlenderEngine.enforce_render_settings(py_script, total_frames, fps=12)
                             rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                         if not rendered:
                             BlenderEngine.create_roblox_3d_scene(
@@ -408,6 +411,9 @@ class ShortCrewPipeline:
                                 frames=total_frames,
                                 shots=all_shots,
                                 audio_duration_sec=audio_dur_sec,
+                                timed_shots=plan.get("shots"),
+                                mood=plan.get("mood"),
+                                character_style=plan.get("character_style") or "r6",
                             )
                             rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     if rendered:

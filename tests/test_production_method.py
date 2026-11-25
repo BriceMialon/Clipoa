@@ -135,7 +135,78 @@ class TestProductionMethod(unittest.TestCase):
             self.assertIn("scene.render.resolution_x = 540", code)
 
 
+class TestStylesProduction(unittest.TestCase):
+    def test_sanitize_and_starter_production(self):
+        from core.style_plugins import sanitize_production, StylePluginStore
+        clean = sanitize_production({"shot_max_s": "99", "caption_mode": "ONE_WORD", "keyword_colors": "false", "evil": 1, "mood": "x"})
+        self.assertEqual(clean, {"shot_max_s": 12.0, "caption_mode": "one_word", "keyword_colors": False})
+        for pid, key, val in (("fete_en_folie", "caption_mode", "one_word"), ("2d_monde_3d", "character_style", "flat2d"), ("roblox_3d", "shot_max_s", 3.0)):
+            pl = StylePluginStore.get_plugin(pid, include_script_body=False)
+            if pl:
+                self.assertEqual(pl["production"][key], val)
+
+    def test_plan_honours_style(self):
+        words, dur = fake_words(SCRIPT)
+        plan = pm.build_plan({"full_spoken_script": SCRIPT}, words, dur, [], style_overrides={"caption_mode": "one_word", "keyword_colors": False, "shot_max_s": 3.0, "character_style": "flat2d"})
+        self.assertEqual(plan["captions"], {"mode": "one_word", "keyword_colors": False})
+        self.assertEqual(plan["character_style"], "flat2d")
+        self.assertLessEqual(plan["stats"]["max_shot_s"], 3.3)
+
+    def test_one_word_captions(self):
+        with tempfile.TemporaryDirectory() as td:
+            ass = os.path.join(td, "s.ass")
+            words = [{"word": w, "start": i * 0.4, "end": i * 0.4 + 0.35} for i, w in enumerate("un deux trois".split())]
+            VideoComposer.generate_ass_subtitles(words, ass, caption_mode="one_word")
+            lines = [l for l in Path(ass).read_text(encoding="utf-8").splitlines() if l.startswith("Dialogue: 0")]
+            self.assertEqual(len(lines), 3)
+            self.assertFalse(any("DEUX" in l and "TROIS" in l for l in lines))
+
+    def test_whisper_fragments_merged_and_hook_escape(self):
+        w = VideoComposer._extract_word_list({"segments": [{"words": [
+            {"word": "ce", "start": 0, "end": 0.1}, {"word": "n", "start": 0.1, "end": 0.2}, {"word": "'était", "start": 0.2, "end": 0.4},
+            {"word": "abonne", "start": 0.5, "end": 0.7}, {"word": "-toi", "start": 0.7, "end": 0.8}, {"word": "?", "start": 0.8, "end": 0.9}]}]}, "", 1.0)
+        self.assertEqual([x["word"] for x in w], ["ce", "n'était", "abonne-toi?"])
+        with tempfile.TemporaryDirectory() as td:
+            ass = os.path.join(td, "s.ass")
+            VideoComposer.generate_ass_subtitles([], ass, hook_text="PERSONNE NE SORT APRÈS MINUIT DANS MA VILLE")
+            hook = [l for l in Path(ass).read_text(encoding="utf-8").splitlines() if l.startswith("Dialogue: 1")][0]
+            self.assertIn("\\N", hook)
+            self.assertNotIn("\\\\N", hook)
+
+    def test_flat2d_and_ai_script_hardening(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "scene.py")
+            BlenderEngine.create_roblox_3d_scene("T", path, "nuit", frames=96, audio_duration_sec=8.0, character_style="flat2d", mood="calm")
+            code = Path(path).read_text(encoding="utf-8")
+            compile(code, path, "exec")
+            self.assertIn("FLAT2D = True", code)
+            self.assertIn("IS_MELANCHOLY = False", code)
+            ai = os.path.join(td, "ai.py")
+            Path(ai).write_text("import bpy\nbpy.ops.mesh.primitive_cone_add(vertices=6, radius=1.2, depth=2)\nbpy.ops.mesh.primitive_cylinder_add(radius1=0.3, depth=1)\nscene = bpy.context.scene\nscene.render.image_settings.file_format = 'FFMPEG'\n", encoding="utf-8")
+            BlenderEngine._patch_blender5_compat(ai)
+            BlenderEngine.enforce_render_settings(ai, 240, fps=12)
+            fixed = Path(ai).read_text(encoding="utf-8")
+            compile(fixed, ai, "exec")
+            self.assertIn("radius1=1.2", fixed)
+            self.assertIn("primitive_cylinder_add(radius=0.3", fixed)
+            self.assertIn("_cs.render.fps = 12", fixed)
+            self.assertIn("_cs.frame_end = 240", fixed)
+
+
 class TestMethodRender(unittest.TestCase):
+    def test_bright_themes_render(self):
+        from config import FFMPEG_PATH, RENDERS_DIR
+        with tempfile.TemporaryDirectory() as td:
+            wav = os.path.join(td, "a.wav")
+            subprocess.run([FFMPEG_PATH, "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "1.0", wav], check=True, capture_output=True)
+            for theme in ("cinema_gold", "pop_flat"):
+                sess = f"test_theme_{theme}"
+                try:
+                    mp4 = VideoComposer.compose_short(sess, wav, {"title": "T", "full_spoken_script": "ok"}, theme=theme)
+                    self.assertTrue(os.path.exists(mp4))
+                finally:
+                    shutil.rmtree(RENDERS_DIR / sess, ignore_errors=True)
+
     def test_full_mix_and_two_mp4(self):
         from config import FFMPEG_PATH, RENDERS_DIR
         sess = "test_method_smoke"
