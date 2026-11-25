@@ -197,6 +197,47 @@ NARRATIVE_RULES_FETE_EN_FOLIE = """Structure « vie pilotée par les commentaire
 4. Action / montée (20–70 s) : gradation verticale du décor, phrases courtes et sensorielles, 1 plan par phrase.
 5. Cliffhanger + CTA (5–8 dernières s) : question ouverte + « le commentaire le plus/moins liké décide » → CU + UI commentaire vide + bouton S'abonner."""
 
+STYLE_BIBLE_EXPLAINER_2D = r"""# STYLE BIBLE — « Explainer 2D pastel » (dessin animé vectoriel de face, Shorts / Reels / TikTok 9:16)
+
+> **À l'IA qui lit ce fichier :** tu reçois un script oral ou une idée (souvent un commerce, un métier, une marque locale ou une notion à expliquer). Reproduis exactement ce STYLE avec l'histoire de l'utilisateur. Ne copie jamais les personnages, noms ou textes de la vidéo de référence.
+
+## 1. L'ADN
+Petite fable explicative de 35 à 50 s, racontée par une voix off posée qui vouvoie le spectateur, illustrée en **dessin animé vectoriel pastel vu de face**. Chaque phrase = une image claire, avec **un grand mot ou un chiffre à l'écran** à la place des sous-titres. La marque ou le héros n'arrive qu'au milieu (vers la moitié de la vidéo) : on donne d'abord une raison de regarder.
+
+## 2. FORMAT
+- 9:16, 1080×1920, 30 fps. Durée 35-50 s. Environ 2,6-2,8 mots/s, pauses de 0,4-0,6 s entre les phrases.
+- **Aucun sous-titre mot à mot.** Seulement des **étiquettes géantes** en haut de l'écran (zone 15-25 % de la hauteur) : un chiffre (« PRÈS DE 80 % »), une saison (« HIVER »), un délai (« 2 JOURS »), un mois sur un calendrier, avec parfois une ligne plus petite en couleur d'accent dessous.
+- Rien d'important dans les 15 % du bas.
+
+## 3. DIRECTION ARTISTIQUE
+- **Vectoriel plat pastel**, vue de face (aucune perspective), **contours fins bleu marine foncé** `#1F2133` sur tous les éléments, aplats sans dégradé ni ombre.
+- Palette : ciel bleu très pâle `#DCEBF5`, soleil jaune doux `#FDD15A` à rayons roses, nuages blancs, collines vert sauge `#9EBD9E` / `#7A9E80`, sol beige `#E2C9A6`, **accent rose framboise** `#D9406E`, murs intérieurs rose poudré `#FAE1E6`, blanc cassé.
+- Décors en couches : ciel → soleil + 2 nuages → collines → (immeubles gris-vert en silhouette si ville) → sol → personnages devant. Intérieurs : mur pastel, fenêtre, une étagère ou un comptoir.
+- **Personnages** : simples, tête ronde, deux points pour les yeux, petit sourire, joues roses, cheveux en calotte, corps rectangulaire, tenue de métier lisible (salopette, tablier couleur d'accent, chapeau de paille). Diversité des teints. Ils font UN geste par plan : saluer, montrer du bras, porter une caisse.
+- **Objet personnifié** possible pour l'accroche (un produit avec des yeux, des lunettes, une valise).
+- Cartes et schémas simples (pays en aplat avec un trajet en pointillés) pour expliquer une origine ou une distance.
+
+## 4. CAMÉRA & MONTAGE
+- Caméra de face. Chaque lieu est un décor plein cadre ; on passe d'un lieu à l'autre par un **glissé latéral rapide** (whip-pan horizontal) ; dans un même lieu, coupe nette ou léger zoom avant.
+- Plans de 2 à 6 s (plus longs que les Shorts « mème » : l'image s'anime pendant la phrase, éléments qui apparaissent un par un : fleurs qui poussent, chiffres qui montent).
+- Fin : **carton de marque** sur fond blanc cassé (nom + mot-clé du métier + appel à l'action d'une ligne + le personnage qui salue).
+
+## 5. SON
+- Voix off unique, chaleureuse et posée, vouvoiement. Musique douce acoustique (ukulélé, piano léger) assez basse, petits bruitages « pop » quand un élément apparaît, souffle sur les glissés.
+
+## 6. PHRASES-ANCRES (prompts)
+- `flat 2D vector explainer animation, front view, pastel palette, thin dark navy outlines, pale blue sky, sage green hills, beige ground, raspberry pink accents, simple round-headed characters with dot eyes, no gradients, no shadows, vertical 9:16, big bold label text at the top`
+"""
+
+NARRATIVE_RULES_EXPLAINER_2D = r"""Structure « explainer de marque » (vouvoiement, phrases courtes et factuelles, ~2,7 mots/s) :
+1. Accroche (0-4 s) : un objet ou une situation personnifiée, avec une pointe d'humour (« Cette rose a peut-être fait plus de route que vous cette semaine. »).
+2. Le problème en chiffre (4-11 s) : un chiffre-choc écrit en grand, puis d'où vient le problème (carte, trajet).
+3. Le contraste (11-21 s) : « Pourtant… » + une énumération rythmée (saison par saison, étape par étape), une étiquette géante par élément.
+4. La solution (vers la moitié) : la marque / le héros entre en scène et fait la chose différemment.
+5. La preuve concrète (un délai, un chiffre, un geste du métier).
+6. La conséquence pour le spectateur (« Alors votre bouquet change avec les mois. ») + une phrase-chute courte.
+7. Carton final : nom + promesse en une ligne + appel à l'action simple (« Passez voir celles de la semaine »)."""
+
 STARTER_PLUGINS: List[Dict[str, Any]] = [
     {
         "id": "roblox_3d",
@@ -279,6 +320,33 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         ],
         "starter": True,
     },
+    {
+        "id": "explainer_2d",
+        "name": "Explainer 2D pastel",
+        "category": "2D",
+        "icon": "🌷",
+        "gradient": "cartoon",
+        "tagline": "Dessin animé vectoriel pastel vu de face, grandes étiquettes, voix posée.",
+        "da_prompt": STYLE_BIBLE_EXPLAINER_2D,
+        "narrative_rules": NARRATIVE_RULES_EXPLAINER_2D,
+        "render_mode": "blender3d",
+        "theme": "pop_flat",
+        "subtitle_style": "shortcrew_red",
+        "est_time_sec": 70,
+        "est_time_label": "~1m10",
+        "script_language": "python",
+        "script_filename": "",
+        "script_content": "",
+        "model_sheets": [
+            {
+                "filename": "explainer_2d.jpg",
+                "original_name": "explainer_2d.jpg",
+                "role": "reference",
+                "uploaded_at": "2026-11-25 11:20",
+            }
+        ],
+        "starter": True,
+    },
 ]
 
 
@@ -286,11 +354,13 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
 # Valeurs par défaut des styles livrés ; un style peut les surcharger via son champ « production ».
 STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # DA : plans 1-1,5 s (variante pop) à 2-3 s (mélancolie), caméra toujours en mouvement
-    "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.0, "character_style": "r6"},
+    "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.0, "character_style": "r6", "visual_style": "roblox"},
     # DA : un plan toutes les 2-3 s ; sous-titres 1-3 mots BLANCS à contour noir (pas de couleurs)
-    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "character_style": "flat2d"},
+    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "character_style": "flat2d", "visual_style": "paper2d"},
     # DA : un plan par phrase (~2,3 s), UN seul mot à la fois, pas de musique marquée (nappe très basse)
-    "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat"},
+    "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
+    # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
+    "explainer_2d": {"shot_min_s": 2.0, "shot_max_s": 6.0, "caption_mode": "none", "music_db": -18.0, "mood": "calm", "visual_style": "explainer2d", "note_color": "#D9406E"},
 }
 
 _PRODUCTION_SPEC: Dict[str, Any] = {
@@ -302,9 +372,11 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "whoosh_min_gap_s": ("float", (2.0, 60.0)),
     "sfx_repeat_gap_s": ("float", (0.5, 20.0)),
     "music_cut_before_twist_s": ("float", (0.0, 3.0)),
-    "caption_mode": ("enum", ("chunk", "one_word")),
+    "caption_mode": ("enum", ("chunk", "one_word", "none")),
     "keyword_colors": ("bool", None),
     "character_style": ("enum", ("r6", "flat2d")),
+    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d")),
+    "note_color": ("hex", None),
 }
 
 
@@ -318,7 +390,11 @@ def sanitize_production(raw: Any) -> Dict[str, Any]:
             continue
         val = raw[key]
         try:
-            if kind == "enum":
+            if kind == "hex":
+                v = str(val).strip().lstrip("#")
+                if re.match(r"^[0-9a-fA-F]{6}$", v):
+                    out[key] = "#" + v.upper()
+            elif kind == "enum":
                 v = str(val).strip().lower()
                 if v in rng:
                     out[key] = v
@@ -333,6 +409,17 @@ def sanitize_production(raw: Any) -> Dict[str, Any]:
     if "shot_min_s" in out and "shot_max_s" in out and out["shot_max_s"] < out["shot_min_s"] + 0.4:
         out["shot_max_s"] = out["shot_min_s"] + 0.4
     return out
+
+
+REMOVED_STARTERS_FILE = PLUGINS_DIR / "removed_starters.json"
+
+
+def _REMOVED_STARTERS(_data: Any = None) -> set:
+    """Styles livrés que l'utilisateur a supprimés : on ne les rajoute jamais d'office."""
+    try:
+        return set(json.loads(REMOVED_STARTERS_FILE.read_text(encoding="utf-8")))
+    except Exception:
+        return set()
 
 
 def _atomic_write_json(path: Path, data: Any) -> None:
@@ -589,9 +676,33 @@ class StylePluginStore:
         try:
             with open(PLUGINS_INDEX_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, list) else []
+            data = data if isinstance(data, list) else []
         except Exception:
             return []
+        # Ajoute les nouveaux styles livrés avec Clipoa (ex. Explainer 2D) sans toucher aux styles existants
+        known = {p.get("id") for p in data if isinstance(p, dict)}
+        added = False
+        for sp in STARTER_PLUGINS:
+            if sp["id"] not in known and sp["id"] not in _REMOVED_STARTERS(data):
+                item = json.loads(json.dumps(sp))
+                item["created_at"] = item["updated_at"] = time.strftime("%Y-%m-%d %H:%M")
+                data.append(item)
+                added = True
+                # vignette livrée avec Clipoa (assets/style_covers/<id>.jpg)
+                try:
+                    cover = Path(__file__).resolve().parent.parent / "assets" / "style_covers" / f"{sp['id']}.jpg"
+                    dest = PLUGINS_DIR / sp["id"] / "sheets" / f"{sp['id']}.jpg"
+                    if cover.exists() and not dest.exists():
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(cover, dest)
+                except Exception:
+                    pass
+        if added:
+            try:
+                _atomic_write_json(PLUGINS_INDEX_FILE, data)
+            except Exception:
+                pass
+        return data
 
     @classmethod
     def _save_raw_unlocked(cls, items: List[Dict[str, Any]]) -> None:
@@ -775,6 +886,10 @@ class StylePluginStore:
             if len(new_items) == len(items):
                 return False
             cls._save_raw_unlocked(new_items)
+            if any(sp["id"] == plugin_id for sp in STARTER_PLUGINS):
+                removed = _REMOVED_STARTERS()
+                removed.add(plugin_id)
+                _atomic_write_json(REMOVED_STARTERS_FILE, sorted(removed))
         pdir = (PLUGINS_DIR / plugin_id).resolve()
         if pdir.parent == PLUGINS_DIR.resolve() and pdir.exists():
             shutil.rmtree(pdir, ignore_errors=True)

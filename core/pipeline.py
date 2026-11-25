@@ -80,11 +80,85 @@ class ShortCrewPipeline:
                 no_music = nm
         return {
             "plan": plan,
+            "words": words,
             "duration": dur,
             "audio": final_audio,
             "premixed": final_audio != voice_wav,
             "no_music": no_music,
         }
+
+    @staticmethod
+    def visual_style_for(plugin: Optional[Dict[str, Any]]) -> Optional[str]:
+        """Style de rendu Blender d'un style (plugin) : roblox | paper2d | flat_vector | explainer2d, ou None."""
+        if not plugin:
+            return None
+        prod = plugin.get("production") or {}
+        if prod.get("visual_style"):
+            return prod["visual_style"]
+        if plugin.get("render_mode") == "blender3d":
+            return "paper2d" if prod.get("character_style") == "flat2d" else "roblox"
+        return None
+
+    @classmethod
+    def render_blender_story(
+        cls,
+        session_id: str,
+        script: Dict[str, Any],
+        plan: Dict[str, Any],
+        words: Optional[List[Dict[str, Any]]],
+        plugin: Optional[Dict[str, Any]],
+        audio_dur_sec: float,
+        out_dir: Path,
+        engine: str = "claude",
+        engine_model: Optional[str] = None,
+        da_ctx: str = "",
+        title_text: str = "CLIPOA",
+        all_shots: Optional[List[Dict[str, Any]]] = None,
+        progress: Optional[Callable[[int, str], None]] = None,
+    ) -> Optional[str]:
+        """
+        Même processus pour tous les styles Blender : l'IA choisie (Claude ou Antigravity) décrit le décor de
+        CETTE histoire, Blender le construit dans le style choisi. Repli sur l'ancienne scène si tout échoue.
+        """
+        from core.scene_designer import design_scene
+        def _p(pct: int, msg: str):
+            if progress:
+                progress(pct, msg)
+        style = cls.visual_style_for(plugin) or "roblox"
+        eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
+        py_script = str(out_dir / f"{session_id}_scene_3d.py")
+        bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
+        total_frames = max(36, int(round(audio_dur_sec * 12)))
+
+        def _blender_prog(f_cur: int, f_tot: int):
+            _p(58 + int(round(15 * min(1.0, f_cur / max(1, f_tot)))), f"🧊 [3/4] Rendu Blender en cours… image {f_cur}/{f_tot}")
+
+        try:
+            _p(55, f"🎬 [3/4] {eng_lbl} met en scène le décor de ton histoire...")
+            spec = design_scene(script, plan, style=style, engine=engine, model=engine_model, words=words, da_hint=da_ctx)
+            try:
+                with open(out_dir / f"{session_id}_scene_spec.json", "w", encoding="utf-8") as f:
+                    json.dump(spec, f, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+            _p(58, f"🧊 [3/4] Construction Blender ({len(spec.get('locations') or [])} lieux, {len(plan.get('shots') or [])} plans, style {style})...")
+            BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style)
+            if BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog):
+                return bg_out
+            print("⚠️ Rendu du décor sur mesure échoué : scène de secours.")
+        except Exception as e:
+            print(f"⚠️ Décor sur mesure ignoré ({e}) : scène de secours.")
+        try:
+            BlenderEngine.create_roblox_3d_scene(
+                title_text=title_text, script_save_path=py_script, spoken_script=script.get("full_spoken_script", ""),
+                frames=total_frames, shots=all_shots or [], audio_duration_sec=audio_dur_sec,
+                timed_shots=plan.get("shots"), mood=plan.get("mood"), character_style=plan.get("character_style") or "r6",
+            )
+            if BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog):
+                return bg_out
+        except Exception as e:
+            print(f"⚠️ Rendu Blender ignoré ({e}).")
+        return None
 
     @staticmethod
     def _finalize_outputs(video_path: str, plan: Dict[str, Any], result: Dict[str, Any]) -> None:
@@ -262,7 +336,7 @@ class ShortCrewPipeline:
         plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=True) if plugin_id else None
         # Force automatiquement Blender 3D côté serveur dès que le style choisi requiert Blender (ex. 3D Roblox, 2D × Monde 3D),
         # que l'IA soit Claude ou Antigravity.
-        if plugin and plugin.get("render_mode") == "blender3d":
+        if plugin and (plugin.get("render_mode") == "blender3d" or cls.visual_style_for(plugin)):
             use_blender_3d = True
         is_custom_script = bool((custom_script or "").strip())
         da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=is_custom_script) if plugin else ""
@@ -367,62 +441,16 @@ class ShortCrewPipeline:
             blender_bg_path = ""
 
             if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-                _prog(56, f"🧊 [3/4] Rendu multi-plans 3D Blender ({len(plan.get('shots') or []) or max(8, len(all_shots))} plans calés sur la voix · {int(round(audio_dur_sec))}s)...")
-                try:
-                    out_dir = Path(voice_res["audio_wav"]).parent
-                    py_script = str(out_dir / f"{session_id}_scene_3d.py")
-                    bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
-                    total_frames = max(72, int(round(audio_dur_sec * 12)))
-                    rendered = False
-                    def _blender_prog(f_cur: int, f_tot: int):
-                        pct = 56 + int(round(17 * min(1.0, f_cur / max(1, f_tot))))
-                        _prog(pct, f"🧊 [3/4] Rendu 3D Blender en cours… image {f_cur}/{f_tot}")
-                    # Pour Roblox 3D & 2D×Monde 3D : moteur multi-plans 3D couvrant 100% de la durée de la vidéo !
-                    if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):
-                        BlenderEngine.create_roblox_3d_scene(
-                            title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
-                            script_save_path=py_script,
-                            spoken_script=script.get("full_spoken_script", ""),
-                            frames=total_frames,
-                            shots=all_shots,
-                            audio_duration_sec=audio_dur_sec,
-                            timed_shots=plan.get("shots"),
-                            mood=plan.get("mood"),
-                            character_style=plan.get("character_style") or "r6",
-                        )
-                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
-                    else:
-                        ai_ok = AntigravityBridge.generate_blender_script(
-                            topic=topic or script.get("title") or "Short 3D",
-                            spoken_script=script.get("full_spoken_script", ""),
-                            script_save_path=py_script,
-                            da_context=da_ctx,
-                            visual_storyboard=all_shots,
-                            frames=total_frames,
-                            engine=active_engine,
-                            model=engine_model,
-                        )
-                        if ai_ok:
-                            BlenderEngine.enforce_render_settings(py_script, total_frames, fps=12)
-                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
-                        if not rendered:
-                            BlenderEngine.create_roblox_3d_scene(
-                                title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
-                                script_save_path=py_script,
-                                spoken_script=script.get("full_spoken_script", ""),
-                                frames=total_frames,
-                                shots=all_shots,
-                                audio_duration_sec=audio_dur_sec,
-                                timed_shots=plan.get("shots"),
-                                mood=plan.get("mood"),
-                                character_style=plan.get("character_style") or "r6",
-                            )
-                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
-                    if rendered:
-                        effective_bg = bg_out
-                        blender_bg_path = bg_out
-                except Exception as e:
-                    print(f"⚠️ Rendu Blender ignoré ({e}).")
+                bg = cls.render_blender_story(
+                    session_id=session_id, script=script, plan=plan, words=mixres.get("words"), plugin=plugin,
+                    audio_dur_sec=audio_dur_sec, out_dir=Path(voice_res["audio_wav"]).parent,
+                    engine=active_engine, engine_model=engine_model, da_ctx=da_ctx,
+                    title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40], all_shots=all_shots,
+                    progress=_prog,
+                )
+                if bg:
+                    effective_bg = bg
+                    blender_bg_path = bg
 
             _prog(74, "🎬 [3/4] Montage final 1080x1920 + sous-titres...")
             cp["video_path"] = VideoComposer.compose_short(

@@ -47,7 +47,10 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
    - **Aiguillage IA** : choisir « Claude » = toujours le **Claude CLI** (modèle `opus/sonnet/haiku` déduit du nom, `_claude_family`), jamais Antigravity. Antigravity seulement si choisi explicitement (avant : `claude-opus-5-5-medium` partait sur agy et vidait son quota).
    - **Anciennes tâches / anciens onglets** : `_normalize_engine_params` repasse sur Claude toute tâche `engine=antigravity` + modèle `claude-…` sans `engine_choice` explicite (cas du bouton « Reprendre »). Bandeau « Clipoa a été mis à jour » quand `/api/build` change (onglet resté ouvert sur une ancienne version).
    - **Anti-répétition partout** : `build_da_context` ajoute une RÈGLE D'ORIGINALITÉ (la DA Roblox vient de la vidéo « miroirs couverts / neige », ses exemples ne sont pas des sujets) ; `recent_video_titles()` (core/script_template.py) donne les titres récents à éviter à LeScenariste, Antigravity et Gemini.
-   - **Limite connue (non réglée)** : le rendu Blender Roblox est UN décor fixe (village enneigé, chambre au miroir, lac gelé, sous la glace) issu de la même référence, identique pour toutes les vidéos ; les vidéos de référence sont faites avec des images IA (prompts « phrases-ancres » des DA), pas des primitives Blender.
+   - **Décor sur mesure pour CHAQUE vidéo (même processus pour tous les styles)** : `core/scene_designer.py` demande à l'IA choisie (Claude CLI ou Antigravity) de décrire en JSON le décor de l'histoire (lieux, objets, panneaux, personnages, et par plan : lieu / cadrage / action) ; validé (`_sanitize`) avec repli sur le storyboard (`heuristic_spec`). `BlenderEngine.create_scene_from_spec` assemble l'en-tête + le constructeur `core/blender_kit/scene_kit_bpy.py` (styles `roblox`, `paper2d`, `flat_vector`) ou `scene_kit_explainer_bpy.py` (`explainer2d`, caméra ortho de face, glissés latéraux). `ShortCrewPipeline.render_blender_story` (Fabrique, Mode Nuit, Gemini) ; décor sauvegardé dans `storage/audio/<session>_scene_spec.json`. Ancienne scène fixe = secours seulement.
+   - **Bibliothèque 3D** `assets/blender_kit/` : les 37 modèles GLB Docteur Shark (sans le village complet) utilisés par le style Roblox (personnages articulés automatiquement, autocollants de visage aplatis pour Workbench, couleurs en Standard + conversion sRGB→linéaire).
+   - **Style de rendu par style** : `production.visual_style` (roblox_3d→roblox, 2d_monde_3d→paper2d, fete_en_folie→flat_vector, explainer_2d→explainer2d) ; un style qui en a un passe toujours par Blender.
+   - **Nouveau style « Explainer 2D pastel »** (`explainer_2d`, analyse de la vidéo @rosoai) : vectoriel pastel de face, contours fins, pas de sous-titres (`caption_mode: none`), grandes étiquettes roses (`note_color`), plans 2-6 s, structure « explainer de marque ». Ajouté automatiquement aux installations existantes (sans réajouter un style livré que l'utilisateur a supprimé : `storage/plugins/removed_starters.json`) ; vignette `assets/style_covers/`.
    - **Script IA original** : la DA n'est plus coupée à 3 000 caractères (12 000), consigne « les exemples de la DA sont du style, pas des sujets », et les titres des 12 dernières vidéos/jobs sont donnés à éviter (`_recent_video_titles`) ; plans de 2 à 4 s.
 5. **Interface épurée** :
    - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
@@ -66,18 +69,19 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/antigravity_bridge.py` | Pont Antigravity CLI (`query`, `stream_query`, `switch_account`, quotas 5h + hebdo 7j). |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
 | `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
+| `core/scene_designer.py` + `core/blender_kit/` | Décor sur mesure décrit par l'IA + constructeurs Blender par style ; `assets/blender_kit/` = modèles GLB. |
 | `core/production_method.py` | Méthode Clipoa : plan de production (plans calés sur la voix, twist, SFX ancrés, mots-clés, cartons). |
 | `core/sound_designer.py` | Mixage FFmpeg local : musique par ambiance + ducking + coupure avant twist + SFX du plan + version sans musique. |
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
-| `tests/` | 71 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
+| `tests/` | 76 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
 ## 4. Tester et redémarrer
 
-### Lancer la suite complète de tests (71 tests)
+### Lancer la suite complète de tests (76 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v

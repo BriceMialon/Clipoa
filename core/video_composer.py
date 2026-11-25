@@ -240,6 +240,7 @@ class VideoComposer:
         keywords: Optional[Dict[str, List[str]]] = None,
         notes: Optional[List[Dict[str, Any]]] = None,
         caption_mode: str = "chunk",
+        note_color: str = "",
     ) -> str:
         """
         Creates a Submagic/TikTok-grade Advanced SubStation Alpha (.ass) file:
@@ -290,7 +291,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if not n_txt or n_end <= n_start:
                 continue
             px, py = (note.get("pos") or [540, 400])[:2]
-            n_anim = rf"{{\an5\pos({int(px)},{int(py)})\fad(90,160)\fscx70\fscy70\t(0,140,\fscx100\fscy100)}}"
+            n_col = ""
+            hx = str(note_color or "").lstrip("#")
+            if len(hx) == 6:
+                # ASS = &HBBGGRR : texte de la couleur du style, contour blanc fin
+                n_col = rf"\1c&H{hx[4:6]}{hx[2:4]}{hx[0:2]}&\3c&H00FFFFFF&\bord5"
+            n_anim = rf"{{\an5\pos({int(px)},{int(py)})\fad(90,160)\fscx70\fscy70\t(0,140,\fscx100\fscy100){n_col}}}"
             events.append(
                 f"Dialogue: 2,{cls._format_ass_time(n_start)},{cls._format_ass_time(n_end)},Note,,0,0,0,,{n_anim}{n_txt}"
             )
@@ -304,7 +310,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         # 2. Word-by-word kinetic subtitles (Layer 0, center-lower safe zone y=1120)
         # « one_word » : un seul mot à la fois au centre (DA type Fête en folie / Christophe)
-        chunks = cls._chunk_words(words, max_words=1) if caption_mode == "one_word" else cls._chunk_words(words)
+        if caption_mode == "none":
+            chunks = []  # style sans sous-titres (ex. Explainer 2D) : seulement les grandes étiquettes
+        else:
+            chunks = cls._chunk_words(words, max_words=1) if caption_mode == "one_word" else cls._chunk_words(words)
         for c_idx, chunk in enumerate(chunks):
             next_chunk_start = chunks[c_idx + 1][0]["start"] if c_idx + 1 < len(chunks) else None
 
@@ -481,6 +490,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             keywords=(plan or {}).get("keywords") if ((plan or {}).get("captions") or {}).get("keyword_colors", True) else None,
             notes=(plan or {}).get("notes"),
             caption_mode=((plan or {}).get("captions") or {}).get("mode", "chunk"),
+            note_color=((plan or {}).get("captions") or {}).get("note_color", ""),
         )
 
         ass_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")

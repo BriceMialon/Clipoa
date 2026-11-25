@@ -518,7 +518,8 @@ def build_plan(
             "cut_before_twist_s": float(ov.get("music_cut_before_twist_s", 0.6)) if twist_t is not None else 0.0,
         },
         "captions": {
-            "mode": ov.get("caption_mode") if ov.get("caption_mode") in ("chunk", "one_word") else "chunk",
+            "mode": ov.get("caption_mode") if ov.get("caption_mode") in ("chunk", "one_word", "none") else "chunk",
+            "note_color": ov.get("note_color") or "",
             "keyword_colors": bool(ov.get("keyword_colors", True)),
         },
         "character_style": ov.get("character_style") or "r6",

@@ -148,7 +148,8 @@ class TestStylesProduction(unittest.TestCase):
     def test_plan_honours_style(self):
         words, dur = fake_words(SCRIPT)
         plan = pm.build_plan({"full_spoken_script": SCRIPT}, words, dur, [], style_overrides={"caption_mode": "one_word", "keyword_colors": False, "shot_max_s": 3.0, "character_style": "flat2d"})
-        self.assertEqual(plan["captions"], {"mode": "one_word", "keyword_colors": False})
+        self.assertEqual(plan["captions"]["mode"], "one_word")
+        self.assertFalse(plan["captions"]["keyword_colors"])
         self.assertEqual(plan["character_style"], "flat2d")
         self.assertLessEqual(plan["stats"]["max_shot_s"], 3.3)
 
@@ -305,3 +306,77 @@ class TestScriptOriginality(unittest.TestCase):
             sent = cq.call_args.args[0]
             self.assertIn("on couvre les miroirs quand il neige", sent)
             self.assertIn("NE PAS les refaire", sent)
+
+
+class TestSceneDesignerAndKit(unittest.TestCase):
+    PLAN = {"mood": "calm", "shots": [{"index": i, "start": i * 2.0, "end": i * 2.0 + 2.0, "desc": d}
+                                       for i, d in enumerate(["ville vue de haut", "boutique de fleurs", "gros plan", "maison salon"])]}
+    SCRIPT = {"title": "T", "full_spoken_script": "Dans ma ville, elle ouvre une boutique de fleurs. Pourtant tout change."}
+
+    def test_sanitize_rejects_garbage_and_fills_all_shots(self):
+        from core import scene_designer as sd
+        raw = {"time_of_day": "midnight", "palette": {"sky": "blue", "ground": "#00FF00"},
+               "characters": [{"id": "Léa!", "model": "unknown", "shirt": "#zzz"}],
+               "locations": [{"id": "shop", "type": "volcano", "props": [{"kind": "rocket"}, {"kind": "tree", "count": 99}]}],
+               "shots": [{"i": 0, "camera": "close", "location": "nowhere", "focus": "x", "action": "dance"}]}
+        spec = sd._sanitize(raw, 4)
+        self.assertEqual(spec["time_of_day"], "day")
+        self.assertIsNone(spec["palette"]["sky"])
+        self.assertEqual(spec["palette"]["ground"], "#00FF00")
+        self.assertEqual(spec["characters"][0]["model"], "villageois_01")
+        self.assertEqual(spec["locations"][0]["type"], "street")
+        self.assertEqual(spec["locations"][0]["props"], [{"kind": "tree", "count": 6, "color": None, "text": ""}])
+        self.assertEqual(len(spec["shots"]), 4)
+        self.assertEqual(spec["shots"][0]["action"], "idle")
+        for a, b in zip(spec["shots"], spec["shots"][1:]):
+            self.assertNotEqual(a["camera"], b["camera"])
+
+    def test_design_scene_falls_back_without_ai(self):
+        from unittest.mock import patch
+        from core import scene_designer as sd
+        with patch("core.claude_bridge.ClaudeBridge.query", side_effect=RuntimeError("quota")):
+            spec = sd.design_scene(self.SCRIPT, self.PLAN, style="explainer2d", engine="claude")
+        self.assertEqual(spec["_source"], "storyboard")
+        self.assertEqual(len(spec["shots"]), 4)
+        with patch("core.antigravity_bridge.AntigravityBridge.query", return_value='```json\n{"characters":[{"id":"lea","model":"villageois_10"}],"locations":[{"id":"shop","type":"shop"}],"shots":[{"i":0,"location":"shop","camera":"wide","focus":"lea"}]}\n```') as aq:
+            spec = sd.design_scene(self.SCRIPT, self.PLAN, style="roblox", engine="antigravity", model="gemini-4-neon-medium")
+        self.assertTrue(aq.called)
+        self.assertEqual(spec["_source"], "ia")
+        self.assertEqual(spec["characters"][0]["model"], "villageois_10")
+
+    def test_kit_scripts_compile_for_every_style(self):
+        from core import scene_designer as sd
+        for style in ("roblox", "paper2d", "flat_vector", "explainer2d"):
+            spec = sd.heuristic_spec(self.SCRIPT, self.PLAN, style)
+            with tempfile.TemporaryDirectory() as td:
+                path = os.path.join(td, "s.py")
+                BlenderEngine.create_scene_from_spec(spec, self.PLAN["shots"], path, 8.0, style=style)
+                code = Path(path).read_text(encoding="utf-8")
+                compile(code, path, "exec")
+                self.assertIn("scene.render.resolution_x = 540", code)
+                self.assertIn("scene.render.fps = 12", code)
+                self.assertIn("BLENDER_WORKBENCH", code)
+                self.assertIn('"_style": "%s"' % style, code.replace("\\\\", "\\").replace('\\"', '"'))
+                if style == "explainer2d":
+                    self.assertIn('cam_d.type = "ORTHO"', code)
+
+    def test_styles_route_to_blender_and_explainer_exists(self):
+        from core.pipeline import ShortCrewPipeline
+        from core.style_plugins import StylePluginStore
+        self.assertEqual(ShortCrewPipeline.visual_style_for({"production": {"visual_style": "flat_vector"}, "render_mode": "motion"}), "flat_vector")
+        self.assertEqual(ShortCrewPipeline.visual_style_for({"production": {"character_style": "flat2d"}, "render_mode": "blender3d"}), "paper2d")
+        self.assertIsNone(ShortCrewPipeline.visual_style_for({"production": {}, "render_mode": "motion"}))
+        ex = StylePluginStore.get_plugin("explainer_2d", include_script_body=False)
+        self.assertIsNotNone(ex)
+        self.assertEqual(ex["production"]["visual_style"], "explainer2d")
+        self.assertEqual(ex["production"]["caption_mode"], "none")
+
+    def test_caption_none_keeps_only_labels(self):
+        with tempfile.TemporaryDirectory() as td:
+            ass = os.path.join(td, "s.ass")
+            VideoComposer.generate_ass_subtitles([{"word": "Bonjour", "start": 0.1, "end": 0.5}], ass, caption_mode="none",
+                                                 notes=[{"text": "PRÈS DE 80 %", "start": 1.0, "end": 2.0}], note_color="#D9406E")
+            content = Path(ass).read_text(encoding="utf-8")
+            self.assertNotIn("BONJOUR", content)
+            self.assertIn("PRÈS DE 80 %", content)
+            self.assertIn("&H6E40D9&", content)

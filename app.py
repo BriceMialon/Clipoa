@@ -1987,7 +1987,7 @@ def api_make():
     else:
         job_label = f"⚡ Short : {display_text}"
 
-    is_3d_job = bool(use_blender_3d or (plugin and plugin.get("render_mode") == "blender3d"))
+    is_3d_job = bool(use_blender_3d or (plugin and (plugin.get("render_mode") == "blender3d" or (plugin.get("production") or {}).get("visual_style"))))
     eng_norm = engine if engine in ("claude", "antigravity") else "claude"
     est_total_sec = estimate_job_seconds(eng_norm, "blender3d" if is_3d_job else "motion", target_duration_sec)
     params = {

@@ -2752,7 +2752,8 @@
           labelName = pl.name;
           if (th && pl.theme) th.value = pl.theme;
           if (sb && pl.subtitle_style) sb.value = pl.subtitle_style;
-          const adapted = (pl.render_mode === 'blender3d') ? 'blender3d' : (pl.render_mode === 'broll' ? 'broll' : 'motion');
+          // Les styles qui ont un rendu Blender (Roblox, 2D × 3D, Fête en folie, Explainer…) passent tous par Blender
+          const adapted = (pl.render_mode === 'blender3d' || (pl.production && pl.production.visual_style)) ? 'blender3d' : (pl.render_mode === 'broll' ? 'broll' : 'motion');
           selectRenderType(adapted, true);
           syncRenderLocksForStyle(pl, adapted);
           const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);

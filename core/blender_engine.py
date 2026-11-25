@@ -54,6 +54,64 @@ class BlenderEngine:
         except Exception as e:
             logger.warning(f"Blender 5 compat patch skipped: {e}")
 
+    KIT_PATH = Path(__file__).resolve().parent / "blender_kit" / "scene_kit_bpy.py"
+    ASSET_DIR = Path(__file__).resolve().parent.parent / "assets" / "blender_kit"
+
+    @classmethod
+    def create_scene_from_spec(
+        cls,
+        spec: dict,
+        timed_shots: list,
+        script_save_path: str,
+        audio_duration_sec: float,
+        style: str = "roblox",
+        fps: int = 12,
+    ) -> str:
+        """
+        Scène construite pour CETTE vidéo à partir du décor décrit par l'IA (core/scene_designer.py),
+        dans le style choisi (roblox | paper2d | flat_vector). Toujours 540x960 @ 12 fps Workbench.
+        """
+        dur = max(3.0, float(audio_duration_sec or 0) or 30.0)
+        total_frames = max(36, int(round(dur * fps)))
+        shots = []
+        spec_shots = spec.get("shots") or []
+        for i, ts in enumerate(timed_shots or [{"start": 0.0, "end": dur}]):
+            f0 = 1 if i == 0 else max(1, int(round(float(ts.get("start", 0.0)) * fps)) + 1)
+            f1 = total_frames if i == len(timed_shots) - 1 else max(f0 + 2, int(round(float(ts.get("end", dur)) * fps)))
+            sp = spec_shots[i] if i < len(spec_shots) else (spec_shots[-1] if spec_shots else {})
+            shots.append({"f0": f0, "f1": min(f1, total_frames), "location": sp.get("location"), "camera": sp.get("camera", "medium"),
+                          "focus": sp.get("focus"), "others": sp.get("others") or [], "action": sp.get("action", "idle")})
+        full_spec = dict(spec)
+        full_spec["_style"] = style if style in ("roblox", "paper2d", "flat_vector", "explainer2d") else "roblox"
+        header = f"""
+import bpy
+import json
+bpy.ops.wm.read_factory_settings(use_empty=True)
+scene = bpy.context.scene
+scene.render.engine = 'BLENDER_WORKBENCH'
+scene.render.resolution_x = 540
+scene.render.resolution_y = 960
+scene.render.resolution_percentage = 100
+scene.render.fps = {int(fps)}
+scene.frame_start = 1
+scene.frame_end = {total_frames}
+if hasattr(scene.render.image_settings, 'media_type'):
+    scene.render.image_settings.media_type = 'VIDEO'
+scene.render.image_settings.file_format = 'FFMPEG'
+scene.render.ffmpeg.format = 'MPEG4'
+scene.render.ffmpeg.codec = 'H264'
+scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
+scene.render.use_file_extension = False
+SPEC = json.loads({json.dumps(json.dumps(full_spec, ensure_ascii=False))})
+SHOTS = json.loads({json.dumps(json.dumps(shots))})
+SEED = 7
+ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
+"""
+        kit_path = cls.KIT_PATH.with_name("scene_kit_explainer_bpy.py") if full_spec["_style"] == "explainer2d" else cls.KIT_PATH
+        kit = kit_path.read_text(encoding="utf-8")
+        Path(script_save_path).write_text(header + "\n" + kit, encoding="utf-8")
+        return script_save_path
+
     @classmethod
     def enforce_render_settings(cls, python_script_path: str, frames: int, fps: int = 12) -> None:
         """

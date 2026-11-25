@@ -49,12 +49,13 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         r = self.client.get("/api/plugins")
         self.assertEqual(r.status_code, 200)
         plugins = r.get_json()["plugins"]
-        self.assertEqual(len(plugins), 3)
+        self.assertEqual(len(plugins), 4)
 
         for pid, expected_img, expected_phrase in (
             ("roblox_3d", "roblox_3d.jpg", "avatars Roblox classiques (R6)"),
             ("2d_monde_3d", "2d_monde_3d.jpg", "Conte cartoon 2D dans un monde 3D"),
             ("fete_en_folie", "fete_en_folie.jpg", "La Tour des Riches"),
+            ("explainer_2d", "explainer_2d.jpg", "Explainer 2D pastel"),
         ):
             pl = next((p for p in plugins if p["id"] == pid), None)
             self.assertIsNotNone(pl, f"Missing starter plugin {pid}")

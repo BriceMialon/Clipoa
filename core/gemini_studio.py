@@ -545,29 +545,17 @@ class GeminiStudio:
         plan = mixres["plan"]
 
         effective_bg = background_video
+        if plugin and ShortCrewPipeline.visual_style_for(plugin):
+            use_blender_3d = True
         if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-            _prog(60, f"🧊 [3/4] Rendu 3D Blender multi-plans ({len(plan.get('shots') or [])} plans calés sur la voix)...")
-            try:
-                out_dir = Path(voice_res["audio_wav"]).parent
-                py_script = str(out_dir / "gemini_3d.py")
-                bg_out = str(out_dir / "blender_bg.mp4")
-                audio_dur = get_wav_duration(voice_res["audio_wav"])
-                frames = max(72, int(round(audio_dur * 12)))
-                BlenderEngine.create_roblox_3d_scene(
-                    title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:30],
-                    script_save_path=py_script,
-                    spoken_script=script.get("full_spoken_script", ""),
-                    frames=frames,
-                    shots=shots,
-                    audio_duration_sec=audio_dur,
-                    timed_shots=plan.get("shots"),
-                    mood=plan.get("mood"),
-                    character_style=plan.get("character_style") or "r6",
-                )
-                if BlenderEngine.render_script(py_script, bg_out, frames=frames):
-                    effective_bg = bg_out
-            except Exception as e:
-                print(f"⚠️ Rendu Blender ignoré ({e}).")
+            bg = ShortCrewPipeline.render_blender_story(
+                session_id=session_id, script=script, plan=plan, words=mixres.get("words"), plugin=plugin,
+                audio_dur_sec=get_wav_duration(voice_res["audio_wav"]), out_dir=Path(voice_res["audio_wav"]).parent,
+                engine="claude", da_ctx=da_ctx, title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:30],
+                all_shots=shots, progress=_prog,
+            )
+            if bg:
+                effective_bg = bg
 
         _prog(72, "🎬 [3/4] Rendu vertical 1080x1920 + sous-titres Submagic...")
         video_path = VideoComposer.compose_short(
