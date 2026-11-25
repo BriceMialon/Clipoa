@@ -1052,76 +1052,23 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Pilote auto</h1>
-              <p class="page-sub">Laisse l'équipe IA écrire, planifier et fabriquer tes vidéos à ta place.</p>
+              <p class="page-sub">Prépare tes vidéos de la semaine en quelques clics.</p>
             </div>
           </div>
 
-          <div class="crew-grid">
-            <div class="crew-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <span class="conn-spark-badge" style="width:40px; height:40px; font-size:18px;">✍️</span>
-                  <span class="pick-badge">Actif</span>
-                </div>
-                <div class="section-title">Écrire un script</div>
-                <p style="font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5;">
-                  Rédige de 0 ou décortique un concurrent en direct, note le Hook /10, la Rétention /10 et retravaille chaque phrase à la demande.
-                </p>
+          <div class="crew-plaque lg-sheen" style="max-width:560px;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span class="conn-mini-ico" style="width:40px; height:40px; font-size:18px;">📅</span>
+                <span class="pick-badge">Actif</span>
               </div>
-              <div>
-                <button type="button" class="btn btn-coral btn-sm" onclick="openContextScriptAgent()">Ouvrir le Labo Script →</button>
-              </div>
+              <div class="section-title">Générer ma semaine</div>
+              <p style="font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5;">
+                Prépare 5 vidéos calibrées (Lun → Ven) à l'avance et lance leur fabrication automatiquement.
+              </p>
             </div>
-
-            <div class="crew-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <span class="conn-mini-ico" style="width:40px; height:40px; font-size:18px;">📅</span>
-                  <span class="pick-badge">Actif</span>
-                </div>
-                <div class="section-title">Planifier ma semaine</div>
-                <p style="font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5;">
-                  Construit ton calendrier éditorial de 5 sujets calibrés (Lun → Ven) avec angles psychologiques et promesses de rétention.
-                </p>
-              </div>
-              <div>
-                <button type="button" class="btn btn-primary btn-sm" onclick="openModal('modal-week')">Générer ma semaine →</button>
-              </div>
-            </div>
-
-            <div class="crew-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <span class="conn-mini-ico" style="width:40px; height:40px; font-size:18px;">🌙</span>
-                  <span class="pick-badge">{{ night_tasks|length ~ ' en file' if night_tasks|length else 'Prêt' }}</span>
-                </div>
-                <div class="section-title">Mode Nuit</div>
-                <p style="font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5;">
-                  Fabrique tes lots de shorts pendant que tu dors avec anti-veille macOS automatique et reprise sur erreur.
-                </p>
-              </div>
-              <div style="display:flex; gap:8px;">
-                <button type="button" class="btn btn-ghost btn-sm" onclick="showView('creer'); toggleAdvancedStudio(true); document.getElementById('night-mode-toggle').checked = true; toggleNightInCreate();">Programmer un lot nocturne</button>
-                {% if night_tasks|length %}
-                <button type="button" class="btn btn-danger btn-sm" onclick="clearNightDone()">Vider ({{ night_tasks|length }})</button>
-                {% endif %}
-              </div>
-            </div>
-
-            <div class="crew-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <span class="conn-mini-ico" style="width:40px; height:40px; font-size:18px;">🧩</span>
-                  <span class="pick-badge" id="crew-plugins-badge">{{ style_plugins|length }} style{{ 's' if style_plugins|length > 1 else '' }}</span>
-                </div>
-                <div class="section-title">Mes styles</div>
-                <p style="font-size:13.5px; color:var(--muted); margin-top:6px; line-height:1.5;">
-                  Crée des styles vidéo (Roblox, 2D, Dessin animé…) avec tes planches de modèles et ton script de rendu. Claude applique la DA automatiquement.
-                </p>
-              </div>
-              <div>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="showView('plugins')">Gérer mes styles →</button>
-              </div>
+            <div>
+              <button type="button" class="btn btn-coral btn-sm" onclick="openModal('modal-week')">Générer ma semaine →</button>
             </div>
           </div>
         </section>
