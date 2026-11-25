@@ -438,6 +438,7 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "character_style": ("enum", ("r6", "flat2d")),
     "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d")),
     "note_color": ("hex", None),
+    "caption_look": ("enum", ("", "cine")),
 }
 
 

@@ -241,6 +241,7 @@ class VideoComposer:
         notes: Optional[List[Dict[str, Any]]] = None,
         caption_mode: str = "chunk",
         note_color: str = "",
+        look: str = "",
     ) -> str:
         """
         Creates a Submagic/TikTok-grade Advanced SubStation Alpha (.ass) file:
@@ -266,6 +267,8 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Default,Arial Black,72,{base_color},{active_color},{outline_color},&H80000000,-1,0,0,0,100,100,1,0,1,7,3,5,70,70,0,1
 Style: Hook,Arial Black,62,&H00FFFFFF,&H00FFFFFF,{hook_bg},&H0007080B,-1,0,0,0,100,100,1,0,3,18,0,8,80,80,260,1
 Style: Note,Arial Black,92,&H0000E6FF,&H0000E6FF,&H000A0B0F,&H80000000,-1,0,0,0,100,100,1,0,1,8,4,5,60,60,0,1
+Style: Cine,Montserrat Black,104,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,2,5,60,60,0,1
+Style: CineKey,Luckiest Guy,118,&H0000E6FF,&H0000E6FF,&H00000000,&H64000000,0,0,0,0,100,100,1,0,1,9,2,5,60,60,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -296,6 +299,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             if len(hx) == 6:
                 # ASS = &HBBGGRR : texte de la couleur du style, contour blanc fin
                 n_col = rf"\1c&H{hx[4:6]}{hx[2:4]}{hx[0:2]}&\3c&H00FFFFFF&\bord5"
+            if look == "cine":
+                n_col += r"\fnLuckiest Guy"
             n_anim = rf"{{\an5\pos({int(px)},{int(py)})\fad(90,160)\fscx70\fscy70\t(0,140,\fscx100\fscy100){n_col}}}"
             events.append(
                 f"Dialogue: 2,{cls._format_ass_time(n_start)},{cls._format_ass_time(n_end)},Note,,0,0,0,,{n_anim}{n_txt}"
@@ -314,6 +319,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             chunks = []  # style sans sous-titres (ex. Explainer 2D) : seulement les grandes étiquettes
         else:
             chunks = cls._chunk_words(words, max_words=1) if caption_mode == "one_word" else cls._chunk_words(words)
+        if look == "cine" and chunks:
+            # Vidéos de référence : UN mot à la fois, Montserrat Black 104 blanc contour 9 à y=1230 ;
+            # mots-clés en MAJUSCULES Luckiest Guy 118 (jaune idée, rouge perte, vert gain), petit « pop » d'entrée.
+            flat = [w for ch in cls._chunk_words(words, max_words=1) for w in ch]
+            for i, w in enumerate(flat):
+                st = float(w["start"])
+                en = float(flat[i + 1]["start"]) if i + 1 < len(flat) and float(flat[i + 1]["start"]) - float(w["end"]) < 0.5 else float(w["end"]) + 0.12
+                if en <= st + 0.05:
+                    en = st + 0.12
+                k_col = kw_color.get(norm_word(w["word"])) if kw_color else None
+                if k_col:
+                    txt = cls._escape_ass_text(w["word"].upper())
+                    events.append(f"Dialogue: 0,{cls._format_ass_time(st)},{cls._format_ass_time(en)},CineKey,,0,0,0,,"
+                                  rf"{{\an5\pos(540,1230)\1c{k_col}&\fscx80\fscy80\t(0,90,\fscx108\fscy108)\t(90,160,\fscx100\fscy100)}}{txt}")
+                else:
+                    txt = cls._escape_ass_text(w["word"])
+                    events.append(f"Dialogue: 0,{cls._format_ass_time(st)},{cls._format_ass_time(en)},Cine,,0,0,0,,"
+                                  rf"{{\an5\pos(540,1230)\fscx88\fscy88\t(0,80,\fscx100\fscy100)}}{txt}")
+            chunks = []
         for c_idx, chunk in enumerate(chunks):
             next_chunk_start = chunks[c_idx + 1][0]["start"] if c_idx + 1 < len(chunks) else None
 
@@ -491,6 +515,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             notes=(plan or {}).get("notes"),
             caption_mode=((plan or {}).get("captions") or {}).get("mode", "chunk"),
             note_color=((plan or {}).get("captions") or {}).get("note_color", ""),
+            look=((plan or {}).get("captions") or {}).get("look", ""),
         )
 
         ass_escaped = str(ass_path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
@@ -531,11 +556,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             proc_bg = cls._build_procedural_bg_filter(theme, duration)
             bg_chain = f"{proc_bg}[base]"
 
+        # Polices des sous-titres Ciné (téléchargées avec le moteur Ciné)
+        fontsdir_opt = ""
+        if ((plan or {}).get("captions") or {}).get("look") == "cine":
+            try:
+                from core.cine_setup import FONTS_DIR
+                if FONTS_DIR.exists():
+                    fd = str(FONTS_DIR).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+                    fontsdir_opt = f":fontsdir='{fd}'"
+            except Exception:
+                pass
         # Animated progress bar overlaid at the very top (clean 10px bar)
         bar_chain = (
             f"color=c={bar_color}:s=1080x10:d={duration:.2f}:r=30[bar];"
             f"[base][bar]overlay=x='-W+W*(t/{duration:.2f})':y=0:shortest=1,"
-            f"ass='{ass_escaped}',format=yuv420p[vout]"
+            f"ass='{ass_escaped}'{fontsdir_opt},format=yuv420p[vout]"
         )
 
         if audio_premixed:

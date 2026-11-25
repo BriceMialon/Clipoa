@@ -43,6 +43,7 @@ export function buildShots(ctx) {
 - Caméra : `c.camera({pos:[x,y,z], target:[x,y,z], fov:40}, {pos, target, fov}, 'inOut')` (travelling du 1er au 2e cadrage).
   `c.shadowFocus(x, z, taille)` centre les ombres sur l'action (toujours l'appeler). `c.shake(0.05)` tremblement.
   `c.wordTime('mot')` = instant (s, dans le plan) où le mot est dit, ou null. `c.talk(acteur)` = il bouge la bouche sur la voix.
+  `c.faceCam(acteur)` (APRÈS c.camera) tourne l'acteur face à la caméra ; `c.faceCam(acteur, 0.6)` = trois-quarts.
 - Acteurs : `W.makeVillager({name, skin, shirt, pants, shoes, hair, hairStyle:'flat'|'puffy'|'spiky'|'long'|'bald',
   suit, tie, chain, apron, coat, shawl, beard, mustache, glasses, hood})` → toujours via `ctx.own(...)`.
   Hauteur ≈ 5,4 ; visage vers y ≈ 4,6. Ils regardent vers +z quand rotY = 0.
@@ -68,6 +69,8 @@ export function buildShots(ctx) {
   Gros plan : viser le menton à 60 % de la hauteur, garder le haut de la tête dans le cadre. Travelling lent (3-8 %).
 - Jamais la caméra dans un objet (fontaine rayon 3,4, maisons x=±24). Deux personnages à plus de 2,5 unités l'un de l'autre.
   La nuit, pas de lampadaire allumé à moins de 3 unités d'un visage.
+- Gros plan ou plan taille sur un personnage : son VISAGE regarde la caméra (c.faceCam). Jamais l'arrière d'une tête en gros plan ;
+  un plan de dos seulement en plan large, quand il regarde quelque chose qu'on voit aussi.
 - L'émotion se voit sur les visages (setExpr) à chaque plan ; le moment fort a son éclairage (`frisson`, `night`) et son effet.
 - Les objets dont parle la phrase sont MONTRÉS (panneau, écran, objet construit) : c'est ce qui rend la vidéo vivante.
 - Ne montre jamais Docteur Shark ni ses requins (w.shark, w.petitShark, w.mamanShark) sauf si l'histoire le demande.

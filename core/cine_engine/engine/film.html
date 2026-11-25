@@ -119,6 +119,8 @@ const ctx = {
   THREE, W, S, world, scene, cam, lamps, ease, lerp, lerpV, timeline, preset, shadowFocus,
   camera(a, b = null, e = 'inOut') { camA = a; camB = b || a; camEase = ease[e]; },
   shake(v) { shake = v; },
+  // Clipoa : tourne l'acteur vers la caméra (à appeler APRÈS c.camera) ; k < 1 = trois-quarts
+  faceCam(a, k = 1) { if (!camA) return; const r = Math.atan2(camA.pos[0] - a.position.x, camA.pos[2] - a.position.z); a.rotation.y = a.rotation.y + (r - a.rotation.y) * k; },
   talk(a) { world.talk && world.talk(a); },
   // Clipoa : objets / personnages créés pour CETTE vidéo. Cachés et remis en place au début de chaque plan.
   own(o) { scene.add(o); OWN.push({ o, p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() }); o.visible = false; return o; },   // v3.4 : ce personnage bouge la bouche sur les mots prononces pendant le plan
@@ -190,6 +192,13 @@ function issuesNow() {
       const mid = new THREE.Vector3((hb.min.x + hb.max.x) / 2, (hb.min.y + hb.max.y) / 2, (hb.min.z + hb.max.z) / 2).project(cam);
       if (top.z < 1 && mid.z < 1 && Math.abs(mid.x) < 1 && mid.y < 0.9 && top.y > 1.04) out.push('tete coupee en haut : ' + a.name);
       if (mid.z < 1 && Math.abs(mid.x) < 1.0 && Math.abs(mid.y) < 1.0 && (mid.x > 0.92 || mid.x < -0.92)) out.push('visage colle au bord : ' + a.name);
+      // Clipoa : gros plan sur l'arrière de la tête (le personnage tourne le dos à la caméra alors que sa tête remplit le cadre)
+      if (mid.z < 1 && Math.abs(mid.x) < 0.9 && Math.abs(mid.y) < 0.9) {
+        const bot = new THREE.Vector3((hb.min.x + hb.max.x) / 2, hb.min.y, (hb.min.z + hb.max.z) / 2).project(cam);
+        const ry = a.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
+        const tx = camP.x - a.position.x, tz = camP.z - a.position.z, tl = Math.hypot(tx, tz) || 1;
+        if (Math.abs(top.y - bot.y) > 0.22 && (fx * tx + fz * tz) / tl < -0.35) out.push('arriere de la tete en gros plan : ' + a.name + ' (utiliser c.faceCam(acteur) ou placer la camera devant lui)');
+      }
     }
     // 3. personnages qui se traversent
     for (let j = i + 1; j < vis.length; j++) {
