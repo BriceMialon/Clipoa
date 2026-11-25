@@ -272,6 +272,8 @@ def _blender_script(code: str, timeline: Dict[str, Any], path: Path) -> None:
 
 def render_blender(ep_dir: Path, code: str, timeline: Dict[str, Any], out_mp4: str, progress=None) -> str:
     from core.blender_engine import BlenderEngine
+    from core.code_guard import ensure_safe_bpy_code
+    ensure_safe_bpy_code(code)  # le code de l'IA ne sort jamais de la scène 3D
     py = ep_dir / "scene.py"
     _blender_script(code, timeline, py)
     frames = max(12, int(round(timeline["duration"] * BLENDER_FPS)))
@@ -284,6 +286,11 @@ def render_blender(ep_dir: Path, code: str, timeline: Dict[str, Any], out_mp4: s
 def preview_blender(ep_dir: Path, code: str, timeline: Dict[str, Any], times: List[float]) -> Dict[str, Any]:
     """Quelques images fixes du script Blender (vérifie qu'il tourne et à quoi il ressemble)."""
     from config import BLENDER_PATH
+    from core.code_guard import check_bpy_code
+    unsafe = check_bpy_code(code)
+    if unsafe:
+        # refusé avant toute exécution ; l'IA reçoit la liste et corrige au tour suivant
+        return {"images": [], "problems": ["code refusé pour sécurité (interdit : fichiers, réseau, imports hors bpy/math) : " + " ; ".join(unsafe[:6])]}
     out = ep_dir / "preview"
     out.mkdir(parents=True, exist_ok=True)
     py = ep_dir / "preview_scene.py"
