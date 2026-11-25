@@ -1076,6 +1076,26 @@ def _launch_pipeline_job(job_id: str):
     def _run():
         try:
             cb = lambda pct, msg: _update_job(job_id, pct, msg)
+            if kind == "style_only":
+                from core.style_analyzer import create_style_from_reference
+                res = create_style_from_reference(
+                    params["url"], engine=params.get("engine") or "claude", model=params.get("engine_model") or None, progress=cb,
+                )
+                _finish_job(job_id, result=res)
+                return
+            if kind == "style_ref" and not params.get("plugin_id"):
+                # 1) l'agent regarde la vidéo d'exemple et crée le style ; 2) il fabrique la vidéo dans ce style
+                from core.style_analyzer import create_style_from_reference
+                made = create_style_from_reference(
+                    params["url"], engine=params.get("engine") or "claude", model=params.get("engine_model") or None,
+                    progress=lambda pct, msg: cb(int(pct * 0.4), msg),
+                )
+                with JOBS_LOCK:
+                    params["plugin_id"] = made["plugin"]["id"]
+                    params["style_analysis"] = {k: made.get(k) for k in ("renderer", "tool_guess", "confidence", "vision")}
+                    JOBS[job_id]["params"] = params
+                    _persist_jobs()
+                cb(40, f"✅ Style « {made['plugin']['name']} » créé (rendu {made['renderer']}). Fabrication de ta vidéo...")
             if kind == "clone":
                 res = ShortCrewPipeline.clone_competitor_short(
                     video_url=params["url"],
@@ -1710,7 +1730,7 @@ def api_job_resume(job_id):
             return jsonify({"error": "Tâche introuvable"}), 404
         if job.get("status") == "running":
             return jsonify({"error": "Cette tâche est déjà en cours d'exécution"}), 409
-        if job.get("kind") not in ("make", "clone"):
+        if job.get("kind") not in ("make", "clone", "style_ref", "style_only"):
             return jsonify({"error": "Cette tâche ne supporte pas la reprise automatique"}), 400
     _launch_pipeline_job(job_id)
     return jsonify({"resumed": job_id})
@@ -2012,6 +2032,80 @@ def api_make():
         "est_total_sec": est_total_sec,
     }
     job_id = _create_job("make", job_label, params=params)
+    _launch_pipeline_job(job_id)
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/make-like", methods=["POST"])
+def api_make_like():
+    """Ton script / ton idée + le lien d'une vidéo d'exemple : l'agent reproduit le STYLE de l'exemple."""
+    data = request.json or {}
+    url = (data.get("url") or "").strip()
+    topic = (data.get("topic") or "").strip()
+    custom_script = (data.get("custom_script") or "").strip() or None
+    if not url:
+        return jsonify({"error": "Colle le lien de la vidéo d'exemple (YouTube, Short, Reel, TikTok)."}), 400
+    if not topic and not custom_script:
+        return jsonify({"error": "Écris ton idée ou colle ton script."}), 400
+    try:
+        url = validate_public_http_url(url)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    template_shots = []
+    custom_title = (data.get("custom_title") or "").strip() or None
+    if custom_script and "## 3." in custom_script and "|" in custom_script:
+        template_shots = extract_shots_from_template(custom_script)
+        spoken = extract_spoken_script_from_template(custom_script)
+        if spoken:
+            custom_title = custom_title or extract_title_from_template(custom_script, fallback=topic or "Mon Short")
+            custom_script = spoken
+    engine = (data.get("engine") or "claude").strip().lower()
+    engine = engine if engine in ("claude", "antigravity") else "claude"
+    try:
+        target_duration_sec = max(15, min(180, int(data.get("target_duration_sec") or 60)))
+    except (TypeError, ValueError):
+        target_duration_sec = 60
+    params = {
+        "url": url,
+        "topic": topic or (custom_title or (custom_script or "")[:60]),
+        "custom_script": custom_script,
+        "custom_title": custom_title,
+        "plugin_id": None,
+        "target_duration_sec": target_duration_sec,
+        "voice": data.get("voice") or None,
+        "theme": DEFAULT_THEME,
+        "subtitle_style": DEFAULT_SUBTITLE_STYLE,
+        "use_blender_3d": True,
+        "retention_boost": True,
+        "enable_music": bool(data.get("enable_music", True)),
+        "enable_sfx": bool(data.get("enable_sfx", True)),
+        "template_shots": template_shots,
+        "engine": engine,
+        "engine_choice": engine,
+        "engine_model": (data.get("engine_model") or "").strip() or None,
+        "est_total_sec": estimate_job_seconds(engine, "blender3d", target_duration_sec) + 120,
+    }
+    label = (custom_title or topic or (custom_script or "")[:40])[:38]
+    job_id = _create_job("style_ref", f"🎞️ Même style que l'exemple : {label}", params=params)
+    _launch_pipeline_job(job_id)
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/plugins/from-reference", methods=["POST"])
+def api_plugin_from_reference():
+    """Crée seulement un style (plugin) à partir d'une vidéo d'exemple."""
+    data = request.json or {}
+    url = (data.get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "Colle le lien de la vidéo d'exemple."}), 400
+    try:
+        url = validate_public_http_url(url)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    engine = (data.get("engine") or "claude").strip().lower()
+    params = {"url": url, "engine": engine if engine in ("claude", "antigravity") else "claude",
+              "engine_choice": engine, "engine_model": (data.get("engine_model") or "").strip() or None}
+    job_id = _create_job("style_only", "🎨 Nouveau style depuis une vidéo", params=params)
     _launch_pipeline_job(job_id)
     return jsonify({"job_id": job_id})
 

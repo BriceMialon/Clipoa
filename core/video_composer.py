@@ -503,6 +503,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # Fond basse définition (rendu Blender 540x960 @ 12 fps) : agrandissement lanczos + netteté
             bg_w = cls._probe_width(background_video)
             sharpen = ",unsharp=5:5:0.8:5:5:0.0" if 0 < bg_w < 1000 else ""
+            # Styles clairs (Explainer, Fête en folie) : pas d'assombrissement ni de vignettage
+            clean = ((plan or {}).get("grade") == "clean")
+            grade = "" if clean else ",eq=brightness=-0.05:contrast=1.06:saturation=1.05,vignette=PI/5"
             if crop_mode == "blurred_bg":
                 bg_chain = (
                     "[0:v]split=2[vbg][vfg];"
@@ -515,12 +518,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                 bg_chain = (
                     "[0:v]scale=1160:2062:force_original_aspect_ratio=increase:flags=lanczos,"
                     "crop=1080:1920:x='(iw-1080)/2+16*sin(t*0.5)':y='(ih-1920)/2+12*cos(t*0.4)',"
-                    f"fps=30{sharpen},eq=brightness=-0.05:contrast=1.06:saturation=1.05,vignette=PI/5[base]"
+                    f"fps=30{sharpen}{grade}[base]"
                 )
             else:
                 bg_chain = (
                     "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,"
-                    f"fps=30{sharpen},eq=brightness=-0.06:contrast=1.05,vignette=PI/5[base]"
+                    f"fps=30{sharpen}{grade}[base]"
                 )
         else:
             inputs = ["-i", audio_path]

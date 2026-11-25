@@ -85,8 +85,21 @@ class QualityController:
                 capture_output=True, timeout=60,
             )
 
-        # Run Claude Controller Audit
-        audit_result = LeControleur.audit_script(script_data)
+        # Run Claude Controller Audit — jamais bloquant : une vidéo terminée n'est pas perdue si l'IA est
+        # indisponible (quota atteint, CLI déconnectée) ; on garde alors les contrôles techniques seuls.
+        try:
+            audit_result = LeControleur.audit_script(script_data)
+            if not isinstance(audit_result, dict):
+                audit_result = {}
+        except Exception as e:
+            alerts = technique.get("alertes") or []
+            audit_result = {
+                "score_global": "—",
+                "decision": "A_CORRIGER" if alerts else "VALIDE",
+                "points_forts": ["Contrôles techniques passés"] if not alerts else [],
+                "points_faibles": alerts,
+                "note": f"Audit IA non fait ({str(e)[:80]}) : seuls les contrôles techniques ont été appliqués.",
+            }
 
         frames = [str(f) for f in frames_dir.glob("*.jpg")]
         audit_result["frames_analyzed"] = len(frames)

@@ -51,6 +51,8 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
    - **Bibliothèque 3D** `assets/blender_kit/` : les 37 modèles GLB Docteur Shark (sans le village complet) utilisés par le style Roblox (personnages articulés automatiquement, autocollants de visage aplatis pour Workbench, couleurs en Standard + conversion sRGB→linéaire).
    - **Style de rendu par style** : `production.visual_style` (roblox_3d→roblox, 2d_monde_3d→paper2d, fete_en_folie→flat_vector, explainer_2d→explainer2d) ; un style qui en a un passe toujours par Blender.
    - **Nouveau style « Explainer 2D pastel »** (`explainer_2d`, analyse de la vidéo @rosoai) : vectoriel pastel de face, contours fins, pas de sous-titres (`caption_mode: none`), grandes étiquettes roses (`note_color`), plans 2-6 s, structure « explainer de marque ». Ajouté automatiquement aux installations existantes (sans réajouter un style livré que l'utilisateur a supprimé : `storage/plugins/removed_starters.json`) ; vignette `assets/style_covers/`.
+   - **« Même style que cette vidéo »** (`core/style_analyzer.py`) : champ « vidéo d'exemple » de la Fabrique (`/api/make-like`, tâche `style_ref`) et carte « Créer un style à partir d'une vidéo » dans Mes styles (`/api/plugins/from-reference`, tâche `style_only`). L'agent télécharge (yt-dlp, `--ffmpeg-location` pour X/YouTube/TikTok), mesure coupes / plans / débit, fait 2 planches + vignette, transcrit, puis l'IA rédige DA + règles + production et choisit le moteur Blender le plus proche (+ outil probable du créateur). Claude regarde les images via `ClaudeBridge.query_with_images` (dossier isolé, seul l'outil Read autorisé) ; Antigravity = analyse sans images.
+   - **Audit non bloquant** : si Claude est indisponible (quota), `QualityController` garde les contrôles techniques et la vidéo n'est pas perdue.
    - **Script IA original** : la DA n'est plus coupée à 3 000 caractères (12 000), consigne « les exemples de la DA sont du style, pas des sujets », et les titres des 12 dernières vidéos/jobs sont donnés à éviter (`_recent_video_titles`) ; plans de 2 à 4 s.
 5. **Interface épurée** :
    - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
@@ -75,13 +77,13 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
-| `tests/` | 76 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
+| `tests/` | 79 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
 ## 4. Tester et redémarrer
 
-### Lancer la suite complète de tests (76 tests)
+### Lancer la suite complète de tests (79 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v

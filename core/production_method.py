@@ -523,6 +523,7 @@ def build_plan(
             "keyword_colors": bool(ov.get("keyword_colors", True)),
         },
         "character_style": ov.get("character_style") or "r6",
+        "grade": "clean" if ov.get("visual_style") in ("explainer2d", "flat_vector") else "cinema",
         "stats": {
             "shots": len(segs),
             "avg_shot_s": round(sum(lens) / len(lens), 2),

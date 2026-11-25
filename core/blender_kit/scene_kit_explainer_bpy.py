@@ -183,6 +183,66 @@ def storefront(ox, sign):
     rect(ox - 1.2, 3.0, 2.6, 2.6, SKY, y=9.9)
 
 
+def flat_prop(kind, x, col=None, text=""):
+    """Objets dessinés à plat (vue de face), posés sur le sol du panneau, derrière les personnages."""
+    c = hex_rgba(col, None) if col else None
+    wood = (0.62, 0.42, 0.28, 1.0)
+    y = 4.0
+    if kind in ("sign", "price_sign", "stock_screen", "subscribe"):
+        rect(x, 2.6, 0.12, 2.2, wood, y=y + 0.2)
+        rect(x, 4.0, 2.4, 1.2, c or (WHITE if kind != "stock_screen" else NAVY), y=y)
+        if text:
+            label(text.upper(), x, 4.0, 0.32, NAVY if kind != "stock_screen" else (0.95, 0.4, 0.45, 1.0), y=y - 0.12)
+    elif kind in ("box", "coins"):
+        for k in range(2 if kind == "box" else 4):
+            if kind == "box":
+                rect(x + k * 0.9, 2.0, 0.8, 0.7, c or (0.82, 0.62, 0.38, 1.0), y=y)
+            else:
+                disc(x + k * 0.3, 1.8 + 0.12 * k, 0.22, SUN, y=y - 0.1 * k)
+    elif kind in ("table", "desk"):
+        rect(x, 2.4, 2.4, 0.15, c or wood, y=y)
+        rect(x - 1.0, 1.7, 0.12, 1.3, c or wood, y=y)
+        rect(x + 1.0, 1.7, 0.12, 1.3, c or wood, y=y)
+    elif kind == "shelf":
+        for row in (5.2, 6.4):
+            rect(x, row, 2.6, 0.12, wood, y=y + 2)
+            for k in range(3):
+                disc(x - 0.8 + k * 0.8, row + 0.3, 0.22, c or ACCENT, y=y + 1.9)
+    elif kind == "door":
+        rect(x, 2.6, 1.3, 2.6, c or (0.55, 0.38, 0.25, 1.0), y=y + 1)
+        disc(x + 0.4, 2.6, 0.07, SUN, y=y + 0.9)
+    elif kind == "fridge":
+        rect(x, 2.4, 1.1, 2.6, c or (0.93, 0.95, 0.97, 1.0), y=y)
+        rect(x + 0.35, 2.9, 0.06, 0.6, NAVY, y=y - 0.1)
+    elif kind in ("lamp",):
+        rect(x, 3.0, 0.08, 3.4, NAVY, y=y)
+        tri(x, 4.9, 0.9, 0.6, SUN, y=y)
+    elif kind in ("tree", "pine"):
+        rect(x, 2.4, 0.25, 1.8, (0.45, 0.33, 0.22, 1.0), y=y)
+        disc(x, 3.9, 0.95, c or (0.48, 0.66, 0.42, 1.0), y=y - 0.1)
+    elif kind in ("house", "townhall", "market", "castle"):
+        rect(x, 2.8, 2.2, 1.9, c or (0.97, 0.94, 0.88, 1.0), y=y + 3)
+        tri(x, 4.2, 2.6, 1.0, (0.78, 0.38, 0.3, 1.0), y=y + 3)
+    elif kind == "car":
+        rect(x, 1.9, 2.4, 0.8, c or ACCENT, y=y)
+        rect(x, 2.5, 1.4, 0.6, SKY, y=y + 0.05)
+        disc(x - 0.7, 1.45, 0.3, NAVY, y=y - 0.1)
+        disc(x + 0.7, 1.45, 0.3, NAVY, y=y - 0.1)
+    elif kind == "bench":
+        rect(x, 1.9, 2.2, 0.15, c or wood, y=y)
+        rect(x, 2.5, 2.2, 0.12, c or wood, y=y + 0.1)
+    elif kind == "bed":
+        rect(x, 1.8, 2.8, 0.7, c or (0.72, 0.8, 0.92, 1.0), y=y)
+        rect(x - 1.0, 2.3, 0.8, 0.35, WHITE, y=y - 0.1)
+    elif kind in ("tv", "monitor"):
+        rect(x, 3.2, 1.8, 1.1, NAVY, y=y)
+    elif kind == "moon":
+        disc(x + 2.5, 12.0, 0.8, (0.97, 0.95, 0.85, 1.0), y=19)
+    # autres objets : ignorés (le décor du panneau suffit)
+
+
+PROP_SLOTS = [-3.2, 3.2, -1.9, 2.0, -4.0, 4.0]
+
 for li, L in enumerate(SPEC.get("locations", [])):
     ox = li * PANEL_W
     LOC_X[L["id"]] = ox
@@ -193,6 +253,15 @@ for li, L in enumerate(SPEC.get("locations", [])):
         outdoor_panel(ox, t, L.get("sign_text"))
         if t in ("shop", "market") or L.get("sign_text"):
             storefront(ox + 0.5, L.get("sign_text") or "")
+    if t in INDOOR and L.get("sign_text"):
+        rect(ox + 1.0, 10.2, 4.0, 0.9, NAVY, y=18)
+        label(L["sign_text"].upper(), ox + 1.0, 10.2, 0.45, WHITE, y=17.8)
+    slot = 0
+    for P in (L.get("props") or [])[:6]:
+        if P.get("kind") in ("mountain", "star"):
+            continue
+        flat_prop(P.get("kind", "box"), ox + PROP_SLOTS[slot % len(PROP_SLOTS)], P.get("color"), P.get("text", ""))
+        slot += 1
 
 
 CHARS = {c["id"]: c for c in SPEC.get("characters", [])}

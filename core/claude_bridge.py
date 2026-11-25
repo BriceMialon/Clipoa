@@ -317,6 +317,79 @@ class ClaudeBridge:
         return cls._generate_fallback(prompt, system_prompt or "")
 
     @classmethod
+    def query_with_images(
+        cls,
+        prompt: str,
+        image_paths: list,
+        action: str = "vision",
+        model: Optional[str] = None,
+        timeout: int = 420,
+    ) -> str:
+        """
+        Fait regarder des images à Claude (CLI) : les images sont copiées dans un dossier isolé et SEUL
+        l'outil « Read » est autorisé (aucune commande, aucun MCP, aucun autre fichier).
+        """
+        import shutil
+        import uuid as _uuid
+        if not (USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH)):
+            raise RuntimeError("Claude CLI indisponible pour l'analyse d'images.")
+        c_cfg = load_settings().get("claude", {})
+        chosen_model = (model or c_cfg.get("model", "opus")).strip().lower()
+        if chosen_model not in ("opus", "sonnet", "haiku"):
+            chosen_model = c_cfg.get("model", "opus")
+        vis_dir = STORAGE_DIR / "_claude_vision" / _uuid.uuid4().hex[:10]
+        vis_dir.mkdir(parents=True, exist_ok=True)
+        names = []
+        try:
+            for i, src in enumerate(image_paths):
+                name = f"image_{i + 1}{os.path.splitext(str(src))[1] or '.jpg'}"
+                shutil.copyfile(str(src), str(vis_dir / name))
+                names.append(name)
+            full_prompt = (
+                f"Les images à regarder sont dans le dossier courant : {', '.join(names)}. "
+                "Ouvre-les TOUTES avec l'outil Read avant de répondre.\n\n" + prompt
+            )
+            cmd = [
+                CLAUDE_CLI_PATH, "-p", full_prompt,
+                "--output-format", "stream-json", "--verbose",
+                "--no-session-persistence",
+                "--tools", "Read",
+                "--allowedTools", "Read",
+                "--strict-mcp-config",
+                "--model", chosen_model,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(vis_dir))
+            combined = (result.stderr + "\n" + result.stdout)
+            if any(k in combined.lower() for k in QUOTA_KEYWORDS) and result.returncode != 0:
+                raise ClaudeQuotaExceededError(f"Quota Claude atteint : {combined[:180]}")
+            out_txt = ""
+            for line in result.stdout.splitlines():
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                if ev.get("type") == "rate_limit_event" and ev.get("rate_limit_info"):
+                    save_live_claude_quota(ev["rate_limit_info"])
+                elif ev.get("type") == "result" and "result" in ev:
+                    out_txt = str(ev.get("result") or "").strip()
+                    u = ev.get("usage") or {}
+                    record_claude_usage(
+                        len(full_prompt), len(out_txt), mode="claude_cli", action=action,
+                        cost_usd=float(ev.get("total_cost_usd") or 0.0),
+                        input_tokens=int(u.get("input_tokens") or 0), output_tokens=int(u.get("output_tokens") or 0),
+                        cache_tokens=int(u.get("cache_creation_input_tokens") or 0) + int(u.get("cache_read_input_tokens") or 0),
+                        canonical_model=chosen_model,
+                    )
+            if not out_txt:
+                raise RuntimeError(f"Claude n'a pas répondu à l'analyse d'images : {combined[-300:]}")
+            return out_txt
+        finally:
+            shutil.rmtree(str(vis_dir), ignore_errors=True)
+
+    @classmethod
     def stream_query(
         cls,
         prompt: str,

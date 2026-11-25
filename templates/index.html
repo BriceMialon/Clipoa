@@ -419,6 +419,12 @@
             <!-- Zone Idée ou Script perso -->
             <textarea id="main-topic" class="big-input" rows="3" oninput="updateFabScriptMeter()" placeholder="Décris ton idée de vidéo (ex : Dans ma ville, plus t'es riche plus ta maison est haute…)"></textarea>
 
+            <!-- Vidéo d'exemple : l'agent regarde la vidéo, en déduit le style et le reproduit avec TON histoire -->
+            <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
+              <input type="url" id="fab-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Optionnel : lien d'une vidéo dont tu veux le style (YouTube, Short, Reel, TikTok)" oninput="updateCreateCTA()">
+              <span style="font-size:11.5px; color:var(--muted);">Clipoa reproduit son style avec ton histoire.</span>
+            </div>
+
             <!-- Action Étape 1 : Générer le script avant la vidéo (en mode Idée) -->
             <div id="fab-gen-script-row" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:10px;">
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -718,6 +724,15 @@
               <p class="page-sub">Tes directions artistiques : personnages, décors et règles que Claude applique à chaque vidéo.</p>
             </div>
             <button type="button" class="btn btn-coral" onclick="openPluginEditor()">+ Nouveau style</button>
+          </div>
+
+          <div class="card" style="margin-bottom:14px; padding:14px 16px;">
+            <div style="font-weight:700; font-size:14px; color:var(--ink);">Créer un style à partir d'une vidéo</div>
+            <div style="font-size:12.5px; color:var(--muted); margin:4px 0 10px;">Colle le lien d'une vidéo que tu aimes : l'IA la regarde, décrit son style (rendu, couleurs, rythme, textes, son) et l'ajoute à tes styles.</div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input type="url" id="plugin-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Lien YouTube, Short, Reel, TikTok ou X">
+              <button type="button" class="btn btn-primary btn-sm" id="plugin-ref-btn" onclick="createStyleFromReference()">Analyser la vidéo</button>
+            </div>
           </div>
 
           <div class="filter-tabs-bar">
@@ -3244,6 +3259,17 @@
         let hasRunning = false;
         let runningJob = null;
         const nowSec = Date.now() / 1000;
+        // Un style vient d'être créé depuis une vidéo d'exemple : on recharge la liste des styles
+        const styleJobsDone = jobs.filter(j => (j.kind === 'style_only' || j.kind === 'style_ref') && j.status === 'done').map(j => j.id).join(',');
+        if (styleJobsDone && styleJobsDone !== (window.__lastStyleJobsDone || '')) {
+          window.__lastStyleJobsDone = styleJobsDone;
+          fetch('/api/plugins').then(r => r.json()).then(res => {
+            if (res && res.plugins) {
+              STYLE_PLUGINS = res.plugins;
+              try { renderPluginsGallery(); renderStylePlaquesStrip(); } catch (e) { /* vue pas encore affichée */ }
+            }
+          }).catch(() => {});
+        }
         stack.innerHTML = jobs.map(job => {
           if (job.status === 'running') { hasRunning = true; if (!runningJob) runningJob = job; }
           const cls = job.status === 'done' ? 'done' : (job.status === 'error' ? 'error' : '');
@@ -3714,6 +3740,26 @@
       }
     }
 
+    async function createStyleFromReference() {
+      const url = val('plugin-ref-url');
+      if (!url || !/^https?:\/\//.test(url)) return toast('Colle le lien complet de la vidéo (https://…).');
+      const engine = (typeof createEngine !== 'undefined' && createEngine === 'antigravity') ? 'antigravity' : 'claude';
+      if (engine === 'claude' && typeof checkClaudeQuotaGuard === 'function' && !checkClaudeQuotaGuard('clone')) return;
+      const btn = document.getElementById('plugin-ref-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Analyse lancée…'; }
+      try {
+        const res = await apiJson('/api/plugins/from-reference', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, engine, engine_model: engine === 'antigravity' ? (val('agy-model') || '') : '' })
+        });
+        if (res.error) return toast(res.error);
+        toast('L’IA regarde la vidéo et crée le style (1 à 3 min). Il apparaîtra dans tes styles.');
+        trackJob();
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Analyser la vidéo'; }
+      }
+    }
+
     async function deletePluginById(pluginId) {
       const pl = STYLE_PLUGINS.find(p => p.id === pluginId);
       if (!confirm(`Supprimer le plugin « ${pl ? pl.name : pluginId} » ainsi que ses planches et son script ?`)) return;
@@ -3881,14 +3927,19 @@
       let reqEngine = createEngine === 'antigravity' ? 'antigravity' : 'claude';
       let reqModel = reqEngine === 'antigravity' ? (val('agy-model') || 'gemini-4-neon-medium') : '';
 
-      if (refUrl && !isCustomScript && (refUrl.startsWith('http://') || refUrl.startsWith('https://'))) {
+      if (refUrl && (refUrl.startsWith('http://') || refUrl.startsWith('https://'))) {
+        // Vidéo d'exemple : l'agent regarde la vidéo, crée le style correspondant et fabrique TA vidéo dans ce style
         if (reqEngine === 'claude' && !checkClaudeQuotaGuard('clone')) return;
-        const cloneRes = await apiJson('/api/clone', {
+        const likeRes = await apiJson('/api/make-like', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: refUrl, topic, voice, theme, subtitle_style: sub })
+          body: JSON.stringify({
+            url: refUrl, topic, custom_script: custom_script || '', custom_title: customTitle || '',
+            engine: reqEngine, engine_model: reqModel, voice, target_duration_sec: targetDurationSec,
+            enable_music, enable_sfx
+          })
         });
-        if (cloneRes.error) return toast(cloneRes.error);
-        toast('Exemple analysé — fabrication de ta version lancée !');
+        if (likeRes.error) return toast(likeRes.error);
+        toast('Clipoa regarde la vidéo d’exemple, crée son style puis fabrique ta vidéo…');
         trackJob();
         return;
       }

@@ -49,6 +49,9 @@ class CompetitorScraper:
     @staticmethod
     def _base_yt_dlp_cmd(cookies_from_browser: Optional[str] = None) -> List[str]:
         cmd = [YT_DLP_PATH, "--ignore-errors", "--no-warnings"]
+        # yt-dlp doit trouver le ffmpeg de Clipoa pour assembler image + son (X, YouTube, TikTok en flux séparés)
+        if FFMPEG_PATH and os.path.exists(str(FFMPEG_PATH)):
+            cmd.extend(["--ffmpeg-location", str(FFMPEG_PATH)])
         browser = validate_cookie_browser(cookies_from_browser or YT_DLP_COOKIES_BROWSER)
         if browser:
             cmd.extend(["--cookies-from-browser", browser])

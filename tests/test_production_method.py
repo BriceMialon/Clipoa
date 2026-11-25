@@ -380,3 +380,53 @@ class TestSceneDesignerAndKit(unittest.TestCase):
             self.assertNotIn("BONJOUR", content)
             self.assertIn("PRÈS DE 80 %", content)
             self.assertIn("&H6E40D9&", content)
+
+
+class TestStyleFromReference(unittest.TestCase):
+    def test_measure_and_sheets(self):
+        from config import FFMPEG_PATH
+        from core.style_analyzer import measure_video, make_sheets, _parse
+        with tempfile.TemporaryDirectory() as td:
+            mp4 = os.path.join(td, "v.mp4")
+            subprocess.run([FFMPEG_PATH, "-y", "-f", "lavfi", "-i", "color=c=red:s=180x320:d=2", "-f", "lavfi", "-i", "color=c=blue:s=180x320:d=2",
+                            "-filter_complex", "[0:v][1:v]concat=n=2:v=1[v]", "-map", "[v]", "-r", "12", mp4], check=True, capture_output=True)
+            st = measure_video(mp4)
+            self.assertAlmostEqual(st["duration_s"], 4.0, delta=0.3)
+            self.assertEqual(st["shots"], 2)
+            sheets = make_sheets(mp4, Path(td) / "a", st["duration_s"])
+            self.assertEqual(len(sheets), 2)
+            self.assertTrue((Path(td) / "a" / "cover.jpg").exists())
+        self.assertEqual(_parse('bla ```json\n{"name": "X"}\n``` fin'), {"name": "X"})
+
+    def test_create_style_from_reference_registers_blender_style(self):
+        from unittest.mock import patch
+        from core import style_analyzer
+        from core.style_plugins import StylePluginStore
+        fake = {"analysis": {"name": "Pastel Test Unique", "icon": "🌷", "tagline": "t", "renderer": "explainer2d",
+                             "tool_guess": "After Effects", "da_prompt": "# DA\nvectoriel", "narrative_rules": "1. accroche",
+                             "production": {"caption_mode": "none", "shot_max_s": 5, "note_color": "#D9406E"}},
+                "stats": {"duration_s": 40, "shots": 8, "avg_shot_s": 5.0}, "sheets": [], "cover": "", "meta": {"uploader": "x"},
+                "vision": True, "words_per_s": 2.6, "source_url": "https://example.com/v"}
+        pid = None
+        try:
+            with patch.object(style_analyzer, "analyze_reference", return_value=fake):
+                made = style_analyzer.create_style_from_reference("https://example.com/v")
+            pid = made["plugin"]["id"]
+            pl = StylePluginStore.get_plugin(pid, include_script_body=False)
+            self.assertEqual(pl["render_mode"], "blender3d")
+            self.assertEqual(pl["production"]["visual_style"], "explainer2d")
+            self.assertEqual(pl["production"]["caption_mode"], "none")
+            self.assertIn("After Effects", pl["da_prompt"])
+        finally:
+            if pid:
+                StylePluginStore.delete_plugin(pid)
+
+    def test_make_like_validation(self):
+        import app as clipoa_app
+        c = clipoa_app.app.test_client()
+        self.assertEqual(c.post("/api/make-like", json={"topic": "x"}).status_code, 400)
+        self.assertEqual(c.post("/api/make-like", json={"url": "https://youtube.com/shorts/abc"}).status_code, 400)
+        self.assertEqual(c.post("/api/plugins/from-reference", json={}).status_code, 400)
+        html = c.get("/").get_data(as_text=True)
+        self.assertIn('id="fab-ref-url"', html)
+        self.assertIn("createStyleFromReference", html)

@@ -939,6 +939,30 @@ class StylePluginStore:
             return _compute_plugin_view(target, include_script_body=True)
 
     @classmethod
+    def attach_local_sheet(cls, plugin_id: str, src_path: str, role: str = "reference") -> Dict[str, Any]:
+        """Ajoute une image locale (ex. vignette tirée d'une vidéo d'exemple) comme planche du style."""
+        if not is_valid_plugin_id(plugin_id):
+            raise ValueError("Style introuvable.")
+        src = Path(src_path)
+        if not src.exists() or src.suffix.lower() not in IMAGE_SHEET_EXTS or src.stat().st_size > MAX_SHEET_BYTES:
+            raise ValueError("Image invalide.")
+        fname = f"cover_{uuid.uuid4().hex[:6]}{src.suffix.lower()}"
+        dest_dir = PLUGINS_DIR / plugin_id / "sheets"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dest_dir / fname)
+        with _LOCK:
+            items = cls._load_raw_unlocked()
+            for it in items:
+                if it.get("id") == plugin_id:
+                    it.setdefault("model_sheets", []).insert(0, {
+                        "filename": fname, "original_name": "vidéo d'exemple", "role": role,
+                        "uploaded_at": time.strftime("%Y-%m-%d %H:%M"),
+                    })
+                    it["updated_at"] = time.strftime("%Y-%m-%d %H:%M")
+            cls._save_raw_unlocked(items)
+        return {"filename": fname}
+
+    @classmethod
     def delete_model_sheet(cls, plugin_id: str, filename: str) -> Dict[str, Any]:
         if not is_valid_plugin_id(plugin_id) or not _SAFE_FILENAME_RE.match(filename or ""):
             raise ValueError("Identifiant invalide.")
