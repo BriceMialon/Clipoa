@@ -291,6 +291,88 @@ class AntigravityBridge:
         cls._record_usage(chosen_model, len(full_prompt), len(out_txt))
         return out_txt
 
+    @classmethod
+    def stream_query(
+        cls,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: int = 300,
+    ):
+        """
+        Exécute `agy -p ... --output-format stream-json` et yield les morceaux de texte (`text_delta`)
+        en temps réel au fur et à mesure de la génération.
+        """
+        cli_path = cls.find_cli()
+        if not cli_path:
+            raise RuntimeError("Antigravity CLI (agy) introuvable sur ce Mac.")
+
+        full_prompt = f"{system_prompt.strip()}\n\n{prompt.strip()}" if system_prompt else prompt.strip()
+        chosen_model = (model or load_settings().get("antigravity", {}).get("model") or "gemini-4-neon-medium").strip()
+
+        cmd = [
+            cli_path,
+            "-p",
+            full_prompt,
+            "--output-format",
+            "stream-json",
+            "--disable-slash-commands",
+        ]
+        if chosen_model:
+            cmd.extend(["--model", chosen_model])
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        full_chunks: List[str] = []
+        started = time.time()
+        try:
+            assert proc.stdout is not None
+            for raw_line in proc.stdout:
+                if time.time() - started > timeout:
+                    proc.kill()
+                    raise RuntimeError("Délai dépassé pendant la génération du script.")
+                line = raw_line.strip()
+                if not line or not line.startswith("{"):
+                    continue
+                try:
+                    ev = json.loads(line)
+                except Exception:
+                    continue
+                ev_type = ev.get("event")
+                if ev_type == "step_update":
+                    su = ev.get("step_update") or {}
+                    if su.get("step_type") == "agent_response":
+                        delta = su.get("text_delta") or ""
+                        if delta:
+                            full_chunks.append(delta)
+                            yield delta
+                elif ev_type == "result":
+                    res_obj = ev.get("result") or {}
+                    if not full_chunks and res_obj.get("response"):
+                        resp_txt = str(res_obj["response"])
+                        full_chunks.append(resp_txt)
+                        yield resp_txt
+            proc.wait(timeout=15)
+            if proc.returncode != 0 and not full_chunks:
+                err_txt = (proc.stderr.read() if proc.stderr else "")[:220]
+                if "please sign in" in err_txt.lower() or "not logged in" in err_txt.lower():
+                    cls._cached_connected = False
+                    raise RuntimeError("Antigravity CLI n'est pas connecté.")
+                raise RuntimeError(f"Erreur Antigravity CLI : {err_txt or 'code ' + str(proc.returncode)}")
+            cls._cached_connected = True
+            cls._record_usage(chosen_model, len(full_prompt), sum(len(c) for c in full_chunks))
+        finally:
+            if proc.poll() is None:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
     @staticmethod
     def extract_python_code(raw: str) -> str:
         txt = (raw or "").strip()

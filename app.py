@@ -2101,7 +2101,7 @@ def api_fabrique_generate_script():
         use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
         if use_agy:
             chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
-            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=180)
+            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300)
             engine_label = chosen_model
         else:
             raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
@@ -2123,6 +2123,89 @@ def api_fabrique_generate_script():
         return jsonify({"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"}), 429
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/fabrique/generate-script/stream", methods=["POST"])
+def api_fabrique_generate_script_stream():
+    """
+    Streaming SSE en temps réel de la génération du script (Étape 1) :
+    envoie chaque morceau de texte (`delta`) + pourcentage d'avancement (`pct`) + étape (`stage`).
+    """
+    data = request.json or {}
+    topic = (data.get("topic") or "").strip()
+    if not topic:
+        return jsonify({"error": "Décris ton idée avant de générer le script."}), 400
+    plugin_id = (data.get("plugin_id") or "").strip() or None
+    engine = (data.get("engine") or "claude").strip().lower()
+    model = (data.get("model") or "").strip() or None
+    try:
+        target_dur = max(15, min(180, int(data.get("target_duration_sec") or 60)))
+    except (TypeError, ValueError):
+        target_dur = 60
+
+    da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
+    sys_prompt, user_prompt = build_script_generation_prompt(topic=topic, target_duration_sec=target_dur, da_context=da_ctx)
+
+    def _sse(ev_name: str, payload: dict) -> str:
+        return f"event: {ev_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+    def _compute_progress(acc_text: str) -> tuple:
+        if "## 5." in acc_text:
+            return 88, "5/5 · Effets sonores (SFX)"
+        if "## 4." in acc_text:
+            return 74, "4/5 · Musiques à créer"
+        if "## 3." in acc_text:
+            return min(70, 38 + len(acc_text) // 180), "3/5 · Écriture du script plan par plan"
+        if "## 2." in acc_text:
+            return 26, "2/5 · Fiches personnages"
+        if "## 1." in acc_text:
+            return 14, "1/5 · Fiche projet"
+        return 8, "Initialisation de l'IA…"
+
+    def _generate():
+        yield _sse("progress", {"pct": 6, "stage": "Connexion au modèle IA…"})
+        try:
+            agy_connected = bool(AntigravityBridge.check_status().get("connected"))
+            use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
+            acc = []
+            if use_agy:
+                chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+                engine_label = chosen_model
+                for delta in AntigravityBridge.stream_query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300):
+                    acc.append(delta)
+                    full_so_far = "".join(acc)
+                    pct, stage = _compute_progress(full_so_far)
+                    yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
+            else:
+                engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+                yield _sse("progress", {"pct": 22, "stage": f"{engine_label} rédige le script…"})
+                raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
+                acc.append(raw or "")
+                yield _sse("chunk", {"delta": raw or "", "pct": 94, "stage": "Finalisation du template…"})
+
+            template_md = "".join(acc).strip()
+            title = extract_title_from_template(template_md, fallback=topic[:60])
+            spoken = extract_spoken_script_from_template(template_md)
+            yield _sse("done", {
+                "ok": True,
+                "pct": 100,
+                "stage": "✓ Script prêt",
+                "title": title,
+                "script": template_md,
+                "template_script": template_md,
+                "spoken_script": spoken,
+                "engine_label": engine_label,
+            })
+        except ClaudeQuotaExceededError as qe:
+            yield _sse("error", {"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"})
+        except Exception as e:
+            yield _sse("error", {"error": str(e)})
+
+    return Response(
+        _generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/fabrique/refine-script", methods=["POST"])

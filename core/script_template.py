@@ -112,9 +112,10 @@ def build_script_generation_prompt(
     da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:3500]}\n" if da_context else ""
     user_prompt = (
         f"Idée de l'utilisateur :\n{topic.strip()}\n\n"
-        f"Durée totale visée : {mmss} ({dur['duration_sec']} secondes, environ {dur['min_words']} à {dur['max_words']} mots parlés au total, plans de 2 à 8 s).\n"
+        f"Durée totale visée : {mmss} ({dur['duration_sec']} secondes, environ {dur['min_words']} à {dur['max_words']} mots parlés au total, plans de 3 à 7 s).\n"
         f"{da_block}\n"
-        "Génère maintenant le script complet en suivant exactement les 5 sections du template."
+        "Génère maintenant le script complet en suivant exactement les 5 sections du template "
+        "(sois précis et concis : 1 à 2 fiches MUS-xx et 3 à 5 fiches SFX-xx clés suffisent, sans blabla autour)."
     )
     return system_prompt, user_prompt
 

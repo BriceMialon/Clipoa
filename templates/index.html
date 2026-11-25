@@ -116,10 +116,11 @@
           <button type="button" data-theme="dark" onclick="applyTheme('dark')"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Sombre</button>
         </div>
         <div class="sidebar-quota-card" onclick="showView('reglages')" title="Gérer tes moteurs IA & quotas">
+          {% if claude_status.connected %}
           <!-- Claude Opus 5.5 -->
           <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
             <span style="display:flex; align-items:center; gap:6px;">
-              <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="side-claude-dot"></span>
+              <span class="dot ok" id="side-claude-dot"></span>
               <span>Claude Opus 5.5</span>
             </span>
             <span id="side-claude-pct" style="color:var(--muted);">{{ claude_status.quota.remaining_pct }}%</span>
@@ -127,24 +128,30 @@
           <div class="progress-track" style="margin-top:5px; height:4px;">
             <div class="progress-fill" id="side-claude-bar" style="width:{{ claude_status.quota.remaining_pct }}%; animation:none;"></div>
           </div>
+          {% endif %}
 
+          {% if agy_status.connected %}
           <!-- Antigravity Neon -->
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); margin-top:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); {{ 'margin-top:10px;' if claude_status.connected else '' }}">
             <span style="display:flex; align-items:center; gap:6px;">
-              <span class="dot {{ 'ok' if agy_status.connected else 'warn' }}" id="side-agy-dot"></span>
+              <span class="dot ok" id="side-agy-dot"></span>
               <span>Antigravity Neon</span>
             </span>
             <span id="side-agy-pct" style="color:var(--muted);">
-              {% if agy_status.connected %}
               {{ agy_status.quota.remaining_pct }}% · {{ (agy_status.quota.tokens_left_5h // 1000) }}k tok
-              {% else %}
-              Off
-              {% endif %}
             </span>
           </div>
           <div class="progress-track" style="margin-top:5px; height:4px;">
-            <div class="progress-fill" id="side-agy-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; animation:none;"></div>
+            <div class="progress-fill" id="side-agy-bar" style="width:{{ agy_status.quota.remaining_pct }}%; animation:none;"></div>
           </div>
+          {% endif %}
+
+          {% if not claude_status.connected and not agy_status.connected %}
+          <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--accent);">
+            <span class="dot warn"></span>
+            <span>Connecter une IA →</span>
+          </div>
+          {% endif %}
         </div>
       </div>
     </aside>
@@ -305,6 +312,17 @@
             </div>
           </div>
 
+          {% if not claude_status.connected and not agy_status.connected %}
+          <!-- Écran simplifié tant qu'aucune IA n'est connectée -->
+          <div class="composer lg-sheen" style="text-align:center; padding:42px 24px;">
+            <div style="font-size:32px; margin-bottom:10px;">🔌</div>
+            <h2 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--ink);">Connecte une IA pour commencer</h2>
+            <p style="font-size:13.5px; color:var(--muted); max-width:420px; margin:8px auto 18px; line-height:1.5;">
+              Branche Claude ou Antigravity dans Connexions pour débloquer la génération de scripts et de vidéos.
+            </p>
+            <button type="button" class="btn btn-coral" onclick="showView('reglages')">Ouvrir Connexions →</button>
+          </div>
+          {% else %}
           <!-- Grand Composer Liquid Glass (2 étapes simples : 1. Script · 2. Rendu & IA) -->
           <div class="composer lg-sheen">
 
@@ -339,8 +357,12 @@
             <div id="fab-gen-script-row" style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-top:10px;">
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 <select id="fab-script-model" class="input-sm" style="min-width:210px;" title="Modèle pour écrire le script">
+                  {% if claude_status.connected %}
                   <option value="claude:claude-opus-5-5-medium">Claude Opus 5.5 (Medium)</option>
-                  <option value="antigravity:gemini-4-neon-medium">Antigravity · Gemini 4 Neon (Medium)</option>
+                  {% endif %}
+                  {% if agy_status.connected %}
+                  <option value="antigravity:gemini-4-neon-medium" {{ 'selected' if not claude_status.connected else '' }}>Antigravity · Gemini 4 Neon (Medium)</option>
+                  {% endif %}
                 </select>
                 <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">
                   ✍️ Générer le script
@@ -349,8 +371,17 @@
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
             </div>
 
-            <!-- Aperçu & édition du script généré (valider, modifier à la main ou demander à l'IA de remodifier) -->
+            <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + valider / modifier) -->
             <div id="fab-script-review-box" style="display:none; margin-top:12px; padding:14px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
+              <div id="fab-gen-progress-wrap" style="display:none; margin-bottom:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
+                  <span id="fab-gen-progress-stage">Connexion à l'IA…</span>
+                  <span id="fab-gen-progress-pct" style="color:var(--accent);">5%</span>
+                </div>
+                <div class="progress-track" style="margin-top:5px; height:5px;">
+                  <div class="progress-fill" id="fab-gen-progress-bar" style="width:5%; transition:width .25s ease;"></div>
+                </div>
+              </div>
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                   <span style="font-size:12.5px; font-weight:700; color:var(--ink);">📝 Script généré (Template complet)</span>
@@ -487,6 +518,7 @@
                 <span id="engine-active-hint" style="text-transform:none; letter-spacing:0; font-weight:600; color:var(--ink);"></span>
               </div>
               <div class="pick-grid">
+                {% if claude_status.connected %}
                 <button type="button" class="pick-card actif" id="eng-card-claude" onclick="selectEngine('claude')">
                   <div class="pick-top">
                     <span class="pick-title">Claude Opus 5.5 (Medium)</span>
@@ -494,27 +526,29 @@
                   </div>
                   <div class="pick-sub">Qualité éditoriale & scènes 3D</div>
                 </button>
+                {% endif %}
 
-                <button type="button" class="pick-card" id="eng-card-antigravity" onclick="selectEngine('antigravity')">
+                {% if agy_status.connected %}
+                <button type="button" class="pick-card {{ 'actif' if not claude_status.connected else '' }}" id="eng-card-antigravity" onclick="selectEngine('antigravity')">
                   <div class="pick-top">
                     <span class="pick-title">Antigravity · Neon (Medium)</span>
-                    <span class="pick-badge">{{ 'Connecté' if agy_status.connected else 'À connecter' }}</span>
+                    <span class="pick-badge">Connecté</span>
                   </div>
                   <div class="pick-sub">Gemini 4 Neon · rapide & créatif</div>
                 </button>
+                {% endif %}
               </div>
 
-              <div id="agy-model-row" style="display:none; margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap;">
+              {% if agy_status.connected %}
+              <div id="agy-model-row" style="display:{{ 'flex' if not claude_status.connected else 'none' }}; margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap;">
                 <select id="agy-model" class="input-sm" style="flex:1; min-width:200px;" onchange="saveAntigravityModel(this.value); updateCreateCTA()">
                   {% for am in agy_status.models %}
                     <option value="{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
                   {% endfor %}
                 </select>
-                {% if not agy_status.connected %}
-                <button type="button" class="btn btn-coral btn-sm" onclick="startAntigravityLogin()">Connecter Antigravity</button>
-                {% endif %}
                 <button type="button" class="btn btn-ghost btn-sm" onclick="refreshAntigravityStatus(true)">↻</button>
               </div>
+              {% endif %}
             </div>
 
             <!-- Voix compacte -->
@@ -566,6 +600,7 @@
               </button>
             </div>
           </div>
+          {% endif %}
         </section>
 
         <!-- ================================================================
@@ -1414,14 +1449,21 @@
       </button>
 
       <select id="ai-tb-model" class="ai-tb-model" title="Choisir le modèle IA qui répond" onchange="saveAiTaskbarModel()">
-        <optgroup label="Antigravity {{ '✓' if agy_status.connected else '(non connecté)' }}" id="ai-tb-agy-group">
+        {% if agy_status.connected %}
+        <optgroup label="Antigravity ✓" id="ai-tb-agy-group">
           {% for am in agy_status.models %}
-          <option value="antigravity:{{ am.id }}" {{ 'selected' if agy_status.connected and (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
+          <option value="antigravity:{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
           {% endfor %}
         </optgroup>
-        <optgroup label="Claude {{ '✓' if claude_status.connected else '(non connecté)' }}">
-          <option value="claude:opus" {{ 'selected' if (not agy_status.connected) and claude_status.connected else '' }}>Claude Opus 5.5 (Medium)</option>
+        {% endif %}
+        {% if claude_status.connected %}
+        <optgroup label="Claude ✓">
+          <option value="claude:opus" {{ 'selected' if (not agy_status.connected) else '' }}>Claude Opus 5.5 (Medium)</option>
         </optgroup>
+        {% endif %}
+        {% if not claude_status.connected and not agy_status.connected %}
+        <option value="auto:">Connecter une IA</option>
+        {% endif %}
       </select>
 
       <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Besoin d’aide sur Clipoa ? Pose ta question…' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide IA…' }}" onfocus="if (aiHelpHistory.length) toggleAiTaskbarDrawer(true)" autocomplete="off">
@@ -2339,18 +2381,50 @@
       }
     }
 
+    function setFabGenProgress(pct, stage) {
+      const wrap = document.getElementById('fab-gen-progress-wrap');
+      const bar = document.getElementById('fab-gen-progress-bar');
+      const pEl = document.getElementById('fab-gen-progress-pct');
+      const sEl = document.getElementById('fab-gen-progress-stage');
+      if (wrap) wrap.style.display = 'block';
+      const clamped = Math.max(0, Math.min(100, Math.round(pct || 0)));
+      if (bar) bar.style.width = clamped + '%';
+      if (pEl) pEl.textContent = clamped + '%';
+      if (sEl && stage) sEl.textContent = stage;
+    }
+
     async function generateFabriqueScript() {
       const topic = val('main-topic');
       if (!topic) return toast('Décris ton idée avant de générer le script.');
-      const rawChoice = (val('fab-script-model') || 'claude:claude-opus-5-5-medium').split(':');
+      const rawChoice = (val('fab-script-model') || (AI_CONNECTED_PROVIDERS.claude ? 'claude:claude-opus-5-5-medium' : 'antigravity:gemini-4-neon-medium')).split(':');
       const eng = rawChoice[0] || 'claude';
       const mdl = rawChoice[1] === 'cli' ? '' : (rawChoice[1] || '');
       const btn = document.getElementById('fab-gen-script-btn');
       const st = document.getElementById('fab-gen-script-status');
+      const box = document.getElementById('fab-script-review-box');
+      const ta = document.getElementById('fab-review-text');
+      const ti = document.getElementById('fab-review-title');
+      const badge = document.getElementById('fab-review-validated-badge');
+      const progWrap = document.getElementById('fab-gen-progress-wrap');
+
       if (btn) { btn.disabled = true; btn.textContent = 'Génération…'; }
-      if (st) st.textContent = 'Rédaction du script en cours…';
+      if (st) st.textContent = '';
+      if (badge) badge.style.display = 'none';
+      if (box) box.style.display = 'block';
+      if (ta) ta.value = '';
+      if (ti) ti.value = topic.slice(0, 60);
+      setFabGenProgress(5, 'Connexion au modèle IA…');
+
+      let fakePct = 5;
+      const pulseTimer = setInterval(() => {
+        if (fakePct < 24) {
+          fakePct += 2;
+          setFabGenProgress(fakePct);
+        }
+      }, 900);
+
       try {
-        const res = await apiJson('/api/fabrique/generate-script', {
+        const resp = await fetch('/api/fabrique/generate-script/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2361,21 +2435,71 @@
             model: mdl,
           }),
         });
-        if (res.error) {
-          if (st) st.textContent = '';
-          return toast(res.error);
+        if (!resp.ok || !resp.body) {
+          const errData = await resp.json().catch(() => ({}));
+          throw new Error(errData.error || `Erreur serveur (${resp.status})`);
         }
-        const box = document.getElementById('fab-script-review-box');
-        if (box) box.style.display = 'block';
-        const ti = document.getElementById('fab-review-title');
-        if (ti) ti.value = res.title || topic.slice(0, 60);
-        const ta = document.getElementById('fab-review-text');
-        if (ta) ta.value = res.script || '';
-        updateFabReviewMeta();
-        if (st) st.textContent = `✓ Généré (${res.engine_label || eng})`;
-        updateCreateCTA();
-        toast('Script généré ! Relis-le ou modifie-le puis lance la vidéo.');
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let gotDone = false;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() || '';
+          for (const frame of frames) {
+            let evName = 'message';
+            let dataLine = '';
+            for (const ln of frame.split('\n')) {
+              if (ln.startsWith('event:')) evName = ln.slice(6).trim();
+              else if (ln.startsWith('data:')) dataLine += ln.slice(5).trim();
+            }
+            if (!dataLine) continue;
+            let payload = {};
+            try { payload = JSON.parse(dataLine); } catch { continue; }
+
+            if (evName === 'progress') {
+              fakePct = Math.max(fakePct, payload.pct || 0);
+              setFabGenProgress(fakePct, payload.stage);
+            } else if (evName === 'chunk') {
+              clearInterval(pulseTimer);
+              if (ta && payload.delta) {
+                ta.value += payload.delta;
+                ta.scrollTop = ta.scrollHeight;
+              }
+              setFabGenProgress(payload.pct || 50, payload.stage || 'Rédaction en cours…');
+              updateFabReviewMeta();
+            } else if (evName === 'done') {
+              gotDone = true;
+              clearInterval(pulseTimer);
+              if (ti && payload.title) ti.value = payload.title;
+              if (ta && payload.template_script) ta.value = payload.template_script;
+              setFabGenProgress(100, '✓ Script prêt');
+              updateFabReviewMeta();
+              if (st) st.textContent = `✓ Généré (${payload.engine_label || eng})`;
+              updateCreateCTA();
+              toast('Script généré ! Tu peux le valider, le modifier à la main ou avec l’IA.');
+              setTimeout(() => { if (progWrap) progWrap.style.display = 'none'; }, 1800);
+            } else if (evName === 'error') {
+              throw new Error(payload.error || 'Erreur pendant la génération du script.');
+            }
+          }
+        }
+        if (!gotDone && ta && ta.value.trim()) {
+          setFabGenProgress(100, '✓ Script prêt');
+          updateFabReviewMeta();
+          updateCreateCTA();
+        }
+      } catch (e) {
+        if (progWrap) progWrap.style.display = 'none';
+        if (st) st.textContent = '';
+        toast(e.message || 'Erreur pendant la génération du script.');
       } finally {
+        clearInterval(pulseTimer);
         if (btn) { btn.disabled = false; btn.textContent = '✍️ Générer le script'; }
       }
     }
@@ -4802,6 +4926,9 @@
     }
 
     window.addEventListener('load', () => {
+      if (!AI_CONNECTED_PROVIDERS.claude && AI_CONNECTED_PROVIDERS.antigravity) {
+        selectEngine('antigravity');
+      }
       initAiTaskbarModel();
       renderPluginsGallery();
       renderActivePluginBar();
