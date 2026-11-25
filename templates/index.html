@@ -508,6 +508,14 @@
               <span style="font-size:11.5px; font-weight:500; color:var(--muted);" id="active-style-hint">Auto</span>
             </div>
 
+            <div id="cine-warning" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:rgba(255,190,60,0.12); border:1px solid rgba(255,190,60,0.45); font-size:12.5px; line-height:1.45; color:var(--ink);">
+              <b>🎬 Mode Ciné haute qualité</b> : l'IA écrit chaque plan en 3D, Clipoa vérifie puis calcule la vidéo en 1080p 30 i/s.
+              <b>Compte 20 à 60 min de rendu</b> et environ <b>4× plus de tokens</b> qu'un style classique. Tu peux continuer à utiliser Clipoa pendant ce temps.
+              <div id="cine-install-row" style="display:none; margin-top:7px; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span id="cine-install-text" style="color:var(--muted);">Première fois : installe le moteur Ciné (≈ 200 Mo, une seule fois).</span>
+                <button type="button" class="btn btn-primary btn-xs" id="cine-install-btn" onclick="installCineEngine()">Installer le moteur Ciné</button>
+              </div>
+            </div>
             <div class="style-plaques-strip" id="style-plaques-strip">
               <button type="button" class="style-plaque actif" data-splaque="auto" onclick="selectStylePlaque('auto', this)">
                 <div class="sp-art sp-auto">
@@ -2769,6 +2777,34 @@
       }
     }
 
+    let cinePoll = null;
+    async function showCineWarning(on) {
+      const box = document.getElementById('cine-warning');
+      if (!box) return;
+      box.style.display = on ? 'block' : 'none';
+      if (!on) return;
+      const st = await apiJson('/api/cine/status');
+      renderCineInstall(st);
+    }
+    function renderCineInstall(st) {
+      const row = document.getElementById('cine-install-row');
+      const txt = document.getElementById('cine-install-text');
+      const btn = document.getElementById('cine-install-btn');
+      if (!row || !st) return;
+      row.style.display = st.ready ? 'none' : 'flex';
+      if (st.ready) { if (cinePoll) { clearInterval(cinePoll); cinePoll = null; toast('✓ Moteur Ciné installé'); } return; }
+      if (st.installing) { txt.textContent = '⏳ ' + (st.step || 'Installation…'); btn.disabled = true; btn.textContent = 'Installation…'; }
+      else if (st.error) { txt.textContent = '⚠️ ' + st.error; btn.disabled = false; btn.textContent = 'Réessayer'; }
+    }
+    async function installCineEngine() {
+      renderCineInstall(await apiJson('/api/cine/install', { method: 'POST' }));
+      if (!cinePoll) cinePoll = setInterval(async () => {
+        const st = await apiJson('/api/cine/status');
+        renderCineInstall(st);
+        if (!st.installing && !st.ready && cinePoll) { clearInterval(cinePoll); cinePoll = null; }
+      }, 3000);
+    }
+
     function selectStylePlaque(key, btnEl = null) {
       if (key === 'new_plugin') return openPluginEditor();
       selectedStylePlaque = key;
@@ -2795,9 +2831,11 @@
           syncRenderLocksForStyle(pl, adapted);
           const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
           hintTxt = `${pl.name} · ⏱ ${mHint.timeLbl}`;
+          showCineWarning(!!pl.heavy);
         }
       } else {
         activePluginId = '';
+        showCineWarning(false);
         syncRenderLocksForStyle(null, null);
         // Repart des réglages par défaut : le thème / les sous-titres d'un style précédent ne doivent pas « coller »
         if (th) th.value = 'dark_luxury';

@@ -1,0 +1,215 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: 'Montserrat'; font-weight: 900; src: url('/assets/fonts/Montserrat-Black.ttf'); }
+@font-face { font-family: 'Montserrat'; font-weight: 700; src: url('/assets/fonts/Montserrat-ExtraBold.ttf'); }
+@font-face { font-family: 'Luckiest Guy'; src: url('/assets/fonts/LuckiestGuy-Regular.ttf'); }
+html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}
+</style>
+<script type="importmap">{"imports":{"three":"/engine/node_modules/three/build/three.module.js","three/addons/":"/engine/node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import * as S from '/engine/lib/shark.js';
+import * as W from '/engine/lib/world.js';
+import { buildVillage } from '/engine/lib/village.js';
+
+const q = new URLSearchParams(location.search);
+const EP = q.get('ep'), FPS = +(q.get('fps') || 30);
+const WW = +q.get('w') || 1080, HH = +q.get('h') || 1920;
+// v3.4 qualite : ss = super-echantillonnage (rendu a ss x la taille puis reduction), fx=0 coupe les effets
+const SS = +(q.get('ss') || 1), FX = q.get('fx') !== '0';
+// Clipoa : ne jamais bloquer si une police manque (repli Arial)
+await Promise.race([Promise.all(['900 80px Montserrat', '700 40px Montserrat', '80px "Luckiest Guy"'].map((f) => document.fonts.load(f).catch(() => null))), new Promise((r) => setTimeout(r, 6000))]);
+const timeline = await (await fetch(`/episodes/${EP}/audio/timeline.json`)).json();
+window.__errors = [];
+window.addEventListener('error', (e) => window.__errors.push(String(e.message || e)));
+const { buildShots } = await import(`/episodes/${EP}/shots.js`);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(SS); renderer.setSize(WW, HH);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(40, WW / HH, 0.1, 900); scene.add(cam);
+const hemi = new THREE.HemisphereLight('#ffffff', '#8fa86f', 1.2); scene.add(hemi);
+const sun = new THREE.DirectionalLight('#fff3dd', 2.6); sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
+scene.add(sun); scene.add(sun.target);
+const fill = new THREE.DirectionalLight('#cfe0ff', 0.5); fill.position.set(-30, 20, 40); scene.add(fill);
+const rim = new THREE.DirectionalLight('#ffffff', 0); scene.add(rim); scene.add(rim.target);   // lumiere de contour, suit la camera
+const lamps = [0, 1, 2].map(() => { const l = new THREE.PointLight('#ffc58a', 0, 26, 1.6); scene.add(l); return l; });
+let sky = W.makeSky('#86bff2', '#e4f3ff'); scene.add(sky);
+scene.fog = new THREE.Fog('#e4f3ff', 80, 320);
+
+const world = buildVillage(THREE, W, S);
+scene.add(world.root);
+
+// v3.4 : chaine d'effets (occlusion ambiante GTAO, bloom, etalonnage fixe : contraste doux, vignettage, grain)
+let composer = null, bloom = null, grade = null, isNight = false;
+if (FX) {
+  const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+  const { RenderPass } = await import('three/addons/postprocessing/RenderPass.js');
+  const { GTAOPass } = await import('three/addons/postprocessing/GTAOPass.js');
+  const { UnrealBloomPass } = await import('three/addons/postprocessing/UnrealBloomPass.js');
+  const { ShaderPass } = await import('three/addons/postprocessing/ShaderPass.js');
+  const { OutputPass } = await import('three/addons/postprocessing/OutputPass.js');
+  composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(WW * SS, HH * SS, { type: THREE.HalfFloatType, samples: 4 })); composer.setPixelRatio(SS); composer.setSize(WW, HH);
+  composer.addPass(new RenderPass(scene, cam));
+  const ao = new GTAOPass(scene, cam, WW * SS, HH * SS);
+  ao.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.5, thickness: 1.5, scale: 1.0, samples: +(q.get('aos') || 8) });
+  ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: +(q.get('pds') || 8) });
+  ao.blendIntensity = 0.85;
+  if (q.get('ao') !== '0') { composer.addPass(ao); const k = +(q.get('aor') || 0.5); ao.setSize(WW * SS * k, HH * SS * k); }   // AO a demi-resolution : 2x plus rapide, invisible a l'oeil
+  bloom = new UnrealBloomPass(new THREE.Vector2(WW, HH), 0.25, 0.4, 0.92); if (q.get('bloom') !== '0') composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  grade = new ShaderPass({
+    uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uVig: { value: 0.28 }, uGrain: { value: 0.035 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uVig, uGrain; varying vec2 vUv;
+      float h(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + uTime*7.13) * 43758.5453); }
+      void main(){ vec4 c = texture2D(tDiffuse, vUv);
+        vec3 x = c.rgb; x = mix(x, x*x*(3.0-2.0*x), 0.18);                 // contraste doux
+        float l = dot(x, vec3(0.299,0.587,0.114)); x = mix(vec3(l), x, 1.08); // saturation +8 %
+        vec2 d = vUv - 0.5; d.x *= 0.5625; x *= 1.0 - uVig * smoothstep(0.25, 0.75, length(d)*1.6);
+        x += (h(vUv*vec2(1080.0,1920.0)) - 0.5) * uGrain;
+        gl_FragColor = vec4(clamp(x,0.0,1.0), c.a); }`,
+  });
+  composer.addPass(grade);
+}
+const out2d = document.createElement('canvas'); out2d.width = WW; out2d.height = HH;
+const o2 = out2d.getContext('2d'); o2.imageSmoothingEnabled = true; o2.imageSmoothingQuality = 'high';
+
+const PRESETS = {
+  day:      { top: '#86bff2', hor: '#e4f3ff', fog: ['#e4f3ff', 90, 330], hemi: ['#ffffff', '#8fa86f', 1.15], sun: ['#fff3dd', 2.6, [40, 60, 30]], fill: 0.5, exp: 1.0, night: false, rim: 1.1 },
+  overcast: { top: '#8fa3b6', hor: '#d9e0e6', fog: ['#d9e0e6', 50, 230], hemi: ['#e8eef4', '#7d8f74', 1.0], sun: ['#eef2f6', 1.5, [30, 55, 25]], fill: 0.45, exp: 0.98, night: false, rim: 0.8 },
+  golden:   { top: '#f6a65e', hor: '#ffe2b0', fog: ['#ffd9a3', 80, 330], hemi: ['#ffe2c4', '#8a7a55', 1.05], sun: ['#ffc77a', 2.7, [-50, 22, 20]], fill: 0.35, exp: 1.02, night: false, rim: 1.4, rimC: '#ffd29a' },
+  night:    { top: '#0b1430', hor: '#26375e', fog: ['#1b2645', 40, 170], hemi: ['#5a6da0', '#1a1d2e', 0.55], sun: ['#9fb4ff', 0.7, [-30, 50, 20]], fill: 0.15, exp: 1.08, night: true, rim: 0.9, rimC: '#9fb8ff' },
+  frisson:  { top: '#1a1f2b', hor: '#3a3f4a', fog: ['#2a2e36', 12, 90], hemi: ['#6f7a8f', '#1c1a1a', 0.5], sun: ['#b8c6e0', 0.9, [-20, 30, -40]], fill: 0.08, exp: 0.95, night: true, rim: 1.6, rimC: '#c9d6ff' },   // v3.4 : moment glacant (brume froide, contre-jour)
+  fog:      { top: '#b9b4aa', hor: '#d6d0c4', fog: ['#d6d0c4', 8, 75], hemi: ['#f1ece2', '#8d8573', 1.1], sun: ['#f6efe2', 1.2, [30, 50, 30]], fill: 0.4, exp: 1.0, night: false, rim: 0.6 },
+};
+function preset(name) {
+  const p = PRESETS[name];
+  scene.remove(sky); sky = W.makeSky(p.top, p.hor); scene.add(sky);
+  scene.fog = new THREE.Fog(...p.fog);
+  hemi.color.set(p.hemi[0]); hemi.groundColor.set(p.hemi[1]); hemi.intensity = p.hemi[2];
+  sun.color.set(p.sun[0]); sun.intensity = p.sun[1]; sun.userData.dir = new THREE.Vector3(...p.sun[2]).normalize();
+  fill.intensity = p.fill; renderer.toneMappingExposure = p.exp;
+  rim.intensity = p.rim || 0; rim.color.set(p.rimC || '#ffffff'); isNight = p.night;
+  if (bloom) { bloom.enabled = p.night; bloom.strength = 0.25; }   // bloom seulement la nuit (fenetres, lampadaires)
+  world.setNight(p.night); lamps.forEach((l) => { l.intensity = 0; l.color.set('#ffd9a0'); });
+}
+function shadowFocus(x, z, size = 40) {
+  const d = sun.userData.dir || new THREE.Vector3(0.5, 0.75, 0.4);
+  sun.target.position.set(x, 0, z); sun.position.set(x + d.x * 120, d.y * 120, z + d.z * 120);
+  Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, near: 10, far: 400 });
+  sun.shadow.camera.updateProjectionMatrix();
+}
+
+const ease = { lin: (t) => t, inOut: (t) => t * t * (3 - 2 * t), out: (t) => 1 - (1 - t) * (1 - t), in: (t) => t * t };
+const lerp = (a, b, t) => a + (b - a) * t;
+const lerpV = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
+let shot = null, camA = null, camB = null, camEase = ease.inOut, shake = 0;
+
+const OWN = [];
+const ctx = {
+  THREE, W, S, world, scene, cam, lamps, ease, lerp, lerpV, timeline, preset, shadowFocus,
+  camera(a, b = null, e = 'inOut') { camA = a; camB = b || a; camEase = ease[e]; },
+  shake(v) { shake = v; },
+  talk(a) { world.talk && world.talk(a); },
+  // Clipoa : objets / personnages créés pour CETTE vidéo. Cachés et remis en place au début de chaque plan.
+  own(o) { scene.add(o); OWN.push({ o, p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() }); o.visible = false; return o; },   // v3.4 : ce personnage bouge la bouche sur les mots prononces pendant le plan
+  wordTime(word, after = 0) {
+    const w0 = shot.start + after;
+    for (const L of timeline.lines) for (const w of L.words) if (w.start >= w0 - 0.01 && w.w.toLowerCase().replace(/[^\p{L}\d'-]/gu, '').startsWith(word.toLowerCase())) return w.start - shot.start;
+    return null;
+  },
+};
+
+const WORDS = timeline.lines.flatMap((L) => L.words || []);
+function speakingAt(tg) { for (const w of WORDS) if (tg >= w.start && tg <= (w.end || w.start + 0.25)) return true; return false; }
+
+const shots = buildShots(ctx);
+window.__shots = shots.map((s) => ({ name: s.name, start: s.start, end: s.end, post: s.post || null, flash: !!s.flash }));
+
+window.__setupShot = (i) => {
+  shot = shots[i]; shake = 0;
+  world.reset(); preset(shot.preset || 'day');
+  if (q.get('neutral') !== '0' && world.banner) world.banner.visible = false;   // Clipoa : pas de bannière Docteur Shark
+  for (const d of OWN) { d.o.visible = false; d.o.position.copy(d.p); d.o.rotation.copy(d.r); d.o.scale.copy(d.s); if (d.o.userData.setExpr) d.o.userData.setExpr('neutral'); }
+  shot.setup && shot.setup(ctx, shot);
+  return Math.round(shot.end * FPS) - Math.round(shot.start * FPS);   // arrondi cumule : pas de derive audio/video
+};
+
+window.__renderFrame = (f) => {
+  const dur = shot.end - shot.start, t = f / FPS, p = Math.min(1, t / Math.max(0.001, dur));
+  shot.update && shot.update(ctx, t, p, shot);
+  const k = camEase(p);
+  cam.position.set(...lerpV(camA.pos, camB.pos, k));
+  const tg = lerpV(camA.target, camB.target, k);
+  if (shake) { cam.position.x += Math.sin(t * 47) * shake; cam.position.y += Math.sin(t * 61 + 1) * shake; }
+  cam.lookAt(...tg); cam.fov = lerp(camA.fov || 40, camB.fov || camA.fov || 40, k); cam.updateProjectionMatrix();
+  world.tick(t, shot.start + t);
+  const tG = shot.start + t;
+  world.life && world.life(t, tG, speakingAt(tG));
+  const fw = new THREE.Vector3(); cam.getWorldDirection(fw);
+  rim.target.position.copy(cam.position).addScaledVector(fw, 12); rim.position.copy(rim.target.position).addScaledVector(fw, 30).add(new THREE.Vector3(0, 18, 0));
+  if (composer) { grade.uniforms.uTime.value = f; composer.render(); } else renderer.render(scene, cam);
+  if (SS === 1) return renderer.domElement.toDataURL('image/jpeg', 0.92);
+  o2.drawImage(renderer.domElement, 0, 0, WW, HH);
+  return out2d.toDataURL('image/jpeg', 0.92);
+};
+
+// v3.4 : detection automatique des defauts d'un plan (appelee par capture.py preview / check)
+const ACTORS = [world.shark, world.petitShark, world.mamanShark, world.noe, ...world.villagers, world.marcelOld, world.marcelRich, world.bear, world.lea, world.mom, world.momCoat, world.merchant, world.papa, world.voisine].filter(Boolean);
+for (const d of OWN) if (d.o.userData && d.o.userData.rig) ACTORS.push(d.o);
+function issuesNow() {
+  const out = [], camP = cam.position, box = new THREE.Box3(), v = new THREE.Vector3();
+  cam.updateMatrixWorld(); scene.updateMatrixWorld(true);
+  // 1. camera dans un objet visible
+  world.root.traverseVisible((o) => {
+    if (!o.isMesh || out.length > 6) return;
+    const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    box.copy(g.boundingBox).applyMatrix4(o.matrixWorld);
+    const sz = box.getSize(v); if (sz.x > 150 || sz.z > 150) return;      // sol, ciel, montagne
+    if (box.expandByScalar(0.15).containsPoint(camP)) out.push('camera dans un objet (' + (o.parent && o.parent.name || o.name || 'mesh') + ')');
+  });
+  const vis = ACTORS.filter((a) => a.visible);
+  const boxes = vis.map((a) => new THREE.Box3().setFromObject((a.userData.rig && a.userData.rig.torso) || a));   // tronc seul : bras tendus et epaule contre epaule ne comptent pas
+  vis.forEach((a, i) => {
+    const b = boxes[i], h = a.userData.rig && a.userData.rig.head;
+    // 2. tete coupee : le haut de la tete sort du cadre alors que le corps est dedans
+    if (h) {
+      let big = null, bv = 0;   // le plus gros bloc de la tete (crane), sans ailerons ni accessoires
+      h.children.forEach((m) => { if (!m.isMesh) return; if (!m.geometry.boundingBox) m.geometry.computeBoundingBox(); const s3 = m.geometry.boundingBox.getSize(new THREE.Vector3()); const vv = s3.x * s3.y * s3.z; if (vv > bv) { bv = vv; big = m; } });
+      const hb = new THREE.Box3().setFromObject(big || h);
+      const top = new THREE.Vector3((hb.min.x + hb.max.x) / 2, hb.max.y, (hb.min.z + hb.max.z) / 2).project(cam);
+      const mid = new THREE.Vector3((hb.min.x + hb.max.x) / 2, (hb.min.y + hb.max.y) / 2, (hb.min.z + hb.max.z) / 2).project(cam);
+      if (top.z < 1 && mid.z < 1 && Math.abs(mid.x) < 1 && mid.y < 0.9 && top.y > 1.04) out.push('tete coupee en haut : ' + a.name);
+      if (mid.z < 1 && Math.abs(mid.x) < 1.0 && Math.abs(mid.y) < 1.0 && (mid.x > 0.92 || mid.x < -0.92)) out.push('visage colle au bord : ' + a.name);
+    }
+    // 3. personnages qui se traversent
+    for (let j = i + 1; j < vis.length; j++) {
+      const inter = b.clone().intersect(boxes[j]);
+      if (!inter.isEmpty()) { const s = inter.getSize(new THREE.Vector3()); if (s.x > 0.35 && s.z > 0.35 && s.y > 0.8) out.push('personnages qui se traversent : ' + a.name + ' / ' + vis[j].name); }
+    }
+  });
+  return out;
+}
+window.__check = (i) => {
+  const n = window.__setupShot(i), found = new Set();
+  for (const k of [0, 0.5, 0.95]) {
+    const f = Math.min(n - 1, Math.floor(n * k)), dur = shot.end - shot.start, t = f / FPS, p = Math.min(1, t / Math.max(0.001, dur));
+    shot.update && shot.update(ctx, t, p, shot);
+    const e = camEase(p); cam.position.set(...lerpV(camA.pos, camB.pos, e)); cam.lookAt(...lerpV(camA.target, camB.target, e));
+    cam.fov = lerp(camA.fov || 40, camB.fov || camA.fov || 40, e); cam.updateProjectionMatrix(); world.tick(t, shot.start + t);
+    issuesNow().forEach((x) => found.add(x));
+  }
+  return [...found];
+};
+window.__ready = true;
+</script>
+</body></html>

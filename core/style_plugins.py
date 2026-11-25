@@ -238,6 +238,37 @@ NARRATIVE_RULES_EXPLAINER_2D = r"""Structure « explainer de marque » (vouvoiem
 6. La conséquence pour le spectateur (« Alors votre bouquet change avec les mois. ») + une phrase-chute courte.
 7. Carton final : nom + promesse en une ligne + appel à l'action simple (« Passez voir celles de la semaine »)."""
 
+STYLE_BIBLE_ROBLOX_CINE = r"""# STYLE BIBLE — « Roblox 3D Ciné » (qualité cinéma, Shorts 9:16)
+
+## 1. L'ADN
+Une fable racontée au « je » ou par un conteur passionné, mise en images dans un monde 3D en blocs façon Roblox (R6),
+avec un rendu de cinéma : vraie lumière, ombres de contact, lumière de contour, brume, bloom la nuit, étalonnage doux.
+Les personnages sont VIVANTS : ils clignent des yeux, respirent, bougent la bouche quand ils parlent, changent d'expression.
+
+## 2. Format
+- 1080x1920, 30 i/s. 60 à 90 s. Un plan toutes les 2 à 3 s (1,5 à 4 s), 20 à 35 plans.
+- Sous-titres : UN mot à la fois, Montserrat Black blanc à contour noir, juste sous le centre ; mots-clés en MAJUSCULES
+  Luckiest Guy jaune #FFE600 (idée clé), rouge #E74C3C (perte, danger), vert #2ECC71 (gain, solution). Notes en haut.
+
+## 3. Image
+- Monde low-poly en blocs arrondis, matières mates, couleurs franches mais douces. Pas de texture photo.
+- Visages en texture : neutre, sourire, rire, inquiet, choqué, colère, cri. L'émotion se lit à chaque plan.
+- Éclairages : jour, couvert, heure dorée, nuit (fenêtres et lampadaires qui brillent), brouillard, « frisson »
+  (brume froide et contre-jour, pour le moment glaçant). Flashback en sépia ou noir et blanc. Flash blanc à la révélation.
+- Caméra : plan aérien d'ouverture, plans taille, gros plans visage (menton à 60 % de la hauteur), plongées, contre-plongées,
+  plans d'objet. Travelling lent permanent (3-8 %), jamais deux cadrages identiques de suite, tremblement sur les chocs.
+- Ce que dit la phrase est MONTRÉ : un objet, un panneau, un écran, un geste.
+
+## 4. Son
+- Voix conteur, posée, avec de vrais silences avant les phrases fortes.
+- Musique générée sous la voix (-17 dB, ducking), coupée juste avant le twist. ≤ 20 bruitages, jamais stridents.
+
+## 5. À éviter
+- Caméra dans un objet, tête coupée en haut du cadre, personnages qui se traversent, image noire.
+- Logo, son ou avatar Roblox réels. Le requin mascotte n'apparaît que si l'histoire le demande.
+"""
+
+
 STARTER_PLUGINS: List[Dict[str, Any]] = [
     {
         "id": "roblox_3d",
@@ -347,6 +378,34 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         ],
         "starter": True,
     },
+    {
+        "id": "roblox_cine",
+        "name": "Roblox 3D Ciné (haute qualité)",
+        "category": "3D",
+        "icon": "🎬",
+        "gradient": "roblox",
+        "tagline": "Qualité cinéma : vraie lumière, visages vivants, 1080p 30 i/s. Rendu long et plus de tokens.",
+        "da_prompt": STYLE_BIBLE_ROBLOX_CINE,
+        "narrative_rules": NARRATIVE_RULES_ROBLOX_3D,
+        "render_mode": "blender3d",
+        "theme": "cinema_gold",
+        "subtitle_style": "submagic_yellow",
+        "est_time_sec": 2400,
+        "est_time_label": "~20 à 60 min",
+        "heavy": True,
+        "script_language": "python",
+        "script_filename": "",
+        "script_content": "",
+        "model_sheets": [
+            {
+                "filename": "roblox_cine.jpg",
+                "original_name": "roblox_cine.jpg",
+                "role": "reference",
+                "uploaded_at": "2026-11-25 14:00",
+            }
+        ],
+        "starter": True,
+    },
 ]
 
 
@@ -361,6 +420,8 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
     # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
     "explainer_2d": {"shot_min_s": 2.0, "shot_max_s": 6.0, "caption_mode": "none", "music_db": -18.0, "mood": "calm", "visual_style": "explainer2d", "note_color": "#D9406E"},
+    # Qualité cinéma : moteur three.js ciné (rendu long, plus de tokens), un mot à la fois, mots-clés colorés
+    "roblox_cine": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "one_word", "music_db": -17.0, "character_style": "r6", "visual_style": "cine3d"},
 }
 
 _PRODUCTION_SPEC: Dict[str, Any] = {
@@ -375,7 +436,7 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "caption_mode": ("enum", ("chunk", "one_word", "none")),
     "keyword_colors": ("bool", None),
     "character_style": ("enum", ("r6", "flat2d")),
-    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d")),
+    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d")),
     "note_color": ("hex", None),
 }
 
@@ -512,6 +573,10 @@ def estimate_plugin_cost_and_time(raw: Dict[str, Any], sheets_count: int = 0, du
         base_out_1m = 800
     est_output_tokens = int(round(base_out_1m * (0.4 + 0.6 * scale)))
 
+    if ((raw.get("production") or {}).get("visual_style") or STARTER_PRODUCTION.get(str(raw.get("id") or ""), {}).get("visual_style")) == "cine3d":
+        # l'IA écrit les plans 3D en code (≈ 30 Ko) puis les corrige après la planche de contrôle
+        est_input_tokens += 26000
+        est_output_tokens += 18000
     est_total_tokens = est_input_tokens + est_output_tokens
 
     try:
@@ -647,6 +712,7 @@ def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False)
         "cover_url": cover_url,
         "starter": bool(raw.get("starter", False)),
         "production": {**STARTER_PRODUCTION.get(pid, {}), **sanitize_production(raw.get("production"))},
+        "heavy": bool(raw.get("heavy")) or ({**STARTER_PRODUCTION.get(pid, {}), **sanitize_production(raw.get("production"))}.get("visual_style") == "cine3d"),
         "created_at": raw.get("created_at") or "",
         "updated_at": raw.get("updated_at") or "",
         **metrics,

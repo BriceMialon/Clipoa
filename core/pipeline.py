@@ -128,6 +128,18 @@ class ShortCrewPipeline:
         eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
         py_script = str(out_dir / f"{session_id}_scene_3d.py")
         bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
+        if style == "cine3d":
+            # Qualité Docteur Shark : moteur three.js ciné ; repli automatique sur Blender Roblox si besoin
+            try:
+                from core import cine_director
+                return cine_director.direct(session_id, script, words or [], audio_dur_sec,
+                                            str(out_dir / f"{session_id}_cine_bg.mp4"), engine=engine, model=engine_model,
+                                            da_hint=da_ctx, progress=progress)
+            except Exception as e:
+                print(f"⚠️ Mode Ciné indisponible ({e}) : rendu Blender Roblox à la place.")
+                if progress:
+                    progress(56, f"⚠️ Mode Ciné indisponible ({str(e)[:90]}) — rendu Blender Roblox à la place")
+                style = "roblox"
         total_frames = max(36, int(round(audio_dur_sec * 12)))
 
         def _blender_prog(f_cur: int, f_tot: int):

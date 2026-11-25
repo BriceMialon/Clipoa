@@ -34,3 +34,26 @@ class SceneDesignerEmotionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CineDirectorTests(unittest.TestCase):
+    def test_timeline_from_whisper_words(self):
+        from core.cine_director import build_timeline
+        words = [{"word": "Dans", "start": 0.1, "end": 0.3}, {"word": "ma", "start": 0.3, "end": 0.5},
+                 {"word": "ville,", "start": 0.5, "end": 1.0}, {"word": "tout", "start": 1.0, "end": 1.4},
+                 {"word": "brille.", "start": 1.4, "end": 2.0}, {"word": "Fin.", "start": 2.2, "end": 2.6}]
+        tl = build_timeline(words, 3.0)
+        self.assertEqual([L["id"] for L in tl["lines"]], ["L1", "L2"])
+        self.assertEqual(len(tl["lines"][0]["chunks"]), 2)
+        self.assertEqual(tl["lines"][0]["start"], 0.0)
+        self.assertEqual(tl["lines"][-1]["end"], 3.0)
+
+    def test_extract_js_requires_buildshots(self):
+        from core.cine_director import _extract_js
+        self.assertIn("buildShots", _extract_js("```js\nexport function buildShots(ctx) { return []; }\n```"))
+        with self.assertRaises(ValueError):
+            _extract_js("bonjour")
+
+    def test_cine_starter_is_heavy(self):
+        from core.style_plugins import STARTER_PRODUCTION
+        self.assertEqual(STARTER_PRODUCTION["roblox_cine"]["visual_style"], "cine3d")

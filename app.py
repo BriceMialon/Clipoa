@@ -1681,6 +1681,18 @@ def api_validate_video(render_id):
     return jsonify({"id": render_id, "validated": new_val})
 
 
+@app.route("/api/cine/status", methods=["GET"])
+def api_cine_status():
+    from core import cine_setup
+    return jsonify(cine_setup.status())
+
+
+@app.route("/api/cine/install", methods=["POST"])
+def api_cine_install():
+    from core import cine_setup
+    return jsonify(cine_setup.start_install())
+
+
 @app.route("/api/voice/local", methods=["GET"])
 def api_voice_local_status():
     from core import local_tts
