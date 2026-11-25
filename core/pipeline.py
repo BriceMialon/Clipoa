@@ -173,7 +173,7 @@ class ShortCrewPipeline:
             except Exception:
                 pass
             _p(58, f"🧊 [3/4] Construction Blender ({len(spec.get('locations') or [])} lieux, {len(plan.get('shots') or [])} plans, style {style})...")
-            BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style)
+            BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style, words=words)
             if BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog):
                 return bg_out
             print("⚠️ Rendu du décor sur mesure échoué : scène de secours.")

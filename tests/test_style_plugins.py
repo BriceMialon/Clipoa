@@ -33,7 +33,7 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("modal-plugin-editor", html)
         self.assertIn("ai-taskbar", html)
         self.assertIn("3D Roblox", html)
-        self.assertIn("2D × Monde 3D", html)
+        self.assertIn("Stickman", html)
         self.assertIn("Fête en folie", html)
         self.assertIn("roblox_3d.jpg", html)
         self.assertIn("2d_monde_3d.jpg", html)
@@ -55,7 +55,7 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
 
         for pid, expected_img, expected_phrase in (
             ("roblox_3d", "roblox_3d.jpg", "avatars Roblox classiques (R6)"),
-            ("2d_monde_3d", "2d_monde_3d.jpg", "Conte cartoon 2D dans un monde 3D"),
+            ("2d_monde_3d", "2d_monde_3d.jpg", "Stickman 2.5D"),
             ("fete_en_folie", "fete_en_folie.jpg", "La Tour des Riches"),
             ("explainer_2d", "explainer_2d.jpg", "Explainer 2D pastel"),
         ):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Style « 2D × Monde 3D » (paper2d) — exécuté DANS Blender, placé AVANT scene_kit_bpy.py par BlenderEngine.
+# Style « Stickman » (ex « 2D × Monde 3D », paper2d) — exécuté DANS Blender, placé AVANT scene_kit_bpy.py par BlenderEngine.
 # Ne définit que des fonctions : elles utilisent les globales du kit (scene, cam, FACE_INFO…) au moment de l'appel.
 #
 # Référence visuelle (TikTok @albertraconte0, « La monnaie des souvenirs », « tout le monde est aveugle sauf moi ») :
@@ -52,6 +52,9 @@ def _p2_mix(a, b, t):
 def _p2_poly(pts, rgba, layer, parent, name="P2"):
     """Forme plate dans le plan du perso. pts = [(x, z)] dans le sens trigo ; layer haut = plus près de la caméra."""
     me = bpy.data.meshes.new(name)
+    # face toujours tournée vers la caméra (-Y), même avec l'élimination des faces arrière (contours Stickman)
+    if sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1] for i in range(len(pts))) < 0:
+        pts = list(reversed(pts))
     me.from_pydata([(x, -0.012 * layer, z) for (x, z) in pts], [], [list(range(len(pts)))])
     me.update()
     o = bpy.data.objects.new(name, me)
@@ -117,6 +120,8 @@ def _p2_billboard(root):
 
 
 def make_char_2d(cid, loc, rot_z=0.0):
+    if _p2_stick_on():
+        return make_stick_2d(cid, loc, rot_z)
     c = CHARS.get(cid, {})
     root = bpy.data.objects.new("Char_" + cid, None)
     scene.collection.objects.link(root)
@@ -206,6 +211,8 @@ def make_char_2d(cid, loc, rot_z=0.0):
 
 def build_face_2d(rootname, emotion):
     """Visage des références : grands yeux blancs cerclés d'encre, pupille noire + reflet, joues roses, bouche fine."""
+    if _p2_stick_on():
+        return build_stick_face(rootname, emotion)
     root, (cx, hz), r = FACE_INFO[rootname]
     face = bpy.data.objects.new("Face_" + emotion, None)
     scene.collection.objects.link(face)
@@ -435,3 +442,332 @@ def _p2_fcurves(obj):
             for bag in getattr(strip, "channelbags", []):
                 out.extend(bag.fcurves)
     return out
+
+
+# ======================================================================================================
+# Style « Stickman » (id 2d_monde_3d, rendu paper2d) — d'après le pipeline 2.5D stickman (33 000 images analysées) :
+#   - tête blanche ovale « haricot », yeux = points noirs, sourcils expressifs, bouche qui parle sur la voix ;
+#   - petit torse coloré (pull), bras et jambes = traits d'encre fins ; visage toujours blanc pur ;
+#   - visage vivant : regard qui bouge toutes les 0,3-0,8 s, clignements, bouche synchronisée sur les mots ;
+#   - décor 3D cerné d'un contour encre épais (coque inversée), décor jamais mort (fumée, oiseaux, poussière),
+#     figurants qui réagissent.
+# La variante Explainer (P2_CHIBI) garde l'ancien dessin.
+# ======================================================================================================
+P2_STICK = True
+P2_STICK_HEAD = (0.58, 0.70)            # demi-largeur, demi-hauteur de la tête ovale
+P2_FACEPARTS = {}                        # nom du perso -> [(yeux, bouche fermée, bouche ouverte, (x, z) des yeux)]
+P2_INK_SKIP = ("Flake", "P2live", "Sky")
+
+
+def _p2_stick_on():
+    return P2_STICK and not P2_CHIBI
+
+
+def make_stick_2d(cid, loc, rot_z=0.0):
+    c = CHARS.get(cid, {})
+    root = bpy.data.objects.new("Char_" + cid, None)
+    scene.collection.objects.link(root)
+    root.location = loc
+    sc = float(c.get("scale", 1.0) or 1.0)
+    root.scale = (sc, sc, sc)
+    shirt = hex_rgba(c.get("shirt"), (0.24, 0.38, 0.62, 1.0))
+    pants = hex_rgba(c.get("pants"), None)
+    hz = P2_HEAD_Z
+    rx, rz = P2_STICK_HEAD
+    L = P2_LINE
+    acc = str(c.get("accessory") or "").lower()
+    hstyle = str(c.get("hair_style") or "").lower()
+    # jambes = traits d'encre, pivot à la hanche
+    legs = []
+    for sx in (-1, 1):
+        pv = _p2_pivot("Leg", root, sx * 0.11, 1.0)
+        _p2_poly(_p2_capsule((0, 0), (sx * 0.03, -0.9), 0.034), P2_INK, 1, pv, "P2ink")
+        _p2_poly(_p2_ell(sx * 0.09, -0.94, 0.11, 0.05, 14), P2_INK, 1.2, pv, "P2ink")
+        legs.append(pv)
+    # petit torse arrondi (pull), éventuel bas de pantalon
+    if pants:
+        _p2_inked_capsule((0, 1.02), (0, 1.12), 0.24, pants, 1.8, root)
+    _p2_inked_capsule((0, 1.18), (0, 1.62), 0.27, shirt, 2, root)
+    if acc == "apron":
+        _p2_inked_capsule((0, 1.12), (0, 1.48), 0.17, (0.95, 0.93, 0.88, 1.0), 2.4, root, line=0.03)
+    # bras = traits d'encre, pivot à l'épaule, petite main ronde
+    arms = []
+    for sx in (-1, 1):
+        pv = _p2_pivot("Arm", root, sx * 0.22, 1.72)
+        _p2_poly(_p2_capsule((0, 0), (sx * 0.17, -0.7), 0.032), P2_INK, 3, pv, "P2ink")
+        _p2_poly(_p2_ell(sx * 0.18, -0.74, 0.06, 0.06, 12), P2_INK, 3.1, pv, "P2ink")
+        arms.append(pv)
+    # tête ovale blanc pur, contour épais
+    _p2_poly(_p2_ell(0, hz, rx + 0.06, rz + 0.06, 44), P2_INK, 3.55, root, "P2ink")
+    _p2_poly(_p2_ell(0, hz, rx, rz, 44), (1.0, 1.0, 1.0, 1.0), 4, root)
+    hat = c.get("hat")
+    has_hat = bool(hat) and str(hat).lower() not in ("none", "", "no")
+    hair = c.get("hair")
+    if has_hat:
+        # bonnet / chapeau posé sur le haut de la tête
+        hc = hex_rgba(hat)
+        hcz = hz + 0.2
+        hr = rx + 0.05
+        t = math.asin(0.35)
+        _p2_poly(_p2_ell(0, hcz, hr + L, rz * 0.82 + L, 28, t - 0.05, math.pi - t + 0.05), P2_INK, 6.5, root, "P2ink")
+        _p2_poly(_p2_ell(0, hcz, hr, rz * 0.82, 28, t, math.pi - t), hc, 7, root)
+        band_z = hcz + 0.35 * rz * 0.82
+        band = [(-hr - 0.04, band_z - 0.17), (hr + 0.04, band_z - 0.17), (hr + 0.04, band_z), (-hr - 0.04, band_z)]
+        _p2_poly([(x + (L if x > 0 else -L), z + (L if z > band_z - 0.08 else -L)) for x, z in band], P2_INK, 7.4, root, "P2ink")
+        _p2_poly(band, _p2_mix(hc, (0, 0, 0), 0.18), 7.8, root)
+        if hstyle != "bald":
+            _p2_inked_ell(0, hcz + rz * 0.82 + 0.1, 0.11, 0.11, _p2_mix(hc, (1, 1, 1), 0.35), 7.2, root, line=0.035, n=16)
+    elif hair and str(hair).lower() not in ("none", "", "bald", "chauve") and hstyle != "bald":
+        hc = hex_rgba(hair)
+        t = math.asin(0.5)
+        _p2_poly(_p2_ell(0, hz, rx + L + 0.02, rz + L + 0.02, 28, t - 0.05, math.pi - t + 0.05), P2_INK, 6.5, root, "P2ink")
+        _p2_poly(_p2_ell(0, hz, rx + 0.02, rz + 0.02, 28, t, math.pi - t), hc, 7, root)
+        if hstyle == "long" or str(c.get("gender", "")).lower() in ("f", "femme", "female", "fille", "girl"):
+            for sx in (-1, 1):
+                _p2_inked_capsule((sx * (rx - 0.04), hz + 0.15), (sx * (rx + 0.02), hz - 0.6), 0.11, hc, 3.8, root)
+    if acc == "glasses":
+        for sx in (-1, 1):
+            ring = _p2_ell(sx * 0.2, hz + 0.08, 0.15, 0.14, 22)
+            _p2_stroke(ring + [ring[0]], 0.026, P2_INK, 6.8, root)
+        _p2_stroke([(-0.05, hz + 0.1), (0.05, hz + 0.1)], 0.024, P2_INK, 6.8, root)
+    FACE_INFO[root.name] = (root, (0.0, hz), rx)
+    _p2_billboard(root)
+    return root, arms[0], arms[1], legs[0], legs[1]
+
+
+def build_stick_face(rootname, emotion):
+    """Visage stickman : yeux points (dans un groupe qu'on peut faire bouger / cligner), sourcils, bouche fermée + ouverte."""
+    root, (cx, hz), r = FACE_INFO[rootname]
+    face = bpy.data.objects.new("Face_" + emotion, None)
+    scene.collection.objects.link(face)
+    face.parent = root
+    ink = P2_INK
+    ez = hz + 0.1
+    eyes = _p2_pivot("Eyes", face, cx, ez)
+    big = emotion in ("surprised", "scared")
+    erx, erz = (0.085, 0.115) if big else (0.062, 0.088)
+    for sx in (-1, 1):
+        if emotion == "happy":
+            # yeux plissés de joie : petits arcs
+            _p2_stroke(_p2_arc(sx * 0.19, 0.0, 0.07, -0.05, 4), 0.026, ink, 5.8, eyes)
+        else:
+            _p2_poly(_p2_ell(sx * 0.19, 0.0, erx, erz, 16), ink, 5.8, eyes, "P2ink")
+            if big:
+                _p2_poly(_p2_ell(sx * 0.19 - 0.025, 0.035, 0.022, 0.022, 8), (1.0, 1.0, 1.0, 1.0), 6.0, eyes)
+        if emotion == "cry":
+            _p2_poly(_p2_capsule((sx * 0.22, -0.1), (sx * 0.24, -0.42), 0.032), (0.55, 0.8, 1.0, 1.0), 6.2, face)
+    # sourcils (sur le visage, ne clignent pas)
+    bz = ez + 0.2 + (0.06 if big else 0.0)
+    for sx in (-1, 1):
+        inner, outer = cx + sx * 0.09, cx + sx * 0.3
+        if emotion in ("sad", "cry", "scared"):
+            _p2_stroke([(inner, bz + 0.05), (outer, bz - 0.04)], 0.024, ink, 6.3, face)
+        elif emotion == "angry":
+            _p2_stroke([(inner, bz - 0.07), (outer, bz + 0.04)], 0.03, ink, 6.3, face)
+        elif emotion in ("surprised", "happy"):
+            _p2_stroke(_p2_arc((inner + outer) / 2, bz + 0.03, abs(outer - inner) / 2, 0.05, 4), 0.024, ink, 6.3, face)
+        elif emotion == "smirk" and sx > 0:
+            _p2_stroke([(inner, bz + 0.04), (outer, bz + 0.07)], 0.024, ink, 6.3, face)
+        else:
+            _p2_stroke([(inner, bz), (outer, bz + 0.015)], 0.022, ink, 6.3, face)
+    mz = hz - 0.27
+    mouth = _p2_pivot("Mouth", face, cx, mz)
+    w = 0.024
+    if emotion == "happy":
+        _p2_poly(_p2_ell(0, 0.03, 0.16, 0.12, 18, math.pi, 2 * math.pi), (0.25, 0.08, 0.1, 1.0), 5.5, mouth)
+        _p2_poly([(-0.12, 0.03), (0.12, 0.03), (0.11, -0.015), (-0.11, -0.015)], (1.0, 1.0, 1.0, 1.0), 5.6, mouth)
+        _p2_stroke(_p2_arc(0, 0.03, 0.16, 0.0, 2), w, ink, 5.7, mouth)
+    elif emotion in ("sad", "cry"):
+        _p2_stroke(_p2_arc(0, -0.03, 0.11, -0.06, 4), w, ink, 5.7, mouth)
+    elif emotion == "surprised":
+        _p2_poly(_p2_ell(0, -0.02, 0.06, 0.085, 14), ink, 5.7, mouth, "P2ink")
+    elif emotion == "scared":
+        # dents serrées (comme le perso au chapeau de la référence)
+        _p2_poly([(-0.13, 0.04), (0.13, 0.04), (0.13, -0.05), (-0.13, -0.05)], ink, 5.5, mouth, "P2ink")
+        _p2_poly([(-0.11, 0.025), (0.11, 0.025), (0.11, -0.035), (-0.11, -0.035)], (1.0, 1.0, 1.0, 1.0), 5.6, mouth)
+        for k in (-0.055, 0.0, 0.055):
+            _p2_stroke([(k, 0.025), (k, -0.035)], 0.01, ink, 5.7, mouth)
+        _p2_stroke([(-0.11, -0.005), (0.11, -0.005)], 0.01, ink, 5.7, mouth)
+    elif emotion == "angry":
+        _p2_stroke(_p2_arc(0, -0.02, 0.1, -0.03, 3), w * 1.2, ink, 5.7, mouth)
+    elif emotion == "smirk":
+        _p2_stroke([(-0.1, 0.0), (0.04, 0.0), (0.12, 0.05)], w, ink, 5.7, mouth)
+    else:
+        _p2_stroke(_p2_arc(0, 0.0, 0.09, 0.03, 4), w, ink, 5.7, mouth)
+    # bouche ouverte (parole) : affichée en alternance pendant les mots
+    mopen = _p2_pivot("MouthOpen", face, cx, mz)
+    oh = 0.1 if emotion in ("surprised", "scared") else 0.075
+    _p2_poly(_p2_ell(0, -0.01, 0.1, oh, 16), ink, 5.75, mopen, "P2ink")
+    _p2_poly(_p2_ell(0, -0.01 - oh * 0.45, 0.06, oh * 0.4, 12), (0.85, 0.35, 0.4, 1.0), 5.85, mopen)
+    mopen.scale = (0, 0, 0)
+    P2_FACEPARTS.setdefault(rootname, []).append((eyes, mouth, mopen, (cx, ez)))
+    return face
+
+
+def _p2_key_const(obj, path, frame):
+    obj.keyframe_insert(path, frame=frame)
+
+
+def p2_face_life(rootname, talk_frames, f_end, seed=1):
+    """Regard qui change toutes les 0,3-0,8 s, clignements, bouche qui s'ouvre/se ferme sur les mots."""
+    parts = P2_FACEPARTS.get(rootname) or []
+    if not parts:
+        return
+    rng = random.Random(seed)
+    fps = max(1, int(scene.render.fps or 12))
+    # regard + micro-mouvements
+    f = 1
+    while f < f_end:
+        dx = rng.choice((-0.06, -0.03, 0.0, 0.03, 0.06))
+        dz = rng.choice((-0.02, 0.0, 0.0, 0.02))
+        for eyes, _m, _o, (x0, z0) in parts:
+            eyes.location = (x0 + dx, 0.0, z0 + dz)
+            _p2_key_const(eyes, "location", f)
+        f += rng.randint(max(2, int(0.3 * fps)), max(3, int(0.8 * fps)))
+    # clignements (2 images yeux fermés) toutes les ~2-4 s
+    f = rng.randint(fps, 3 * fps)
+    for eyes, _m, _o, _xz in parts:
+        eyes.scale = (1, 1, 1)
+        _p2_key_const(eyes, "scale", 1)
+    while f < f_end - 2:
+        for eyes, _m, _o, _xz in parts:
+            eyes.scale = (1, 1, 0.12)
+            _p2_key_const(eyes, "scale", f)
+            eyes.scale = (1, 1, 1)
+            _p2_key_const(eyes, "scale", f + 2)
+        f += rng.randint(2 * fps, 4 * fps)
+    # bouche : ouverte / fermée toutes les 2 images pendant les mots
+    state = None
+    for fr in range(1, f_end + 1):
+        talking = fr in talk_frames
+        want = bool(talking and ((fr // 2) % 2 == 0))
+        if want != state:
+            for _e, mouth, mopen, _xz in parts:
+                mouth.scale = (0, 0, 0) if want else (1, 1, 1)
+                mopen.scale = (1, 1, 1) if want else (0, 0, 0)
+                _p2_key_const(mouth, "scale", fr)
+                _p2_key_const(mopen, "scale", fr)
+            state = want
+    for eyes, mouth, mopen, _xz in parts:
+        for o in (eyes, mouth, mopen):
+            for fc in _p2_fcurves(o):
+                for kp in fc.keyframe_points:
+                    kp.interpolation = "CONSTANT"
+
+
+def _p2_loop(o, path, index, v0, v1, f0, period, interp="LINEAR"):
+    setattr_v = getattr(o, path)
+    setattr_v[index] = v0
+    o.keyframe_insert(path, index=index, frame=f0)
+    setattr_v[index] = v1
+    o.keyframe_insert(path, index=index, frame=f0 + period)
+    for fc in _p2_fcurves(o):
+        if fc.data_path == path and fc.array_index == index:
+            for kp in fc.keyframe_points:
+                kp.interpolation = interp
+            if not fc.modifiers:
+                try:
+                    fc.modifiers.new("CYCLES")
+                except Exception:
+                    pass
+
+
+def p2_alive(ox, indoor, slots, seed=3):
+    """Le décor ne s'arrête jamais : fumée de cheminées et oiseaux dehors, poussière dorée dedans."""
+    rng = random.Random(seed + int(ox))
+    if indoor:
+        for k in range(22):
+            o = sphere((ox + rng.uniform(-5, 5), rng.uniform(0.5, 5.5), rng.uniform(0.6, 4.5)), rng.uniform(0.025, 0.05), (1.0, 0.93, 0.7, 1.0), seg=8)
+            o.name = "P2live_dust"
+            z = o.location.z
+            _p2_loop(o, "location", 2, z, z + rng.uniform(0.6, 1.2), 1 - rng.randint(0, 60), rng.randint(60, 110), "BEZIER")
+            x = o.location.x
+            _p2_loop(o, "location", 0, x, x + rng.uniform(-0.5, 0.5), 1 - rng.randint(0, 60), rng.randint(70, 130), "BEZIER")
+        return
+    # fumée : bouffées grises qui montent et grossissent en boucle
+    spots = [s for s in slots if abs(s[0] - ox) > 5.5][:3] or [(ox + rng.choice((-1, 1)) * 8.0, 9.0)]
+    for (sx_, sy_) in spots[:3]:
+        for k in range(5):
+            o = sphere((sx_, sy_, 6.0), 0.45, (0.88, 0.88, 0.9, 1.0), seg=10)
+            o.name = "P2live_smoke"
+            per = 40
+            ph = 1 - k * (per // 5)
+            _p2_loop(o, "location", 2, 5.6, 10.0, ph, per)
+            _p2_loop(o, "location", 0, sx_, sx_ + 1.2, ph, per)
+            for i in range(3):
+                _p2_loop(o, "scale", i, 0.4, 1.9, ph, per)
+    # oiseaux : petits V d'encre qui traversent le ciel en battant des ailes
+    for k in range(5):
+        b = bpy.data.objects.new("P2live_bird", None)
+        scene.collection.objects.link(b)
+        y = rng.uniform(14, 26)
+        z = rng.uniform(7.5, 12)
+        b.location = (ox - 30, y, z)
+        for sx in (-1, 1):
+            _p2_poly(_p2_capsule((0, 0), (sx * 0.45, 0.22), 0.06, n=4), P2_INK, 0, b, "P2live_wing")
+        per = rng.randint(140, 220)
+        _p2_loop(b, "location", 0, ox - 30, ox + 30, 1 - rng.randint(0, per), per)
+        _p2_loop(b, "scale", 2, 1.0, -0.6, 1 - rng.randint(0, 4), 3, "BEZIER")
+
+
+def p2_extras(loc_ids_outdoor, shots, total_frames):
+    """Figurants stickman à l'arrière-plan : ils regardent, clignent et réagissent aux moments forts."""
+    rng = random.Random(11)
+    shirts = ("#E8833A", "#3F7CC4", "#6BAF5B", "#C9504E", "#8A63B8", "#E0B43C", "#4A9A9A")
+    hats = ("#2E3F66", "#C9504E", "none", "none", "#E0B43C")
+    for lid, ox in loc_ids_outdoor:
+        made = []
+        for k, (x, y) in enumerate(((-4.6, 7.2), (4.9, 8.4), (-6.8, 10.5))):
+            cid = "_extra_%s_%d" % (lid, k)
+            CHARS[cid] = {"id": cid, "shirt": rng.choice(shirts), "hat": rng.choice(hats), "hair": "#3A2A20", "scale": 0.95}
+            parts = make_char(cid, (ox + x, y, 0.0))
+            animate(parts, "idle", 1, total_frames)
+            set_emotion(parts, "neutral", 1)
+            made.append(parts)
+        for S in shots:
+            if S.get("location") != lid:
+                continue
+            emo = S.get("emotion", "neutral")
+            react = emo if emo in ("surprised", "scared", "happy", "sad") else "neutral"
+            for parts in made:
+                set_emotion(parts, react, int(S["f0"]))
+        for k, parts in enumerate(made):
+            p2_face_life(parts[0].name, set(), total_frames, seed=100 + k + int(ox))
+
+
+def p2_ink_outlines():
+    """Contour encre épais sur le décor 3D (coque inversée), pour coller au trait des persos."""
+    from mathutils import Matrix
+    try:
+        scene.display.shading.show_backface_culling = True  # la coque inversée n'est visible que sur les bords
+    except Exception:
+        pass
+    ink = bpy.data.materials.new("P2_InkHull")
+    ink.diffuse_color = (0.008, 0.007, 0.012, 1.0)
+    try:
+        ink.use_backface_culling = True
+    except Exception:
+        pass
+    for o in list(scene.objects):
+        if o.type != "MESH" or o.name in P2_CHAR_OBJS or o.name.startswith(P2_INK_SKIP):
+            continue
+        if o.animation_data is not None or any(m and _is_glow(tuple(m.diffuse_color)) for m in o.data.materials):
+            continue
+        dims = o.dimensions
+        if max(dims) > 40.0 or max(dims) < 0.05:
+            continue
+        if o.data.users > 1:
+            continue
+        if not o.children and tuple(o.scale) != (1.0, 1.0, 1.0):
+            o.data.transform(Matrix.Diagonal((o.scale[0], o.scale[1], o.scale[2], 1.0)))
+            o.scale = (1.0, 1.0, 1.0)
+        if ink.name not in [m.name for m in o.data.materials if m]:
+            o.data.materials.append(ink)
+        sc = max(1e-3, (abs(o.scale[0]) + abs(o.scale[1]) + abs(o.scale[2])) / 3.0)
+        thick = max(0.025, min(0.07, 0.02 + 0.012 * max(dims))) / sc
+        md = o.modifiers.new("P2Ink", "SOLIDIFY")
+        md.thickness = thick
+        md.offset = 1.0
+        md.use_flip_normals = True
+        md.use_rim = False
+        md.material_offset = len(o.data.materials)

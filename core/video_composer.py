@@ -573,6 +573,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             # Styles clairs (Explainer, Fête en folie) : pas d'assombrissement ni de vignettage
             clean = ((plan or {}).get("grade") == "clean")
             grade = "" if clean else ",eq=brightness=-0.05:contrast=1.06:saturation=1.05,vignette=PI/5"
+            if ((plan or {}).get("grade") == "glow"):
+                # Stickman : halo doux (copie floutée en mode écran), sans assombrir les visages blancs
+                # courbe : les têtes (gris clair du rendu Workbench) repassent en blanc pur, décor plus lumineux
+                grade = (",eq=saturation=1.12,format=gbrp,curves=all='0/0 0.5/0.6 0.8/0.99 1/1',split[glw0][glw1];[glw1]scale=270:480,gblur=sigma=5,"
+                         "scale=1080:1920[glw2];[glw0][glw2]blend=all_mode=screen:all_opacity=0.22,format=yuv420p")
             if crop_mode == "blurred_bg":
                 bg_chain = (
                     "[0:v]split=2[vbg][vfg];"

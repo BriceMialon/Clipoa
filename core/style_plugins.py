@@ -137,7 +137,20 @@ Structure « Conte en blocs » (variante B mélancolie) — narration au « je �
 7. Le twist : phrase sèche précédée d'un silence (ex. c'était le narrateur qui était mort).
 8. L'apaisement : une image de lumière et une dernière phrase douce. Pas de CTA agressif, au plus une question très courte."""
 
-STYLE_BIBLE_2D_MONDE_3D = """# STYLE BIBLE — « Conte cartoon 2D dans un monde 3D » (format TikTok / Shorts)
+STYLE_BIBLE_2D_MONDE_3D = """# STYLE BIBLE — « Stickman 2.5D » : persos 2D dans un monde 3D (format TikTok / Shorts)
+
+> **Règles chiffrées (33 000 images de la chaîne d'origine analysées) :** quelque chose bouge sur 96 % des images ; la caméra bouge
+> sur ~85 % des images et ne coupe JAMAIS sèchement (un seul vol continu) ; l'image change toutes les ~2,1 s et un nouvel élément
+> apparaît chaque seconde. Chaque proposition du script = une action du perso + un mouvement de caméra (si une phrase ne peut pas
+> être jouée, réécris-la). Le perso fait exactement ce que dit le narrateur, sur le mot. Chaque nom du script a son objet à l'image.
+> 3 persos ou plus à l'écran au moins un quart du temps (quelqu'un réagit toujours). Le fond est toujours vivant (fumée, oiseaux,
+> eau, foule). Seuls les persos sont 2D ; tout le reste est en vraie 3D avec un contour encre épais.
+
+## 0. LE STICKMAN
+Tête ovale « haricot » BLANC PUR (jamais teintée par la lumière), yeux = deux points noirs, sourcils très expressifs, bouche qui
+bouge quand il parle, pas de nez ni de joues ; petit torse coloré (pull, gilet, salopette) ; bras et jambes = traits d'encre fins ;
+un accessoire signature par perso (bonnet, chapeau, lunettes). L'expression change toutes les 0,3 à 0,8 s (regard, clignement).
+
 
 > **À l'IA qui lit ce fichier :** transforme le script oral (ou l'idée) en vidéo verticale respectant **exactement** ce contraste : personnages dessin animé 2D plats à contours épais posés dans un décor 3D low-poly / semi-réaliste.
 
@@ -164,13 +177,14 @@ STYLE_BIBLE_2D_MONDE_3D = """# STYLE BIBLE — « Conte cartoon 2D dans un monde
 - **Image-to-video** : `Animate this frame. {mouvement caméra}. Characters keep their flat 2D cartoon look and thick outlines, minimal cut-out puppet motion: {action}. Falling snow or subtle mist. No morphing, no style change, no text.`
 """
 
-NARRATIVE_RULES_2D_MONDE_3D = """Structure conte / suspense (phrases courtes de 4 à 10 mots, 1re personne) :
+NARRATIVE_RULES_2D_MONDE_3D = """Structure Stickman — conte / suspense (phrases courtes de 4 à 10 mots, 1re personne) :
 1. Hook-concept (0–3 s) : règle étrange du monde (« Dans ma ville, tout le monde… sauf moi »).
 2. Exemples concrets / règles du monde (1 plan par règle).
 3. Bascule personnelle + lien affectif / objet-clé.
 4. Montée de tension / perte jour après jour.
 5. Révélation / twist court (≤ 8 mots) qui réutilise les règles posées au début.
-6. Chute émotionnelle qui boucle avec le début."""
+6. Chute émotionnelle qui boucle avec le début.
+Rythme Stickman : narration dense (~3,5 mots/s, presque sans pause), chaque phrase jouable à l'image (une action + un objet par nom)."""
 
 STYLE_BIBLE_FETE_EN_FOLIE = """# STYLE GUIDE — « La Tour des Riches » (flat vector motion story, TikTok 9:16)
 
@@ -319,11 +333,11 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
     },
     {
         "id": "2d_monde_3d",
-        "name": "2D × Monde 3D",
-        "category": "2D × 3D",
+        "name": "Stickman",
+        "category": "Stickman 2.5D",
         "icon": "🎨",
         "gradient": "2d",
-        "tagline": "Persos cartoon 2D plats dans un décor 3D.",
+        "tagline": "Stickmen 2D à tête de haricot dans un monde 3D à contours encre.",
         "da_prompt": STYLE_BIBLE_2D_MONDE_3D,
         "narrative_rules": NARRATIVE_RULES_2D_MONDE_3D,
         "render_mode": "blender3d",
@@ -435,7 +449,9 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # DA : plans 1-1,5 s (variante pop) à 2-3 s (mélancolie), caméra toujours en mouvement
     "roblox_3d": {"shot_min_s": 1.2, "shot_max_s": 3.5, "keyword_colors": False, "character_style": "r6", "visual_style": "roblox"},
     # DA : un plan toutes les 2-3 s ; sous-titres 1-3 mots BLANCS à contour noir (pas de couleurs)
-    "2d_monde_3d": {"shot_min_s": 1.8, "shot_max_s": 3.0, "keyword_colors": False, "caption_mode": "two_words", "character_style": "flat2d", "visual_style": "paper2d"},
+    # Stickman (réf. 2.5D, 33 000 images) : image qui change ~toutes les 2,1 s, ~8 bruitages / 10 s, souffle sur chaque mouvement de caméra
+    "2d_monde_3d": {"shot_min_s": 1.6, "shot_max_s": 2.8, "keyword_colors": False, "caption_mode": "two_words", "character_style": "flat2d", "visual_style": "paper2d",
+                    "sfx_max": 40, "whoosh_min_gap_s": 2.0, "sfx_repeat_gap_s": 1.2},
     # DA : un plan par phrase (~2,3 s), UN seul mot à la fois, pas de musique marquée (nappe très basse)
     "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
     # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
@@ -514,7 +530,13 @@ REMOVED_STARTERS_FILE = PLUGINS_DIR / "removed_starters.json"
 # style livré -> {champ: (ancienne valeur livrée, nouvelle valeur)} (migration douce des installations existantes)
 STARTER_DEFAULT_UPDATES: Dict[str, Dict[str, Any]] = {
     # références 2D × 3D : sous-titres blancs à contour noir (plus de mot actif cyan)
-    "2d_monde_3d": {"subtitle_style": ("cyber_cyan", "clean_white")},
+    "2d_monde_3d": {"subtitle_style": ("cyber_cyan", "clean_white"),
+                    "da_prompt": ("prefix:# STYLE BIBLE — « Conte cartoon 2D dans un monde 3D »", STYLE_BIBLE_2D_MONDE_3D),
+                    "narrative_rules": ("prefix:Structure conte / suspense", NARRATIVE_RULES_2D_MONDE_3D),
+                    # renommé « Stickman » (réf. pipeline 2.5D stickman, 33 000 images analysées)
+                    "name": ("2D × Monde 3D", "Stickman"),
+                    "category": ("2D × 3D", "Stickman 2.5D"),
+                    "tagline": ("Persos cartoon 2D plats dans un décor 3D.", "Stickmen 2D à tête de haricot dans un monde 3D à contours encre.")},
     # 3D Roblox fusionné avec « Conte Blocs Mélancolique » (un seul style, le meilleur des deux)
     "roblox_3d": {"subtitle_style": ("submagic_yellow", "clean_white"),
                   "tagline": ("Avatars R6 en blocs dans un monde 3D low-poly.", "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique."),

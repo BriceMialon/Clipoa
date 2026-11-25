@@ -42,7 +42,9 @@ CHAR_MODELS = {
 }
 STYLE_HINTS = {
     "roblox": "3D en blocs façon Roblox, couleurs vives, personnages R6.",
-    "paper2d": "personnages 2D plats (papier découpé, gros yeux, joues roses) dans un décor 3D low-poly ; contraste froid dehors / chaud dedans.",
+    "paper2d": "stickmen 2D (tête ovale blanche, yeux points, petit pull coloré, membres en traits) dans un monde 3D à contours encre ; "
+               "contraste froid dehors / chaud dedans ; un « show » (objet ou mot) à CHAQUE plan pour chaque nom dit ; "
+               "« others » rempli dès que possible (2-3 persos à l'écran) ; donne un « hat » signature à chaque perso.",
     "flat_vector": "illustration vectorielle plate ultra-saturée (violet, bleu, vert, rose, orange), monde vertical : plus on est riche, plus on vit haut.",
     "explainer2d": "dessin animé vectoriel pastel vu de face (ciel bleu pâle, soleil, collines vert sauge, sol beige, rose framboise en accent), "
                    "personnages simples tête ronde ; utilise « hat » comme couleur de tablier/salopette ; un lieu = un décor plein cadre ; "
@@ -239,7 +241,7 @@ def heuristic_spec(script: Dict[str, Any], plan: Dict[str, Any], style: str) -> 
     dark = plan.get("mood") in ("dark", "tension")
     palettes = {
         "flat_vector": {"sky": "#FF9E6B", "ground": "#7BD389", "accent": "#FFD23F"},
-        "paper2d": {"sky": "#8C9BB0" if not dark else "#1F2A44", "ground": "#DDE3EA", "accent": "#FFC861"},
+        "paper2d": {"sky": "#9CCBEF" if not dark else "#1F2A44", "ground": "#DDE3EA", "accent": "#FFC861"},
         "roblox": {"sky": "#4DA3FF" if not dark else "#14213D", "ground": "#5DBB63", "accent": "#FFE14D"},
         "explainer2d": {"sky": "#DCEBF5", "ground": "#E2C9A6", "accent": "#D9406E"},
     }

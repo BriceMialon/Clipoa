@@ -59,7 +59,7 @@ if STYLE == "paper2d":
         pass
     try:
         # les références sont claires et lumineuses : on relève l'exposition (persos blancs bien blancs)
-        scene.view_settings.exposure = 0.45
+        scene.view_settings.exposure = 0.8 if globals().get("P2_STICK") else 0.45
     except Exception:
         pass
 try:
@@ -371,7 +371,7 @@ CHAR_MODELS.update({
 # ---------------------------------------------------------------- objets (props)
 def prop(kind, x, y, color=None, text=""):
     c = hex_rgba(color, None) if color else None
-    if kind in GLB_PROPS and not (kind == "house" and c is not None and STYLE == "flat_vector"):
+    if kind in GLB_PROPS and not (kind == "house" and c is not None and STYLE == "flat_vector") and not (STYLE == "paper2d" and globals().get("P2_STICK")):
         files, hgt = GLB_PROPS[kind]
         rot = math.pi if (kind in ("house", "townhall") and x > LOC_X_CUR + 0.1) else 0.0
         if kind in ("house", "townhall"):
@@ -734,6 +734,11 @@ for li, L in enumerate(SPEC.get("locations", [])):
         if WEATHER in ("snow", "rain"):
             precipitation(ox, WEATHER)
     CUR_TINT = None
+    if STYLE == "paper2d" and globals().get("P2_STICK"):
+        try:
+            p2_alive(ox, t in INDOOR, slots, seed=li)
+        except Exception as _e:
+            print("p2_alive:", _e)
 
 
 # ---------------------------------------------------------------- personnages
@@ -1064,6 +1069,9 @@ if STYLE == "paper2d":
 CHAR_SPOT = [(0.0, 2.0), (-1.8, 2.8), (1.8, 2.8), (-3.2, 3.6), (3.2, 3.6)]
 cut_frames = set()
 placed = {}
+# Stickman : un seul vol de caméra continu (aucune coupe sèche, la caméra bouge sur ~85 % des images)
+P2_FLOW = STYLE == "paper2d" and bool(globals().get("P2_STICK"))
+_flow_prev = None  # (frame de fin, position, cible, lieu)
 
 
 
@@ -1100,16 +1108,18 @@ def show_item(sh, at, f0, f1, idx):
     txt = str(sh.get("text") or "")
     if kind == "text":
         col = hex_rgba(sh.get("color"), ACCENT)
-        o = text3d(txt, (at.x, at.y - 1.2, 4.3), 0.62, col)
+        _tz = 3.6 if STYLE == "paper2d" else 4.3
+        o = text3d(txt, (at.x, at.y - 1.2, _tz), 0.62, col)
         try:
             o.data.extrude = 0.06
             o.data.bevel_depth = 0.015
         except Exception:
             pass
-        pivot = Vector((at.x, at.y - 1.2, 4.3))
+        pivot = Vector((at.x, at.y - 1.2, _tz))
     else:
-        prop(kind, at.x + side * 1.9, at.y - 0.6, sh.get("color"), txt)
-        pivot = Vector((at.x + side * 1.9, at.y - 0.6, 0.0))
+        _dx, _dy = (1.05, -0.9) if STYLE == "paper2d" else (1.9, -0.6)
+        prop(kind, at.x + side * _dx, at.y + _dy, sh.get("color"), txt)
+        pivot = Vector((at.x + side * _dx, at.y + _dy, 0.0))
     holder = _show_holder("Show_%d" % idx, before, pivot)
     if STYLE == "paper2d":
         try:
@@ -1155,6 +1165,8 @@ for si, S in enumerate(SHOTS):
             animate(parts, "idle", f0, f1)
             set_emotion(parts, emo if emo in ("sad", "cry", "happy", "scared") else "neutral", f0)
     kind = S.get("camera", "medium") if S.get("camera") in CAM_OFF else "medium"
+    if P2_FLOW and S.get("show") and kind in ("face", "close"):
+        kind = "medium"  # l'objet qui illustre la phrase doit être dans le cadre
     a, b, aim_z = CAM_OFF[kind]
     side = -1 if si % 2 else 1
     p0 = focus_pos + Vector((a[0] * side, a[1], a[2]))
@@ -1169,21 +1181,65 @@ for si, S in enumerate(SHOTS):
             cam_d.dof.keyframe_insert("focus_distance", frame=f0)
         except Exception:
             pass
-    cam.location = p0
-    cam.rotation_euler = look(p0, tgt)
-    cam.keyframe_insert("location", frame=f0)
-    cam.keyframe_insert("rotation_euler", frame=f0)
     fe = max(f0 + 1, f1 - 1)
+    fs = f0
+    if P2_FLOW and _flow_prev is not None:
+        # le début du plan sert de transition : la caméra vole depuis la fin du plan précédent
+        # même lieu : glissé de caméra ; autre lieu : envolée éclair (2 images) avec un souffle
+        _lead = max(2, min(6, (f1 - f0) // 3)) if _flow_prev[3] == S.get("location") else 1
+        fs = min(fe - 1, f0 + _lead)
+        fs = max(f0, fs)
+    _r = look(p0, tgt)
+    if P2_FLOW:
+        _r.make_compatible(cam.rotation_euler)
+    cam.location = p0
+    cam.rotation_euler = _r
+    cam.keyframe_insert("location", frame=fs)
+    cam.keyframe_insert("rotation_euler", frame=fs)
+    _r = look(p1, tgt1)
+    if P2_FLOW:
+        _r.make_compatible(cam.rotation_euler)
     cam.location = p1
-    cam.rotation_euler = look(p1, tgt1)
+    cam.rotation_euler = _r
     cam.keyframe_insert("location", frame=fe)
     cam.keyframe_insert("rotation_euler", frame=fe)
-    cut_frames.add(fe)
+    if P2_FLOW:
+        _flow_prev = (fe, p1.copy(), tgt1.copy(), S.get("location"))
+    else:
+        cut_frames.add(fe)
     if S.get("show"):
         try:
             show_item(S["show"], focus_pos, f0, f1, si)
         except Exception as _e:
             print("show:", _e)
+
+# Stickman : figurants qui réagissent + visages vivants (regard, clignements, bouche sur les mots)
+if P2_FLOW:
+    _tot = int(scene.frame_end)
+    try:
+        _outdoor = [(L["id"], LOC_POS[L["id"]]) for L in SPEC.get("locations", []) if L.get("type", "street") not in INDOOR and L["id"] in LOC_POS]
+        p2_extras(_outdoor, SHOTS, _tot)
+    except Exception as _e:
+        print("p2_extras:", _e)
+    _word_fr = set()
+    for _w in globals().get("WORD_FR") or []:
+        try:
+            _word_fr.update(range(int(_w[0]), int(_w[1]) + 1))
+        except Exception:
+            pass
+    _talk = {}
+    for S in SHOTS:
+        _fc = S.get("focus")
+        _key = (S.get("location"), _fc)
+        if _key in placed:
+            _rn = placed[_key][0].name
+            _rng = set(range(int(S["f0"]), int(S["f1"]) + 1))
+            _talk.setdefault(_rn, set()).update(_rng & _word_fr if _word_fr else set())
+    for _i, (_key, _parts) in enumerate(placed.items()):
+        try:
+            p2_face_life(_parts[0].name, _talk.get(_parts[0].name, set()), _tot, seed=_i + 1)
+        except Exception as _e:
+            print("p2_face_life:", _e)
 
 # coupes nettes entre plans, mouvement adouci dans chaque plan
 act = cam.animation_data.action if cam.animation_data else None
@@ -1209,7 +1265,13 @@ for _e in FACES.values():
 # style 2D × Monde 3D : décor texturé (pavés, bois, enduit, neige) et mise au point nette d'un plan à l'autre
 if STYLE == "paper2d":
     p2_apply_textures(dict(_MATS))
-    try:
-        _set_interp(cam_d, "CONSTANT")
-    except Exception:
-        pass
+    if P2_FLOW:
+        try:
+            p2_ink_outlines()
+        except Exception as _e:
+            print("p2_ink_outlines:", _e)
+    else:
+        try:
+            _set_interp(cam_d, "CONSTANT")
+        except Exception:
+            pass

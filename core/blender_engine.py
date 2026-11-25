@@ -66,6 +66,7 @@ class BlenderEngine:
         audio_duration_sec: float,
         style: str = "roblox",
         fps: int = 12,
+        words: list = None,
     ) -> str:
         """
         Scène construite pour CETTE vidéo à partir du décor décrit par l'IA (core/scene_designer.py),
@@ -82,6 +83,15 @@ class BlenderEngine:
             shots.append({"f0": f0, "f1": min(f1, total_frames), "location": sp.get("location"), "camera": sp.get("camera", "medium"),
                           "focus": sp.get("focus"), "others": sp.get("others") or [], "action": sp.get("action", "idle"),
                           "emotion": sp.get("emotion", "neutral"), "show": sp.get("show")})
+        # images où un mot est prononcé (bouche qui parle des persos Stickman)
+        word_fr = []
+        for w in words or []:
+            try:
+                a0 = int(round(float(w.get("start", 0.0)) * fps)) + 1
+                a1 = int(round(float(w.get("end", w.get("start", 0.0))) * fps)) + 1
+                word_fr.append([a0, max(a0, a1)])
+            except (TypeError, ValueError, AttributeError):
+                continue
         full_spec = dict(spec)
         full_spec["_style"] = style if style in ("roblox", "paper2d", "flat_vector", "explainer2d") else "roblox"
         header = f"""
@@ -105,6 +115,7 @@ scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
 scene.render.use_file_extension = False
 SPEC = json.loads({json.dumps(json.dumps(full_spec, ensure_ascii=False))})
 SHOTS = json.loads({json.dumps(json.dumps(shots))})
+WORD_FR = json.loads({json.dumps(json.dumps(word_fr))})
 SEED = 7
 ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
 """
