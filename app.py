@@ -62,6 +62,12 @@ from core.style_plugins import (
 )
 from core.gemini_studio import GeminiStudio, GEMINI_MODELS
 from core.antigravity_bridge import AntigravityBridge
+from core.script_template import (
+    build_script_generation_prompt,
+    build_script_refinement_prompt,
+    extract_spoken_script_from_template,
+    extract_title_from_template,
+)
 from core.social_publisher import FreeSocialPublisher, PLATFORMS
 from core.browser_auth import BrowserPortalAuth
 from core.analytics_engine import AnalyticsEngine, PRESET_NICHES
@@ -1912,6 +1918,15 @@ def api_make():
     if not topic and not custom_script:
         return jsonify({"error": "Écris un sujet ou colle ton script"}), 400
 
+    # Si l'utilisateur fournit un script au format Template complet (tableaux Markdown),
+    # on extrait proprement les répliques parlées pour la voix off.
+    if custom_script and "## 3." in custom_script and "|" in custom_script:
+        extracted_spoken = extract_spoken_script_from_template(custom_script)
+        if extracted_spoken:
+            if not custom_title:
+                custom_title = extract_title_from_template(custom_script, fallback=topic or "Mon Short")
+            custom_script = extracted_spoken
+
     plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=False) if plugin_id else None
     display_text = (custom_title or topic or (custom_script or "")[:45])[:40]
     if plugin:
@@ -2062,8 +2077,9 @@ def api_revise():
 @app.route("/api/fabrique/generate-script", methods=["POST"])
 def api_fabrique_generate_script():
     """
-    Étape 1 de la Fabrique : génère uniquement le script (avec Claude ou Antigravity selon le choix)
-    pour que l'utilisateur puisse le relire et le modifier avant de lancer le rendu vidéo.
+    Étape 1 de la Fabrique : génère un script complet au format Template (6 sections :
+    Fiche projet, Personnages, Le script plan par plan, Musiques à créer, Effets sonores)
+    avec Claude Opus 5.5 (Medium) ou Antigravity Gemini 4 Neon (Medium).
     """
     data = request.json or {}
     topic = (data.get("topic") or "").strip()
@@ -2077,53 +2093,83 @@ def api_fabrique_generate_script():
     except (TypeError, ValueError):
         target_dur = 60
 
-    from core.style_plugins import duration_to_word_range
-    from agents.prompts import PROMPT_SCENARISTE
-
-    dur_info = duration_to_word_range(target_dur)
     da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
+    sys_prompt, user_prompt = build_script_generation_prompt(topic=topic, target_duration_sec=target_dur, da_context=da_ctx)
 
     try:
-        # Si le modèle demandé est un modèle Antigravity (ex. gemini-4-neon-medium ou claude-opus-5-5-medium via agy)
-        use_agy = engine == "antigravity" or (model and ("neon" in model or "5-5" in model or "carbon" in model or "argon" in model or "hydrogen" in model))
+        agy_connected = bool(AntigravityBridge.check_status().get("connected"))
+        use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
         if use_agy:
             chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
-            ag_prompt = (
-                f"Sujet : {topic}\n"
-                f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
-                f"{da_ctx}\n"
-                "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, social_caption."
-            )
-            raw = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=chosen_model, timeout=150)
-            m = raw.strip()
-            if "```" in m:
-                blk = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", m)
-                if blk:
-                    m = blk.group(1).strip()
-            try:
-                parsed = json.loads(m[m.find("{") : m.rfind("}") + 1])
-            except Exception:
-                parsed = {
-                    "title": topic[:60],
-                    "hook_screen_text": topic[:45],
-                    "full_spoken_script": raw.strip(),
-                    "social_caption": f"{topic[:80]} #Shorts",
-                }
+            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=180)
             engine_label = chosen_model
         else:
-            parsed = LeScenariste.write_script(
-                topic=topic,
-                da_context=da_ctx or None,
-                target_duration_sec=target_dur,
-            )
+            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
             engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+
+        template_md = (raw or "").strip()
+        title = extract_title_from_template(template_md, fallback=topic[:60])
+        spoken = extract_spoken_script_from_template(template_md)
 
         return jsonify({
             "ok": True,
-            "title": (parsed.get("title") or parsed.get("hook_screen_text") or topic[:60]).strip(),
-            "hook_screen_text": (parsed.get("hook_screen_text") or parsed.get("title") or topic[:45]).strip(),
-            "script": (parsed.get("full_spoken_script") or parsed.get("script") or "").strip(),
-            "social_caption": (parsed.get("social_caption") or "").strip(),
+            "title": title,
+            "script": template_md,
+            "template_script": template_md,
+            "spoken_script": spoken,
+            "engine_label": engine_label,
+        })
+    except ClaudeQuotaExceededError as qe:
+        return jsonify({"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"}), 429
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/fabrique/refine-script", methods=["POST"])
+def api_fabrique_refine_script():
+    """
+    Permet à l'utilisateur de demander à l'IA de remodifier le script généré
+    en conservant strictement le Template de script vidéo.
+    """
+    data = request.json or {}
+    current_script = (data.get("current_script") or "").strip()
+    instruction = (data.get("instruction") or "").strip()
+    if not current_script:
+        return jsonify({"error": "Aucun script à modifier."}), 400
+    if not instruction:
+        return jsonify({"error": "Écris la modification que tu veux demander à l'IA."}), 400
+
+    plugin_id = (data.get("plugin_id") or "").strip() or None
+    engine = (data.get("engine") or "claude").strip().lower()
+    model = (data.get("model") or "").strip() or None
+
+    da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
+    sys_prompt, user_prompt = build_script_refinement_prompt(
+        current_script=current_script,
+        instruction=instruction,
+        da_context=da_ctx,
+    )
+
+    try:
+        agy_connected = bool(AntigravityBridge.check_status().get("connected"))
+        use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
+        if use_agy:
+            chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=180)
+            engine_label = chosen_model
+        else:
+            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template_refine")
+            engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+
+        template_md = (raw or "").strip()
+        title = extract_title_from_template(template_md, fallback="Mon Short")
+        spoken = extract_spoken_script_from_template(template_md)
+        return jsonify({
+            "ok": True,
+            "title": title,
+            "script": template_md,
+            "template_script": template_md,
+            "spoken_script": spoken,
             "engine_label": engine_label,
         })
     except ClaudeQuotaExceededError as qe:

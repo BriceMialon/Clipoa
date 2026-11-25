@@ -156,6 +156,51 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("Blender", hdata["reply"])
         mock_aq.assert_called_once()
 
+    def test_video_script_template_extract_and_routes(self):
+        from core.script_template import (
+            extract_spoken_script_from_template,
+            extract_title_from_template,
+        )
+
+        sample_md = """## 1. Fiche projet
+| Champ | Valeur |
+|---|---|
+| Titre | La Tour des Riches |
+
+## 3. Le script
+| Temps | Scène | Action | Qui parle | Texte | Façon de le dire | Émotions | Effets sonores | Musique |
+|---|---|---|---|---|---|---|---|---|
+| 0:00–0:04 | Décharge | Il regarde en haut | Narrateur (VO) | « Dans cette ville, plus t'es riche, plus tu vis haut. » | Calme | Curiosité 3/5 | SFX-01 : vent | MUS-01 : début |
+| 0:04–0:07 | Tours | Caméra monte | — | — | — | — | SFX-02 : whoosh | MUS-01 : continue |
+| 0:07–0:10 | Décharge | Il sourit | Le garçon | « Et moi j'habite tout en bas. » | Ironique | Malaise 3/5 | — | MUS-01 : continue |
+"""
+        self.assertEqual(extract_title_from_template(sample_md), "La Tour des Riches")
+        spoken = extract_spoken_script_from_template(sample_md)
+        self.assertIn("Dans cette ville, plus t'es riche, plus tu vis haut.", spoken)
+        self.assertIn("Et moi j'habite tout en bas.", spoken)
+        self.assertNotIn("SFX-01", spoken)
+        self.assertNotIn("|", spoken)
+
+        with patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": True, "model": "gemini-4-neon-medium", "models": []}), patch(
+            "core.antigravity_bridge.AntigravityBridge.query", return_value=sample_md
+        ):
+            r_gen = self.client.post(
+                "/api/fabrique/generate-script",
+                json={"topic": "La tour des riches", "engine": "antigravity", "model": "gemini-4-neon-medium", "target_duration_sec": 60},
+            )
+            self.assertEqual(r_gen.status_code, 200)
+            g = r_gen.get_json()
+            self.assertTrue(g["ok"])
+            self.assertEqual(g["title"], "La Tour des Riches")
+            self.assertIn("## 3. Le script", g["template_script"])
+
+            r_ref = self.client.post(
+                "/api/fabrique/refine-script",
+                json={"current_script": sample_md, "instruction": "Rends la fin plus sombre", "engine": "antigravity", "model": "gemini-4-neon-medium"},
+            )
+            self.assertEqual(r_ref.status_code, 200)
+            self.assertTrue(r_ref.get_json()["ok"])
+
     def test_plugins_crud_sheets_and_script_upload_isolated(self):
         with tempfile.TemporaryDirectory() as td:
             pdir = Path(td) / "plugins"

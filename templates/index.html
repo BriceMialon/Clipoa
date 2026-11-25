@@ -349,19 +349,26 @@
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
             </div>
 
-            <!-- Aperçu & édition du script généré (étape 1 terminée, modifiable avant génération vidéo) -->
-            <div id="fab-script-review-box" style="display:none; margin-top:12px; padding:12px 14px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
+            <!-- Aperçu & édition du script généré (valider, modifier à la main ou demander à l'IA de remodifier) -->
+            <div id="fab-script-review-box" style="display:none; margin-top:12px; padding:14px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-                <span style="font-size:12px; font-weight:700; color:var(--ink);">
-                  📝 Script prêt <span id="fab-review-meta" style="font-weight:500; color:var(--muted);"></span>
-                </span>
-                <div style="display:flex; gap:6px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-size:12.5px; font-weight:700; color:var(--ink);">📝 Script généré (Template complet)</span>
+                  <span id="fab-review-meta" style="font-size:11.5px; color:var(--muted);"></span>
+                  <span id="fab-review-validated-badge" style="display:none; font-size:11px; font-weight:700; color:var(--ok); background:var(--ok-soft); padding:2px 8px; border-radius:99px;">✓ Validé</span>
+                </div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-primary btn-xs" id="fab-validate-script-btn" onclick="validateFabScript()">✓ Valider</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="generateFabriqueScript()">↻ Régénérer</button>
                   <button type="button" class="btn btn-ghost btn-xs" onclick="clearGeneratedFabScript()">Effacer</button>
                 </div>
               </div>
               <input type="text" id="fab-review-title" class="input-sm" style="margin-bottom:8px;" placeholder="Titre de la vidéo…">
-              <textarea id="fab-review-text" class="big-input" rows="5" oninput="updateFabReviewMeta()" placeholder="Tu peux relire et modifier librement le script ici avant de fabriquer la vidéo…"></textarea>
+              <textarea id="fab-review-text" class="code-editor" rows="14" style="width:100%; font-size:12px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()" placeholder="Fiche projet, Personnages, Script plan par plan, Musiques (MUS-xx) et Effets sonores (SFX-xx)…"></textarea>
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+                <input type="text" id="fab-refine-input" class="input-sm" style="flex:1; min-width:200px;" placeholder="Demander à l'IA de remodifier (ex : rends la fin plus sombre, ajoute un perso, change la musique…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
+                <button type="button" class="btn btn-ghost btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Modifier avec l'IA</button>
+              </div>
             </div>
 
             <!-- Barre d'exemple URL ou B-roll fichier -->
@@ -2289,9 +2296,22 @@
       const el = document.getElementById('fab-review-meta');
       if (!el) return;
       const txt = val('fab-review-text');
-      const words = txt ? txt.split(/\s+/).filter(Boolean).length : 0;
-      const sec = Math.max(0, Math.round(words / 2.65));
-      el.textContent = words ? `· ${words} mots (~${formatDurShort(sec)}) — modifiable` : '';
+      const lines = txt ? txt.split(/\r?\n/).filter(l => l.trim().startsWith('|') && /\d+:\d+/.test(l)).length : 0;
+      el.textContent = lines ? `· ${lines} plan${lines > 1 ? 's' : ''} — modifiable à la main ou par IA` : (txt ? '· modifiable à la main ou par IA' : '');
+    }
+
+    function onFabReviewEdited() {
+      const b = document.getElementById('fab-review-validated-badge');
+      if (b) b.style.display = 'none';
+      updateFabReviewMeta();
+    }
+
+    function validateFabScript() {
+      if (!val('fab-review-text')) return toast('Génère ou écris d’abord un script.');
+      const b = document.getElementById('fab-review-validated-badge');
+      if (b) b.style.display = 'inline-flex';
+      toast('✓ Script validé ! Tu peux choisir le rendu et fabriquer la vidéo.');
+      updateCreateCTA();
     }
 
     function clearGeneratedFabScript() {
@@ -2301,9 +2321,55 @@
       if (ta) ta.value = '';
       const ti = document.getElementById('fab-review-title');
       if (ti) ti.value = '';
+      const ref = document.getElementById('fab-refine-input');
+      if (ref) ref.value = '';
+      const b = document.getElementById('fab-review-validated-badge');
+      if (b) b.style.display = 'none';
       const st = document.getElementById('fab-gen-script-status');
       if (st) st.textContent = '';
       updateCreateCTA();
+    }
+
+    async function refineFabriqueScript() {
+      const current_script = val('fab-review-text');
+      const instruction = val('fab-refine-input');
+      if (!current_script) return toast('Aucun script à modifier.');
+      if (!instruction) return toast('Indique la modification souhaitée.');
+      const rawChoice = (val('fab-script-model') || 'claude:claude-opus-5-5-medium').split(':');
+      const eng = rawChoice[0] || 'claude';
+      const mdl = rawChoice[1] === 'cli' ? '' : (rawChoice[1] || '');
+      const btn = document.getElementById('fab-refine-btn');
+      const st = document.getElementById('fab-gen-script-status');
+      if (btn) { btn.disabled = true; btn.textContent = 'Modification…'; }
+      if (st) st.textContent = 'Retouche IA du script en cours…';
+      try {
+        const res = await apiJson('/api/fabrique/refine-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            current_script,
+            instruction,
+            plugin_id: activePluginId || '',
+            engine: eng,
+            model: mdl,
+          }),
+        });
+        if (res.error) {
+          if (st) st.textContent = '';
+          return toast(res.error);
+        }
+        const ti = document.getElementById('fab-review-title');
+        if (ti && res.title) ti.value = res.title;
+        const ta = document.getElementById('fab-review-text');
+        if (ta) ta.value = res.template_script || res.script || '';
+        const ref = document.getElementById('fab-refine-input');
+        if (ref) ref.value = '';
+        onFabReviewEdited();
+        if (st) st.textContent = `✓ Modifié (${res.engine_label || eng})`;
+        toast('Script mis à jour par l’IA !');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '✨ Modifier avec l’IA'; }
+      }
     }
 
     async function generateFabriqueScript() {
