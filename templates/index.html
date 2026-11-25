@@ -134,8 +134,8 @@
               <span class="dot ok" id="side-agy-dot"></span>
               <span>Antigravity Neon</span>
             </span>
-            <span id="side-agy-pct" style="color:var(--muted);">
-              {{ agy_status.quota.remaining_pct }}%
+            <span id="side-agy-pct" style="color:{{ 'var(--danger, #d9534f)' if agy_status.quota.exhausted else 'var(--muted)' }};" title="Utilisation restante sur 5h">
+              {{ agy_status.quota.remaining_pct }}% restant{{ (' · reset ' ~ agy_status.quota.resets_at) if agy_status.quota.exhausted else '' }}
             </span>
           </div>
           <div class="progress-track" style="margin-top:5px; height:4px;">
@@ -1377,7 +1377,7 @@
                 <div class="quota-dual-grid">
                   <div class="quota-mini-box">
                     <div class="quota-mini-top">
-                      <span style="color:var(--muted); font-weight:600;">Limite 5h</span>
+                      <span style="color:var(--muted); font-weight:600;">Reste (5h)</span>
                       <span id="reg-agy-quota-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct ~ '%') if agy_status.connected else '—' }}</span>
                     </div>
                     <div class="quota-mini-bar">
@@ -1386,7 +1386,7 @@
                   </div>
                   <div class="quota-mini-box">
                     <div class="quota-mini-top">
-                      <span style="color:var(--muted); font-weight:600;">Limite hebdo</span>
+                      <span style="color:var(--muted); font-weight:600;">Reste (hebdo)</span>
                       <span id="reg-agy-quota-7d-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct_7d ~ '%') if agy_status.connected else '—' }}</span>
                     </div>
                     <div class="quota-mini-bar">
@@ -1397,12 +1397,23 @@
                 <div style="font-size:11px; color:var(--muted); margin-top:5px;">
                   {{ agy_status.models|length }} modèles disponibles · {{ agy_status.quota.calls_5h }} appels Clipoa
                 </div>
+                <div id="reg-agy-quota-note" style="font-size:11px; margin-top:4px; line-height:1.4; color:{{ 'var(--danger, #d9534f)' if agy_status.quota.exhausted else 'var(--muted)' }};">
+                  {% if agy_status.quota.exhausted %}⛔ Quota épuisé · reset à {{ agy_status.quota.resets_at }} (dans {{ agy_status.quota.resets_in }})
+                  {% elif agy_status.quota.source == 'calibré' %}Pourcentages recalés sur l'app Antigravity puis décomptés par Clipoa
+                  {% else %}Estimation Clipoa — clique « Ajuster » pour recopier les % de l'app Antigravity{% endif %}
+                </div>
+                <div id="agy-quota-adjust" style="display:none; margin-top:6px; gap:6px; align-items:center; flex-wrap:wrap; font-size:11.5px;">
+                  Reste 5h <input id="agy-adj-5h" type="number" min="0" max="100" step="1" placeholder="%" style="width:58px;">
+                  Reste hebdo <input id="agy-adj-7d" type="number" min="0" max="100" step="1" placeholder="%" style="width:58px;">
+                  <button type="button" class="btn btn-primary btn-xs" onclick="saveAgyQuotaAdjust()">OK</button>
+                </div>
               </div>
 
               <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
                 <span style="font-size:11.5px; color:var(--muted);">Scripts, 3D Blender & Aide IA</span>
                 <div style="display:flex; gap:5px;">
                   <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
+                  <button type="button" class="btn btn-ghost btn-xs" onclick="toggleAgyQuotaAdjust()" title="Recopier les % restants affichés dans l'app Antigravity">Ajuster</button>
                   {% if agy_status.connected %}
                   <button type="button" class="btn btn-ghost btn-xs" onclick="switchAntigravityAccount()">Changer</button>
                   {% else %}
@@ -2935,6 +2946,55 @@
       if (!silent) toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
     }
 
+    function applyAgyQuota(aq, ok) {
+      // Affiche ce qu'il RESTE (comme l'app Antigravity), 0 % dès qu'un « quota reached » est détecté.
+      const remPct = aq.remaining_pct ?? 100;
+      const rem7d = aq.remaining_pct_7d ?? 100;
+      const red = 'var(--danger, #d9534f)';
+      const sPct = document.getElementById('side-agy-pct');
+      if (sPct) {
+        sPct.textContent = ok ? `${remPct}% restant${aq.exhausted ? ' · reset ' + aq.resets_at : ''}` : 'Off';
+        sPct.style.color = aq.exhausted ? red : 'var(--muted)';
+      }
+      const sBar = document.getElementById('side-agy-bar');
+      if (sBar) sBar.style.width = `${ok ? remPct : 0}%`;
+      const rRight = document.getElementById('reg-agy-quota-right');
+      if (rRight) { rRight.textContent = ok ? `${remPct}%` : '—'; rRight.style.color = remPct <= 5 ? red : 'var(--ink)'; }
+      const rBar = document.getElementById('reg-agy-quota-bar');
+      if (rBar) rBar.style.width = `${ok ? remPct : 0}%`;
+      const r7d = document.getElementById('reg-agy-quota-7d-right');
+      if (r7d) { r7d.textContent = ok ? `${rem7d}%` : '—'; r7d.style.color = rem7d <= 5 ? red : 'var(--ink)'; }
+      const r7dBar = document.getElementById('reg-agy-quota-7d-bar');
+      if (r7dBar) r7dBar.style.width = `${ok ? rem7d : 0}%`;
+      const note = document.getElementById('reg-agy-quota-note');
+      if (note) {
+        note.style.color = aq.exhausted ? red : 'var(--muted)';
+        note.textContent = aq.exhausted
+          ? `⛔ Quota épuisé · reset à ${aq.resets_at} (dans ${aq.resets_in})`
+          : (aq.source === 'calibré'
+            ? "Pourcentages recalés sur l'app Antigravity puis décomptés par Clipoa"
+            : "Estimation Clipoa — clique « Ajuster » pour recopier les % de l'app Antigravity");
+      }
+    }
+
+    function toggleAgyQuotaAdjust() {
+      const box = document.getElementById('agy-quota-adjust');
+      if (box) box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    async function saveAgyQuotaAdjust() {
+      const v5 = document.getElementById('agy-adj-5h')?.value;
+      const v7 = document.getElementById('agy-adj-7d')?.value;
+      const res = await apiJson('/api/antigravity/quota', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rem_5h: v5, rem_7d: v7 }) });
+      if (res && res.quota) {
+        applyAgyQuota(res.quota, true);
+        toggleAgyQuotaAdjust();
+        toast(`Antigravity : ${res.quota.remaining_pct}% restant (5h) · ${res.quota.remaining_pct_7d}% (hebdo)`);
+      } else {
+        toast((res && res.error) || 'Impossible d’enregistrer');
+      }
+    }
+
     async function refreshAntigravityStatus(probe = true, silent = false) {
       if (!silent) toast('Vérification Antigravity CLI…');
       const st = await apiJson('/api/antigravity/status?probe=' + (probe ? '1' : '0'));
@@ -2947,23 +3007,9 @@
         regSt.textContent = ok ? '✓ Connecté' : 'À connecter';
         regSt.style.color = ok ? 'var(--ok)' : 'var(--muted)';
       }
-      const aq = st.quota || {};
-      const remPct = aq.remaining_pct ?? 100;
-      const rem7d = aq.remaining_pct_7d ?? 100;
       const sDot = document.getElementById('side-agy-dot');
-      if (sDot) sDot.className = 'dot ' + (ok ? 'ok' : 'warn');
-      const sPct = document.getElementById('side-agy-pct');
-      if (sPct) sPct.textContent = ok ? `${remPct}%` : 'Off';
-      const sBar = document.getElementById('side-agy-bar');
-      if (sBar) sBar.style.width = `${ok ? remPct : 0}%`;
-      const rRight = document.getElementById('reg-agy-quota-right');
-      if (rRight) rRight.textContent = ok ? `${remPct}%` : '—';
-      const rBar = document.getElementById('reg-agy-quota-bar');
-      if (rBar) rBar.style.width = `${ok ? remPct : 0}%`;
-      const r7d = document.getElementById('reg-agy-quota-7d-right');
-      if (r7d) r7d.textContent = ok ? `${rem7d}%` : '—';
-      const r7dBar = document.getElementById('reg-agy-quota-7d-bar');
-      if (r7dBar) r7dBar.style.width = `${ok ? rem7d : 0}%`;
+      if (sDot) sDot.className = 'dot ' + (ok ? ((st.quota || {}).exhausted ? 'warn' : 'ok') : 'warn');
+      applyAgyQuota(st.quota || {}, ok);
       if (Array.isArray(st.models) && st.models.length) {
         const sel = document.getElementById('agy-model');
         if (sel) {

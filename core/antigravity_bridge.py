@@ -15,7 +15,64 @@ from core.settings_store import load_settings, save_settings
 logger = logging.getLogger("AntigravityBridge")
 AGY_USAGE_FILE = STORAGE_DIR / "antigravity_usage.json"
 _AGY_LOCK = threading.Lock()
-AGY_WINDOW_BUDGET_TOKENS = 250_000  # ~250k tokens / 5h rolling estimate for Antigravity CLI
+AGY_WINDOW_BUDGET_TOKENS = 1_500_000  # estimation 5h (un appel agy coute ~25k tokens d'entree)
+AGY_WEEKLY_BUDGET_TOKENS = AGY_WINDOW_BUDGET_TOKENS * 6
+AGY_QUOTA_STATE_FILE = STORAGE_DIR / "antigravity_quota_state.json"
+AGY_LOG_DIRS = [
+    Path.home() / ".gemini" / "antigravity",
+    Path.home() / ".gemini" / "antigravity-cli",
+]
+_RESET_RE = re.compile(r"Resets? in\s+((?:\d+\s*[dhms]\s*)+)", re.I)
+_GLOG_RE = re.compile(r"^[EWI](\d{2})(\d{2}) (\d{2}):(\d{2}):(\d{2})")
+
+
+def parse_reset_seconds(text: str) -> Optional[int]:
+    """'Resets in 2h44m31s' -> 9871 ; None si absent."""
+    m = _RESET_RE.search(text or "")
+    if not m:
+        return None
+    total = 0
+    for val, unit in re.findall(r"(\d+)\s*([dhms])", m.group(1)):
+        total += int(val) * {"d": 86400, "h": 3600, "m": 60, "s": 1}[unit.lower()]
+    return total
+
+
+def is_quota_error(text: str) -> bool:
+    low = (text or "").lower()
+    return "resource_exhausted" in low or "quota reached" in low or "individual quota" in low
+
+
+def _glog_ts(line: str, now: Optional[float] = None) -> Optional[float]:
+    m = _GLOG_RE.match(line or "")
+    if not m:
+        return None
+    now = now or time.time()
+    lt = time.localtime(now)
+    mo, day, hh, mi, ss = (int(x) for x in m.groups())
+    for year in (lt.tm_year, lt.tm_year - 1):
+        try:
+            ts = time.mktime((year, mo, day, hh, mi, ss, 0, 0, -1))
+        except (OverflowError, ValueError):
+            continue
+        if ts <= now + 60:
+            return ts
+    return None
+
+
+def scan_quota_errors(lines, now: Optional[float] = None) -> Optional[float]:
+    """Renvoie l'horodatage de reset le plus tardif trouve dans des lignes de log agy."""
+    best = None
+    for line in lines:
+        if not is_quota_error(line):
+            continue
+        secs = parse_reset_seconds(line)
+        ts = _glog_ts(line, now)
+        if secs is None or ts is None:
+            continue
+        reset_at = ts + secs
+        if best is None or reset_at > best:
+            best = reset_at
+    return best
 
 DEFAULT_AGY_CANDIDATES = [
     "/Applications/Gemini.app/Contents/Helpers/agy",
@@ -163,9 +220,15 @@ class AntigravityBridge:
         }
 
     @classmethod
-    def _record_usage(cls, model: str, input_chars: int, output_chars: int) -> None:
+    def _record_usage(cls, model: str, input_chars: int, output_chars: int, usage: Optional[Dict[str, Any]] = None) -> None:
         in_tok = max(1, int(round(input_chars / 3.8)))
         out_tok = max(1, int(round(output_chars / 3.8)))
+        if usage:
+            try:
+                in_tok = int(usage.get("input_tokens") or in_tok)
+                out_tok = int(usage.get("output_tokens") or 0) + int(usage.get("thinking_tokens") or 0) or out_tok
+            except Exception:
+                pass
         entry = {
             "ts": time.time(),
             "model": model or "gemini-4-neon-medium",
@@ -191,11 +254,95 @@ class AntigravityBridge:
             except Exception:
                 pass
 
+    _log_scan_cache: Dict[str, Any] = {}
+
     @classmethod
-    def get_quota_summary(cls) -> Dict[str, Any]:
+    def _load_quota_state(cls) -> Dict[str, Any]:
+        try:
+            if AGY_QUOTA_STATE_FILE.exists():
+                d = json.loads(AGY_QUOTA_STATE_FILE.read_text(encoding="utf-8"))
+                if isinstance(d, dict):
+                    return d
+        except Exception:
+            pass
+        return {}
+
+    @classmethod
+    def _save_quota_state(cls, state: Dict[str, Any]) -> None:
+        try:
+            AGY_QUOTA_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            AGY_QUOTA_STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    @classmethod
+    def note_quota_error(cls, text: str) -> None:
+        """Memorise un 'Individual quota reached. Resets in …' renvoye par agy."""
+        if not is_quota_error(text):
+            return
+        secs = parse_reset_seconds(text)
         now = time.time()
-        window_5h = now - 5 * 3600
-        window_7d = now - 7 * 86400
+        reset_at = now + (secs if secs is not None else 3600)
+        st = cls._load_quota_state()
+        if reset_at > float(st.get("exhausted_until") or 0):
+            st["exhausted_until"] = reset_at
+            st["exhausted_seen_at"] = now
+            cls._save_quota_state(st)
+
+    @classmethod
+    def _scan_logs_reset_at(cls) -> Optional[float]:
+        """Lit la fin des logs d'Antigravity (app + CLI) : le quota est partage, meme hors Clipoa."""
+        files: List[Path] = []
+        for d in AGY_LOG_DIRS:
+            if (d / "cli.log").exists():
+                files.append(d / "cli.log")
+            logs = sorted((d / "log").glob("cli-*.log")) if (d / "log").is_dir() else []
+            files.extend(logs[-1:])
+        best = None
+        for f in files:
+            try:
+                stt = f.stat()
+                key = str(f)
+                cached = cls._log_scan_cache.get(key)
+                if cached and cached[0] == stt.st_mtime and cached[1] == stt.st_size:
+                    found = cached[2]
+                else:
+                    with open(f, "rb") as fh:
+                        fh.seek(max(0, stt.st_size - 600_000))
+                        chunk = fh.read().decode("utf-8", errors="ignore")
+                    found = scan_quota_errors(chunk.splitlines())
+                    cls._log_scan_cache[key] = (stt.st_mtime, stt.st_size, found)
+                if found and (best is None or found > best):
+                    best = found
+            except Exception:
+                continue
+        return best
+
+    @classmethod
+    def set_manual_quota(cls, rem_5h: Optional[float], rem_7d: Optional[float]) -> Dict[str, Any]:
+        """L'utilisateur recopie les % restants affiches par l'app Antigravity (calibrage)."""
+        st = cls._load_quota_state()
+        tok5, tok7 = cls._tokens_windows()
+        man = st.get("manual") or {}
+        now = time.time()
+        if rem_5h is not None:
+            man["rem_5h"] = max(0.0, min(100.0, float(rem_5h)))
+            man["at_5h"] = now
+            man["tok_at_5h"] = tok5
+        if rem_7d is not None:
+            man["rem_7d"] = max(0.0, min(100.0, float(rem_7d)))
+            man["at_7d"] = now
+            man["tok_at_7d"] = tok7
+        st["manual"] = man
+        if (rem_5h or 0) > 0 and float(st.get("exhausted_until") or 0) > now:
+            st["exhausted_until"] = 0
+            st["ignore_log_reset"] = cls._scan_logs_reset_at()
+        cls._save_quota_state(st)
+        return cls.get_quota_summary()
+
+    @classmethod
+    def _tokens_windows(cls):
+        now = time.time()
         history: List[Dict[str, Any]] = []
         with _AGY_LOCK:
             if AGY_USAGE_FILE.exists():
@@ -205,29 +352,85 @@ class AntigravityBridge:
                         history = []
                 except Exception:
                     history = []
-        recent = [h for h in history if h.get("ts", 0) >= window_5h]
-        tokens_used = sum(int(h.get("total_tokens", 0)) for h in recent)
-        tokens_left = max(0, AGY_WINDOW_BUDGET_TOKENS - tokens_used)
-        used_pct = min(100.0, round((tokens_used / max(1, AGY_WINDOW_BUDGET_TOKENS)) * 100.0, 1))
-        remaining_pct = max(0.0, round(100.0 - used_pct, 1))
+        t5 = sum(int(h.get("total_tokens", 0)) for h in history if h.get("ts", 0) >= now - 5 * 3600)
+        t7 = sum(int(h.get("total_tokens", 0)) for h in history if h.get("ts", 0) >= now - 7 * 86400)
+        return t5, t7
 
-        weekly_budget = AGY_WINDOW_BUDGET_TOKENS * 8
-        recent_7d = [h for h in history if h.get("ts", 0) >= window_7d]
-        tokens_used_7d = sum(int(h.get("total_tokens", 0)) for h in recent_7d)
-        used_pct_7d = min(100.0, round((tokens_used_7d / max(1, weekly_budget)) * 100.0, 1))
-        remaining_pct_7d = max(0.0, round(100.0 - used_pct_7d, 1))
+    @classmethod
+    def get_quota_summary(cls) -> Dict[str, Any]:
+        """Pourcentages RESTANTS (5h et hebdo), comme l'app Antigravity.
 
+        Sources, par ordre de fiabilite :
+        1. erreur reelle « Individual quota reached. Resets in … » (Clipoa ou logs agy) -> 0 % jusqu'au reset
+        2. calibrage manuel (% recopies depuis l'app Antigravity), decremente par la conso Clipoa
+        3. estimation a partir des tokens consommes par Clipoa
+        """
+        now = time.time()
+        st = cls._load_quota_state()
+        t5, t7 = cls._tokens_windows()
+
+        est_5h = max(0.0, 100.0 - (t5 / AGY_WINDOW_BUDGET_TOKENS) * 100.0)
+        est_7d = max(0.0, 100.0 - (t7 / AGY_WEEKLY_BUDGET_TOKENS) * 100.0)
+        source = "estimation"
+        man = st.get("manual") or {}
+        rem_5h, rem_7d = est_5h, est_7d
+        if man.get("rem_7d") is not None and now - float(man.get("at_7d") or 0) < 7 * 86400:
+            spent = max(0, t7 - int(man.get("tok_at_7d") or 0))
+            rem_7d = max(0.0, float(man["rem_7d"]) - spent / AGY_WEEKLY_BUDGET_TOKENS * 100.0)
+            source = "calibré"
+        if man.get("rem_5h") is not None and now - float(man.get("at_5h") or 0) < 5 * 3600:
+            spent = max(0, t5 - int(man.get("tok_at_5h") or 0))
+            rem_5h = max(0.0, float(man["rem_5h"]) - spent / AGY_WINDOW_BUDGET_TOKENS * 100.0)
+            source = "calibré"
+        rem_5h = min(rem_5h, rem_7d)
+
+        exhausted_until = float(st.get("exhausted_until") or 0)
+        log_reset = cls._scan_logs_reset_at()
+        ign = st.get("ignore_log_reset")
+        if log_reset and not (ign and abs(float(ign) - log_reset) < 1):
+            exhausted_until = max(exhausted_until, log_reset)
+        exhausted = exhausted_until > now
+        reset_in = int(exhausted_until - now) if exhausted else 0
+        if exhausted:
+            rem_5h = 0.0
+            source = "réel"
+            if reset_in > 5 * 3600:  # reset au-dela de 5h => c'est la limite hebdo qui bloque
+                rem_7d = 0.0
+
+        def _fmt(secs: int) -> str:
+            d, r = divmod(secs, 86400)
+            h, r = divmod(r, 3600)
+            m = r // 60
+            if d:
+                return f"{d}j {h}h"
+            return f"{h}h{m:02d}" if h else f"{m} min"
+
+        rem_5h = round(rem_5h, 1)
+        rem_7d = round(rem_7d, 1)
+        tokens_left = int(AGY_WINDOW_BUDGET_TOKENS * rem_5h / 100.0)
         return {
-            "calls_5h": len(recent),
-            "tokens_used_5h": tokens_used,
+            "calls_5h": cls._calls_5h(),
+            "tokens_used_5h": t5,
             "tokens_left_5h": tokens_left,
             "budget_tokens_5h": AGY_WINDOW_BUDGET_TOKENS,
-            "used_pct": used_pct,
-            "remaining_pct": remaining_pct,
-            "used_pct_7d": used_pct_7d,
-            "remaining_pct_7d": remaining_pct_7d,
-            "est_videos_left": max(0, tokens_left // 4500),
+            "used_pct": round(100.0 - rem_5h, 1),
+            "remaining_pct": rem_5h,
+            "used_pct_7d": round(100.0 - rem_7d, 1),
+            "remaining_pct_7d": rem_7d,
+            "exhausted": exhausted,
+            "resets_at": time.strftime("%H:%M", time.localtime(exhausted_until)) if exhausted else None,
+            "resets_in": _fmt(reset_in) if exhausted else None,
+            "source": source,
+            "est_videos_left": max(0, tokens_left // 60000),
         }
+
+    @classmethod
+    def _calls_5h(cls) -> int:
+        try:
+            history = json.loads(AGY_USAGE_FILE.read_text(encoding="utf-8")) if AGY_USAGE_FILE.exists() else []
+            return len([h for h in history if h.get("ts", 0) >= time.time() - 5 * 3600])
+        except Exception:
+            return 0
 
     @classmethod
     def set_model(cls, model_id: str) -> Dict[str, Any]:
@@ -306,36 +509,9 @@ class AntigravityBridge:
         model: Optional[str] = None,
         timeout: int = 180,
     ) -> str:
-        cli_path = cls.find_cli()
-        if not cli_path:
-            raise RuntimeError("Antigravity CLI (agy) introuvable sur ce Mac.")
-
-        full_prompt = cls._wrap_no_tools_prompt(prompt, system_prompt)
-        chosen_model = (model or load_settings().get("antigravity", {}).get("model") or "gemini-4-neon-medium").strip()
-
-        cmd = [
-            cli_path,
-            "-p",
-            full_prompt,
-            "--output-format",
-            "text",
-            "--disable-slash-commands",
-        ]
-        if chosen_model:
-            cmd.extend(["--model", chosen_model])
-
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cls._empty_cwd())
-        combined = (res.stdout + "\n" + res.stderr).strip()
-        low = combined.lower()
-        if "please sign in" in low or "not logged in" in low:
-            cls._cached_connected = False
-            raise RuntimeError("Antigravity CLI n'est pas connecté. Ouvre Connexions → Connecter Antigravity.")
-        if res.returncode != 0 or not res.stdout.strip():
-            raise RuntimeError(f"Erreur Antigravity CLI : {combined[:220]}")
-
-        cls._cached_connected = True
-        out_txt = res.stdout.strip()
-        cls._record_usage(chosen_model, len(full_prompt), len(out_txt))
+        out_txt = "".join(cls.stream_query(prompt, system_prompt=system_prompt, model=model, timeout=timeout)).strip()
+        if not out_txt:
+            raise RuntimeError("Erreur Antigravity CLI : réponse vide")
         return out_txt
 
     @classmethod
@@ -377,6 +553,7 @@ class AntigravityBridge:
             cwd=cls._empty_cwd(),
         )
         full_chunks: List[str] = []
+        last_usage: Optional[Dict[str, Any]] = None
         started = time.time()
         try:
             assert proc.stdout is not None
@@ -401,19 +578,27 @@ class AntigravityBridge:
                             yield delta
                 elif ev_type == "result":
                     res_obj = ev.get("result") or {}
+                    if isinstance(res_obj.get("usage"), dict):
+                        last_usage = res_obj["usage"]
                     if not full_chunks and res_obj.get("response"):
                         resp_txt = str(res_obj["response"])
                         full_chunks.append(resp_txt)
                         yield resp_txt
             proc.wait(timeout=15)
             if proc.returncode != 0 and not full_chunks:
-                err_txt = (proc.stderr.read() if proc.stderr else "")[:220]
+                err_full = proc.stderr.read() if proc.stderr else ""
+                err_txt = err_full[:220]
+                if is_quota_error(err_full):
+                    cls.note_quota_error(err_full)
+                    secs = parse_reset_seconds(err_full)
+                    wait = (" Reset dans " + str(secs // 3600) + "h" + str((secs % 3600) // 60).zfill(2) + ".") if secs else ""
+                    raise RuntimeError("Quota Antigravity épuisé (0 % restant)." + wait + " Choisis Claude ou attends le reset.")
                 if "please sign in" in err_txt.lower() or "not logged in" in err_txt.lower():
                     cls._cached_connected = False
                     raise RuntimeError("Antigravity CLI n'est pas connecté.")
                 raise RuntimeError(f"Erreur Antigravity CLI : {err_txt or 'code ' + str(proc.returncode)}")
             cls._cached_connected = True
-            cls._record_usage(chosen_model, len(full_prompt), sum(len(c) for c in full_chunks))
+            cls._record_usage(chosen_model, len(full_prompt), sum(len(c) for c in full_chunks), last_usage)
         finally:
             if proc.poll() is None:
                 try:

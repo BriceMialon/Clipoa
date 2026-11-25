@@ -2480,6 +2480,27 @@ def api_antigravity_status():
     return jsonify(AntigravityBridge.check_status(live_probe=probe))
 
 
+@app.route("/api/antigravity/quota", methods=["POST"])
+def api_antigravity_quota():
+    """Calibrage : l'utilisateur recopie les % RESTANTS affichés dans l'app Antigravity."""
+    data = request.json or {}
+
+    def _num(key):
+        val = data.get(key)
+        if val is None or str(val).strip() == "":
+            return None
+        try:
+            return float(str(val).replace("%", "").replace(",", ".").strip())
+        except ValueError:
+            return None
+
+    rem_5h = _num("rem_5h")
+    rem_7d = _num("rem_7d")
+    if rem_5h is None and rem_7d is None:
+        return jsonify({"error": "Indique au moins un pourcentage restant (5h ou hebdo)."}), 400
+    return jsonify({"ok": True, "quota": AntigravityBridge.set_manual_quota(rem_5h, rem_7d)})
+
+
 @app.route("/api/antigravity/login", methods=["POST"])
 def api_antigravity_login():
     return jsonify(AntigravityBridge.start_cli_login())
