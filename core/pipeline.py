@@ -301,6 +301,9 @@ class ShortCrewPipeline:
                     bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
                     total_frames = max(72, int(round(audio_dur_sec * 12)))
                     rendered = False
+                    def _blender_prog(f_cur: int, f_tot: int):
+                        pct = 56 + int(round(17 * min(1.0, f_cur / max(1, f_tot))))
+                        _prog(pct, f"🧊 [3/4] Rendu 3D Blender en cours… image {f_cur}/{f_tot}")
                     # Pour Roblox 3D & 2D×Monde 3D : moteur multi-plans 3D couvrant 100% de la durée de la vidéo !
                     if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):
                         BlenderEngine.create_roblox_3d_scene(
@@ -311,7 +314,7 @@ class ShortCrewPipeline:
                             shots=all_shots,
                             audio_duration_sec=audio_dur_sec,
                         )
-                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
+                        rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     else:
                         ai_ok = AntigravityBridge.generate_blender_script(
                             topic=topic or script.get("title") or "Short 3D",
@@ -324,7 +327,7 @@ class ShortCrewPipeline:
                             model=engine_model,
                         )
                         if ai_ok:
-                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
+                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                         if not rendered:
                             BlenderEngine.create_roblox_3d_scene(
                                 title_text=script.get("hook_screen_text") or (topic or "CLIPOA")[:40],
@@ -334,7 +337,7 @@ class ShortCrewPipeline:
                                 shots=all_shots,
                                 audio_duration_sec=audio_dur_sec,
                             )
-                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames)
+                            rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     if rendered:
                         effective_bg = bg_out
                 except Exception as e:

@@ -1,9 +1,12 @@
 import json
+import re
+import select
 import subprocess
+import time
 import os
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 from config import BLENDER_PATH, RENDERS_DIR
 
 logger = logging.getLogger("BlenderEngine")
@@ -49,9 +52,20 @@ class BlenderEngine:
             logger.warning(f"Blender 5 compat patch skipped: {e}")
 
     @classmethod
-    def render_script(cls, python_script_path: str, output_path: str, frames: int = 150) -> bool:
+    def render_script(
+        cls,
+        python_script_path: str,
+        output_path: str,
+        frames: int = 150,
+        progress_cb: Optional[Callable[[int, int], None]] = None,
+        stall_timeout_sec: int = 900,
+    ) -> bool:
         """
         Runs Blender in background mode with the specified python script.
+        NO global wall-clock timeout: as long as Blender is actively rendering frames
+        (stdout activity or growing output file), it is NEVER killed — even for 40+ min renders.
+        Only aborts if Blender is completely frozen with zero output and zero file growth
+        for `stall_timeout_sec` consecutive seconds (default 15 min).
         """
         if not cls.is_available():
             raise FileNotFoundError(
@@ -71,13 +85,77 @@ class BlenderEngine:
             "-a"
         ]
 
-        logger.info(f"Rendering 3D scene with Blender CLI ({frames} frames)...")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        if result.returncode != 0:
-            logger.error(f"Blender render error: {result.stderr[-600:]}")
+        logger.info(f"Rendering 3D scene with Blender CLI ({frames} frames, no global timeout)...")
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        tail_lines = []
+        last_activity = time.time()
+        last_out_size = 0
+        last_reported_frame = 0
+        fra_re = re.compile(r"(?:Fra:|Append frame\s+)(\d+)")
+
+        try:
+            while True:
+                if proc.stdout is not None:
+                    ready, _, _ = select.select([proc.stdout], [], [], 2.0)
+                    if ready:
+                        line = proc.stdout.readline()
+                        if line:
+                            last_activity = time.time()
+                            tail_lines.append(line.rstrip())
+                            if len(tail_lines) > 40:
+                                tail_lines.pop(0)
+                            m = fra_re.search(line)
+                            if m and progress_cb:
+                                fnum = int(m.group(1))
+                                if fnum != last_reported_frame:
+                                    last_reported_frame = fnum
+                                    try:
+                                        progress_cb(fnum, max(1, int(frames)))
+                                    except Exception:
+                                        pass
+                            continue
+                if proc.poll() is not None:
+                    # Drain any remaining buffered lines
+                    if proc.stdout is not None:
+                        for rem in proc.stdout.readlines():
+                            tail_lines.append(rem.rstrip())
+                    break
+
+                # Check output file growth as additional proof Blender is actively generating
+                if os.path.exists(output_path):
+                    try:
+                        cur_sz = os.path.getsize(output_path)
+                        if cur_sz > last_out_size:
+                            last_out_size = cur_sz
+                            last_activity = time.time()
+                    except OSError:
+                        pass
+
+                # Only kill if truly frozen (zero output & zero file growth for stall_timeout_sec)
+                if stall_timeout_sec and (time.time() - last_activity) > stall_timeout_sec:
+                    logger.error(f"Blender appears completely frozen for {stall_timeout_sec}s — terminating.")
+                    proc.kill()
+                    proc.wait(timeout=10)
+                    return False
+        except Exception as e:
+            logger.error(f"Blender render monitor error: {e}")
+            try:
+                proc.kill()
+            except Exception:
+                pass
+            return False
+
+        if proc.returncode != 0:
+            logger.error(f"Blender render error (rc={proc.returncode}): {' | '.join(tail_lines[-12:])}")
             return False
         if not (os.path.exists(output_path) and os.path.getsize(output_path) > 0):
-            logger.error(f"Blender finished but output missing: {output_path}. stderr={result.stderr[-400:]}")
+            logger.error(f"Blender finished but output missing: {output_path}. log={' | '.join(tail_lines[-8:])}")
             return False
         return True
 
