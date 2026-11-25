@@ -299,7 +299,7 @@ class ShortCrewPipeline:
                     out_dir = Path(voice_res["audio_wav"]).parent
                     py_script = str(out_dir / f"{session_id}_scene_3d.py")
                     bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
-                    total_frames = max(180, int(round(audio_dur_sec * 24)))
+                    total_frames = max(72, int(round(audio_dur_sec * 12)))
                     rendered = False
                     # Pour Roblox 3D & 2D×Monde 3D : moteur multi-plans 3D couvrant 100% de la durée de la vidéo !
                     if plugin and plugin.get("id") in ("roblox_3d", "2d_monde_3d"):

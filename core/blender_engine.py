@@ -186,9 +186,9 @@ text_obj.data.materials.append(mat)
         dark_keywords = ("horreur", "effray", "nuit", "soir", "dispar", "mort", "fenêtre", "fenetre", "éteint", "eteint", "sombre", "peur", "monstre", "seul", "neige", "glace", "triste", "efface", "miroir", "deuil")
         is_melancholy = any(k in low for k in dark_keywords)
 
-        fps = 24
-        dur_sec = max(12.0, min(120.0, float(audio_duration_sec or (frames / 30.0) or 45.0)))
-        total_frames = max(180, int(round(dur_sec * fps)))
+        fps = 12
+        dur_sec = max(6.0, min(120.0, float(audio_duration_sec or (frames / 12.0) or 45.0)))
+        total_frames = max(72, int(round(dur_sec * fps)))
 
         # Build shot timeline covering 100% of total_frames (at least 8 distinct shots)
         shot_list = list(shots or [])
@@ -224,9 +224,13 @@ random.seed(42)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 
 scene = bpy.context.scene
-scene.render.engine = 'BLENDER_EEVEE'
-scene.render.resolution_x = 720
-scene.render.resolution_y = 1280
+scene.render.engine = 'BLENDER_WORKBENCH'
+scene.display.shading.light = 'STUDIO'
+scene.display.shading.color_type = 'MATERIAL'
+scene.display.shading.show_shadows = True
+scene.display.shading.show_cavity = True
+scene.render.resolution_x = 540
+scene.render.resolution_y = 960
 scene.render.resolution_percentage = 100
 scene.render.fps = {fps}
 scene.frame_start = 1
@@ -238,14 +242,14 @@ scene.render.ffmpeg.format = 'MPEG4'
 scene.render.ffmpeg.codec = 'H264'
 scene.render.ffmpeg.constant_rate_factor = 'MEDIUM'
 scene.render.use_file_extension = False
-if hasattr(scene, 'eevee') and hasattr(scene.eevee, 'taa_render_samples'):
-    scene.eevee.taa_render_samples = 8
 
 IS_MELANCHOLY = {repr(is_melancholy)}
 SHOT_SPECS = {repr(shot_specs)}
 
 def make_mat(name, rgba, rough=0.45, emit=0.0):
     m = bpy.data.materials.new(name=name)
+    m.diffuse_color = rgba
+    m.roughness = rough
     m.use_nodes = True
     bsdf = m.node_tree.nodes.get("Principled BSDF")
     if bsdf:
@@ -264,9 +268,10 @@ def add_box(name, loc, scale, mat, rot=(0, 0, 0)):
     obj.data.materials.append(mat)
     return obj
 
-# World sky
+# World sky (Workbench + EEVEE compatible)
 world = bpy.data.worlds.new("ClipoaWorld")
 scene.world = world
+world.color = (0.04, 0.07, 0.14) if IS_MELANCHOLY else (0.28, 0.62, 0.98)
 world.use_nodes = True
 bg = world.node_tree.nodes.get("Background")
 if bg:

@@ -6,34 +6,37 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 ## 1. Emplacement & Accès
 
-- **Dossier racine du code** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone`
+- **Dossier racine du code** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone` (symlink `/Users/brice/Downloads/Shortcrew/clipoa`)
 - **URL locale** : `http://localhost:8080`
 - **Python (venv)** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone/venv/bin/python` (**Python 3.9** — ne jamais mettre de backslash `\` dans une expression `{...}` de f-string).
-- **Node (validation JS)** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone/runtime/node/bin/node`
-- **Logs serveur** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone/storage/server.log`
+- **Blender CLI** : `/Applications/Blender.app/Contents/MacOS/Blender` (**Blender 5.3.0** — requiert `image_settings.media_type = 'VIDEO'` avant `file_format = 'FFMPEG'` et `BLENDER_WORKBENCH` en 540×960 @ 12 fps pour un rendu multi-plans 60s en ~45s sans timeout).
+- **Antigravity CLI (`agy`)** : `/Applications/Gemini.app/Contents/Helpers/agy` (modèle par défaut : `gemini-4-neon-medium`, bac à sable vide `storage/_agy_sandbox`).
+- **Claude CLI** : `~/.local/bin/claude` (bac à sable vide `storage/_claude_sandbox` + `--tools "" --strict-mcp-config` + streaming `stream-json`).
+- **Logs serveur** : `/tmp/clipoa_server.log`
 
-> **Règle d'or sécurité** : ne JAMAIS supprimer ni écraser les clés API dans `storage/settings.json` ni les connexions OAuth dans `storage/social_accounts.json`.
+> **Règle d'or sécurité** : ne JAMAIS supprimer ni écraser les clés API dans `storage/settings.json` ni les connexions OAuth dans `storage/social_accounts.json`. Le dossier `storage/` est ignoré par Git.
 
 ---
 
-## 2. Où on en est (État actuel)
+## 2. Où on en est (État actuel — 25/11/2026)
 
-1. **Docteur Shark supprimé à 100 %** : plus aucun fichier, module, route (`/api/docshark/*`), ni texte dans l'interface.
-2. **Système de Plugins de Style (DA)** opérationnel (`core/style_plugins.py`, routes `/api/plugins*`, vue `Plugins DA`, modale 4 onglets Identité / Planches / Script / DA Claude).
-   - 3 styles intégrés prêts avec aperçu visuel, Style Bible complète, estimation temps + tokens/quota (calibrée sur **1 minute** et ajustée dynamiquement selon la durée choisie) :
-     - **`3D Roblox`** (`id: "roblox_3d"`, image `storage/plugins/roblox_3d/sheets/roblox_3d.jpg`) — *In this town / Dans ma ville* (variantes A Pop & B Mélancolie).
-     - **`2D × Monde 3D`** (`id: "2d_monde_3d"`, image `storage/plugins/2d_monde_3d/sheets/2d_monde_3d.jpg`) — *Conte cartoon 2D dans un monde 3D*.
-     - **`Fête en folie`** (`id: "fete_en_folie"`, image `storage/plugins/fete_en_folie/sheets/fete_en_folie.jpg`) — *La Tour des Riches* (flat vector 2D saturé, sous-titres 1 mot au centre, UI TikTok intégrée).
-   - L'utilisateur peut toujours basculer entre **« À partir d'une idée »** et **« J'ai mon script »** (texte conservé mot pour mot avec application de la DA choisie).
-3. **Sélecteur de durée cible** (`30s`, `45s`, `1 min`, `1m30`, `2 min`) dans la Fabrique & le Script Lab : pilote la longueur du script (`duration_to_word_range`) et ajuste en direct le temps estimé et le coût en tokens/quota.
-4. **Barre des tâches Aide IA** en bas de l'écran (`#ai-taskbar`, route `POST /api/assistant/help`) :
-   - Active dès que Claude ou Gemini est connecté dans « Connexions ».
-   - Sélecteur de modèle intégré (`Claude Sonnet / Opus / Haiku`, `Gemini 3 Flash / 3.8 Flash / 3.1 Pro`) pour choisir quel modèle répond et guide l'utilisateur sur Clipoa.
-
-5. **Refonte UI 2.0 (25/11/2026)** — `static/css/clipoa-ui.css` (chargé après `liquid-glass.css`) : verre dépoli + fond aurore, mode **Clair / Sombre** (sélecteur dans la barre latérale, `?theme=light|dark` dans l'URL), accent dégradé corail → rose.
-   - Navigation 5 + 2 : Accueil · Créer · Mes vidéos · Publier · Statistiques | Réglages : Styles · Connexions.
-   - Rubriques à onglets (`.subnav`) : **Créer** = `creer` / `montage` / `analyse` / `equipe` ; **Styles** = `plugins` / `style`. Mapping JS `VIEW_GROUP` dans `showView()`.
-   - `?open=<vue>` ouvre n'importe quelle vue. Les presets sont dans le tiroir « Personnaliser » de la Fabrique.
+1. **Moteurs IA & Streaming temps réel** :
+   - **Claude (`core/claude_bridge.py`)** et **Antigravity (`core/antigravity_bridge.py`)** streament tous les deux les scripts mot-à-mot en direct (SSE `/api/fabrique/generate-script/stream`) en bac à sable vide sans latence ni timeout de 150s.
+   - Affichage conditionnel : tant qu'aucune IA n'est branchée, la Fabrique affiche un écran d'accueil simplifié vers Connexions.
+   - Quotas **5h + hebdo (7j)** affichés pour **Claude** ET **Antigravity** dans Connexions, avec rafraîchissement automatique après chaque script et chaque job vidéo (`refreshJobs`).
+   - Bouton **Changer** disponible sur **Claude**, **Antigravity** (`POST /api/antigravity/switch`) et **ElevenLabs** (`POST /api/elevenlabs/disconnect`).
+2. **Fabrique simplifiée & Script mis en forme** :
+   - Présentation automatique du script généré en mode **`👁️ Aperçu`** (tableaux HTML stylés, timecodes, pastilles `MUS-xx` / `SFX-xx`, boutons **Copier** sur les prompts) avec bascule instantanée **`✏️ Éditer`**.
+   - **Paramètres de script avancés** (`core/script_template.py`, `/api/script-templates`) : l'utilisateur peut importer et choisir son propre template `.md`/`.txt` ; Claude et Antigravity s'y adaptent automatiquement.
+   - Estimations temps réel auto-apprenantes (`core/timing_tracker.py`, `GET /api/timings`) sans affichage de tokens : temps estimé et `%` quota s'ajustent dynamiquement selon le moteur (Claude vs Antigravity) et la durée cible.
+3. **Rendu 3D Roblox Blender multi-plans + Musique d'ambiance & SFX** :
+   - `core/blender_engine.py` (`create_roblox_3d_scene`) génère un vrai film 3D multi-plans (5 zones 3D distinctes, coupes de caméra `CONSTANT`) couvrant **100 % de la durée audio** en **Blender Workbench** (`540×960 @ 12 fps`, lighting `STUDIO`, `MATERIAL` colors, ombres + cavity → ~45s pour 60s de vidéo, zéro timeout).
+   - `core/sound_designer.py` (`SoundDesigner.mix_ambient_and_sfx`) génère et mixe localement (100 % FFmpeg, 0 clé API) une **musique d'ambiance adaptée au ton** et des **bruits/effets sonores (SFX)** pilotés par deux cases cochables dans la Fabrique (`#fab-enable-music`, `#fab-enable-sfx`).
+4. **Interface épurée** :
+   - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
+   - **Sidebar** : loupe search supprimée à côté du logo Clipoa ; en bas à gauche, Antigravity affiche uniquement le `%`.
+   - **Mes vidéos** : bouton `+ Fabriquer` retiré à côté de `▶ Regarder une par une`, et filtre `Avec un style` retiré.
+   - **Sous-titres** : carte *Dossier créatif local* et bouton `+ Sauvegarder un Preset` retirés.
 
 ---
 
@@ -41,41 +44,31 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 | Fichier | Rôle |
 |---|---|
-| `app.py` | Serveur Flask principal (routes UI, `/api/plugins*`, `/api/make`, `/api/gemini/*`, `/api/script-lab/*`, `/api/assistant/help`, jobs). |
-| `core/style_plugins.py` | `STARTER_PLUGINS`, Style Bibles, `StylePluginStore` (CRUD, planches, scripts), `duration_to_word_range()`, `estimate_plugin_cost_and_time()`. |
-| `core/claude_bridge.py` | Pont vers Claude CLI / API Anthropic (`ClaudeBridge.query(..., model=...)`, quotas 5h). |
-| `core/gemini_studio.py` | Studio Google Gemini (`query`, `chat_text`, `create_short`, quotas). |
-| `core/pipeline.py` | Orchestration vidéo complète (`create_short`, `create_short_from_script`, `target_duration_sec`). |
-| `core/night_factory.py` | File d'attente Mode Nuit. |
-| `agents/team.py` & `agents/script_expert.py` | Agents IA scénariste & Script Lab (injection DA + durée cible). |
-| `templates/index.html` | Toute l'interface web + JS inline (vues Accueil, Fabrique, Plugins DA, Vidéos, Connexions, Barre des tâches Aide IA). |
-| `static/css/liquid-glass.css` | Styles Liquid Glass (dont plugins DA, barre de durée, barre des tâches Aide IA). |
-| `storage/plugins/` | Index `plugins.json` + dossiers `<plugin_id>/sheets/` et `<plugin_id>/scripts/`. |
-| `tests/` | Suite `unittest` (`test_style_plugins.py`, `test_security_hardening.py`, etc. dont validation syntaxe JS via `node --check`). |
+| `app.py` | Serveur Flask principal (routes UI, `/api/fabrique/*`, `/api/make`, `/api/script-templates`, `/api/timings`, `/api/antigravity/*`, `/api/elevenlabs/*`, `/api/plugins*`, `/api/assistant/help`). |
+| `core/claude_bridge.py` | Pont Claude CLI (`query`, `stream_query`, bac à sable `_claude_sandbox`, quotas 5h/7j). |
+| `core/antigravity_bridge.py` | Pont Antigravity CLI (`query`, `stream_query`, `switch_account`, quotas 5h + hebdo 7j). |
+| `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
+| `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
+| `core/sound_designer.py` | Génération & mixage FFmpeg local de musique d'ambiance adaptée + SFX de transition sous la voix. |
+| `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
+| `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
+| `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
+| `tests/` | 49 tests `unittest` (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
-## 4. Comment modifier, tester et mettre à jour
+## 4. Tester et redémarrer
 
-### Ajouter ou modifier un Style DA intégré
-1. Éditer `STARTER_PLUGINS` dans `core/style_plugins.py`.
-2. Placer l'image d'aperçu dans `storage/plugins/<id>/sheets/<id>.jpg`.
-3. Supprimer `storage/plugins/plugins.json` (pour re-seeder proprement au démarrage) ou mettre à jour via `PUT /api/plugins/<id>`.
-
-### Lancer toute la suite de tests (obligatoire après chaque modif)
+### Lancer la suite complète de tests (49 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v
 ```
 
-### Redémarrer Clipoa sur `localhost:8080`
+### Redémarrer Clipoa proprement sur `localhost:8080`
 ```bash
+lsof -ti :8080 | xargs kill -9 2>/dev/null || true
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
-pkill -f "shortcrew_clone/app.py" || lsof -ti :8080 | xargs -r kill
-nohup ./venv/bin/python app.py > storage/server.log 2>&1 < /dev/null &
-sleep 2
-curl -s http://127.0.0.1:8080/api/system/health
+nohup ./venv/bin/python app.py > /tmp/clipoa_server.log 2>&1 &
+sleep 3 && curl -s -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8080/
 ```
-
-### Mettre à jour ce fichier
-Après chaque ajout ou changement important (nouveau style, nouvelle vue, nouvelle route API), mets à jour la section **« 2. Où on en est »** ci-dessus pour garder la mémoire partagée toujours à jour.

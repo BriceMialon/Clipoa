@@ -52,9 +52,6 @@
           </svg>
           <span>Clipoa</span>
         </div>
-        <button type="button" class="sidebar-quick-cfg" onclick="openCmdK()" title="Palette rapide (⌘K)">
-          <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </button>
       </div>
 
       <nav class="sidebar-nav-wrap" id="sidebar-nav-wrap">
@@ -159,15 +156,76 @@
     <!-- ==================== WORKSPACE PRINCIPAL ==================== -->
     <div class="app-main">
 
-      <!-- TOP COMMAND BAR ("Demande à ton équipe ⌘K" + Actions rapides) -->
+      <!-- TOP BAR (Barre IA pour les questions + Crédits ElevenLabs) -->
       <header class="workspace-topbar">
-        <button type="button" class="cmd-search-pill lg-sheen" onclick="openCmdK()">
-          <span style="display:flex; align-items:center; gap:9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-            <span class="cmd-spark">✦</span>
-            <span>Demande à ton équipe Clipoa…</span>
-          </span>
-          <span class="cmd-kbd">⌘K</span>
-        </button>
+        <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre IA pour les questions">
+          <form class="ai-taskbar-bar" style="width:100%;" onsubmit="event.preventDefault(); askAiHelp();">
+            <button type="button" class="ai-tb-status" onclick="toggleAiTaskbarDrawer()" title="Ouvrir ou fermer l'aide IA">
+              <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-tb-dot"></span>
+              <span>✦</span>
+              <span class="ai-tb-lbl">Aide IA</span>
+            </button>
+
+            <select id="ai-tb-model" class="ai-tb-model" title="Choisir le modèle IA qui répond" onchange="saveAiTaskbarModel()">
+              {% if agy_status.connected %}
+              <optgroup label="Antigravity ✓" id="ai-tb-agy-group">
+                {% for am in agy_status.models %}
+                <option value="antigravity:{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endif %}
+              {% if claude_status.connected %}
+              <optgroup label="Claude ✓">
+                <option value="claude:opus" {{ 'selected' if (not agy_status.connected) else '' }}>Claude Opus 5.5 (Medium)</option>
+              </optgroup>
+              {% endif %}
+              {% if not claude_status.connected and not agy_status.connected %}
+              <option value="auto:">Connecter une IA</option>
+              {% endif %}
+            </select>
+
+            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Pose ta question à l’IA…' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide IA…' }}" onfocus="if (aiHelpHistory.length) toggleAiTaskbarDrawer(true)" autocomplete="off">
+
+            <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
+          </form>
+
+          <div class="ai-taskbar-drawer" id="ai-tb-drawer">
+            <div class="ai-drawer-head">
+              <div class="ai-drawer-title">
+                <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-drawer-dot"></span>
+                <span>Aide IA Clipoa</span>
+                <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
+                  {{ 'Connecté · choisis ton modèle ci-dessus' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide' }}
+                </span>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                {% if not (claude_status.connected or agy_status.connected) %}
+                <button type="button" class="btn btn-coral btn-xs" onclick="toggleAiTaskbarDrawer(false); showView('reglages')">Connexions</button>
+                {% endif %}
+                <button type="button" class="btn btn-ghost btn-xs" onclick="clearAiHelp()" title="Effacer la discussion">Effacer</button>
+                <button type="button" class="btn btn-ghost btn-xs" onclick="toggleAiTaskbarDrawer(false)" title="Réduire">✕</button>
+              </div>
+            </div>
+
+            <div class="ai-drawer-body" id="ai-tb-messages">
+              <div class="ai-msg assistant">
+                <div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>
+                {% if claude_status.connected or agy_status.connected %}
+                Salut ! Pose-moi n'importe quelle question sur Clipoa. Tu peux choisir Claude ou Antigravity dans la barre en haut.
+                {% else %}
+                Pour activer l'aide IA en direct, connecte Claude ou Antigravity dans « Connexions ».
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="ai-quick-row">
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer un short rapidement ?')">Comment créer un short ?</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment utiliser un style DA comme 3D Roblox ou Fête en folie ?')">Utiliser un style DA</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment modifier le script généré avant de lancer la vidéo ?')">Modifier mon script</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment générer une scène 3D Blender avec Antigravity ?')">Scène 3D Blender</button>
+            </div>
+          </div>
+        </div>
 
         <div class="topbar-right">
           <button type="button" class="pill-chip" data-view="reglages" onclick="showView('reglages')" title="Crédits ElevenLabs & Connexions">
@@ -1456,76 +1514,6 @@
     </div>
   </div>
 
-  <!-- Barre des tâches · Assistant Aide IA (Claude / Antigravity) -->
-  <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre des tâches Aide IA">
-    <div class="ai-taskbar-drawer" id="ai-tb-drawer">
-      <div class="ai-drawer-head">
-        <div class="ai-drawer-title">
-          <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-drawer-dot"></span>
-          <span>Aide IA Clipoa</span>
-          <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
-            {{ 'Connecté · choisis ton modèle ci-dessous' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide' }}
-          </span>
-        </div>
-        <div style="display:flex; gap:6px; align-items:center;">
-          {% if not (claude_status.connected or agy_status.connected) %}
-          <button type="button" class="btn btn-coral btn-xs" onclick="toggleAiTaskbarDrawer(false); showView('reglages')">Connexions</button>
-          {% endif %}
-          <button type="button" class="btn btn-ghost btn-xs" onclick="clearAiHelp()" title="Effacer la discussion">Effacer</button>
-          <button type="button" class="btn btn-ghost btn-xs" onclick="toggleAiTaskbarDrawer(false)" title="Réduire">✕</button>
-        </div>
-      </div>
-
-      <div class="ai-drawer-body" id="ai-tb-messages">
-        <div class="ai-msg assistant">
-          <div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>
-          {% if claude_status.connected or agy_status.connected %}
-          Salut ! Pose-moi n'importe quelle question sur Clipoa. Tu peux choisir Claude ou Antigravity dans la barre en bas.
-          {% else %}
-          Pour activer l'aide IA en direct, connecte Claude ou Antigravity dans « Connexions ».
-          {% endif %}
-        </div>
-      </div>
-
-      <div class="ai-quick-row">
-        <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer un short rapidement ?')">Comment créer un short ?</button>
-        <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment utiliser un style DA comme 3D Roblox ou Fête en folie ?')">Utiliser un style DA</button>
-        <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment modifier le script généré avant de lancer la vidéo ?')">Modifier mon script</button>
-        <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment générer une scène 3D Blender avec Antigravity ?')">Scène 3D Blender</button>
-      </div>
-    </div>
-
-    <form class="ai-taskbar-bar" onsubmit="event.preventDefault(); askAiHelp();">
-      <button type="button" class="ai-tb-status" onclick="toggleAiTaskbarDrawer()" title="Ouvrir ou fermer l'aide IA">
-        <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-tb-dot"></span>
-        <span>✦</span>
-        <span class="ai-tb-lbl">Aide IA</span>
-      </button>
-
-      <select id="ai-tb-model" class="ai-tb-model" title="Choisir le modèle IA qui répond" onchange="saveAiTaskbarModel()">
-        {% if agy_status.connected %}
-        <optgroup label="Antigravity ✓" id="ai-tb-agy-group">
-          {% for am in agy_status.models %}
-          <option value="antigravity:{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
-          {% endfor %}
-        </optgroup>
-        {% endif %}
-        {% if claude_status.connected %}
-        <optgroup label="Claude ✓">
-          <option value="claude:opus" {{ 'selected' if (not agy_status.connected) else '' }}>Claude Opus 5.5 (Medium)</option>
-        </optgroup>
-        {% endif %}
-        {% if not claude_status.connected and not agy_status.connected %}
-        <option value="auto:">Connecter une IA</option>
-        {% endif %}
-      </select>
-
-      <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Besoin d’aide sur Clipoa ? Pose ta question…' if (claude_status.connected or agy_status.connected) else 'Connecte Claude ou Antigravity pour activer l’aide IA…' }}" onfocus="if (aiHelpHistory.length) toggleAiTaskbarDrawer(true)" autocomplete="off">
-
-      <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
-    </form>
-  </div>
-
   <!-- Floating iOS 26 Mobile Dock -->
   <nav class="mobile-nav" aria-label="Navigation mobile">
     <button type="button" class="m-btn actif" data-view="accueil" data-group="accueil" onclick="showView('accueil')">
@@ -2689,6 +2677,8 @@
               updateFabReviewMeta();
               if (st) st.textContent = `✓ Généré (${payload.engine_label || eng})`;
               updateCreateCTA();
+              refreshClaudeQuota();
+              refreshAntigravityStatus(false, true);
               toast('Script généré ! Tu peux le valider, le modifier à la main ou avec l’IA.');
               setTimeout(() => { if (progWrap) progWrap.style.display = 'none'; }, 1800);
             } else if (evName === 'error') {
@@ -2926,8 +2916,8 @@
       if (!silent) toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
     }
 
-    async function refreshAntigravityStatus(probe = true) {
-      toast('Vérification Antigravity CLI…');
+    async function refreshAntigravityStatus(probe = true, silent = false) {
+      if (!silent) toast('Vérification Antigravity CLI…');
       const st = await apiJson('/api/antigravity/status?probe=' + (probe ? '1' : '0'));
       const ok = !!st.connected;
       AI_CONNECTED_PROVIDERS.antigravity = ok;
@@ -2971,7 +2961,7 @@
         }
       }
       updateCreateCTA();
-      toast(ok ? `✓ Antigravity connecté (${(st.models || []).length} modèles)` : 'Antigravity pas encore connecté — valide dans le Terminal.');
+      if (!silent) toast(ok ? `✓ Antigravity connecté (${(st.models || []).length} modèles)` : 'Antigravity pas encore connecté — valide dans le Terminal.');
     }
 
     let lockedRenderType = null;
@@ -3235,6 +3225,8 @@
 
     async function refreshJobs() {
       refreshClaudeQuota();
+      refreshAntigravityStatus(false, true);
+      refreshElevenLabsCredits(true);
       try {
         const data = await (await fetch('/api/jobs')).json();
         const jobs = data.jobs || [];
