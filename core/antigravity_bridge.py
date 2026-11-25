@@ -19,10 +19,10 @@ DEFAULT_AGY_CANDIDATES = [
 ]
 
 FALLBACK_AGY_MODELS: List[Dict[str, str]] = [
-    {"id": "gemini-3.1-pro-preview", "label": "Gemini 3.1 Pro (Antigravity)"},
-    {"id": "gemini-3-flash-preview", "label": "Gemini 3 Flash (Antigravity)"},
-    {"id": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6 (Antigravity)"},
-    {"id": "claude-opus-4-6", "label": "Claude Opus 4.6 (Antigravity)"},
+    {"id": "gemini-4-neon-medium", "label": "Gemini 4 Neon (Medium)"},
+    {"id": "gemini-4-neon-high", "label": "Gemini 4 Neon (High)"},
+    {"id": "claude-opus-5-5-medium", "label": "Claude Opus 5.5 (Medium)"},
+    {"id": "claude-sonnet-5-5-medium", "label": "Claude Sonnet 5.5 (Medium)"},
 ]
 
 _UNSAFE_BLENDER_TOKENS = (
@@ -140,7 +140,12 @@ class AntigravityBridge:
 
         saved_model = load_settings().get("antigravity", {}).get("model", "")
         valid_ids = {m["id"] for m in models}
-        active_model = saved_model if saved_model in valid_ids else (models[0]["id"] if models else "")
+        if saved_model in valid_ids:
+            active_model = saved_model
+        elif "gemini-4-neon-medium" in valid_ids:
+            active_model = "gemini-4-neon-medium"
+        else:
+            active_model = models[0]["id"] if models else ""
 
         return {
             "connected": connected,

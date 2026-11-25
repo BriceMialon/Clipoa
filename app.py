@@ -2059,6 +2059,79 @@ def api_revise():
     return jsonify({"job_id": job_id})
 
 
+@app.route("/api/fabrique/generate-script", methods=["POST"])
+def api_fabrique_generate_script():
+    """
+    Étape 1 de la Fabrique : génère uniquement le script (avec Claude ou Antigravity selon le choix)
+    pour que l'utilisateur puisse le relire et le modifier avant de lancer le rendu vidéo.
+    """
+    data = request.json or {}
+    topic = (data.get("topic") or "").strip()
+    if not topic:
+        return jsonify({"error": "Décris ton idée avant de générer le script."}), 400
+    plugin_id = (data.get("plugin_id") or "").strip() or None
+    engine = (data.get("engine") or "claude").strip().lower()
+    model = (data.get("model") or "").strip() or None
+    try:
+        target_dur = max(15, min(180, int(data.get("target_duration_sec") or 60)))
+    except (TypeError, ValueError):
+        target_dur = 60
+
+    from core.style_plugins import duration_to_word_range
+    from agents.prompts import PROMPT_SCENARISTE
+
+    dur_info = duration_to_word_range(target_dur)
+    da_ctx = StylePluginStore.build_da_context(plugin_id, preserve_user_script=False) if plugin_id else ""
+
+    try:
+        # Si le modèle demandé est un modèle Antigravity (ex. gemini-4-neon-medium ou claude-opus-5-5-medium via agy)
+        use_agy = engine == "antigravity" or (model and ("neon" in model or "5-5" in model or "carbon" in model or "argon" in model or "hydrogen" in model))
+        if use_agy:
+            chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+            ag_prompt = (
+                f"Sujet : {topic}\n"
+                f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
+                f"{da_ctx}\n"
+                "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, social_caption."
+            )
+            raw = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=chosen_model, timeout=150)
+            m = raw.strip()
+            if "```" in m:
+                blk = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", m)
+                if blk:
+                    m = blk.group(1).strip()
+            try:
+                parsed = json.loads(m[m.find("{") : m.rfind("}") + 1])
+            except Exception:
+                parsed = {
+                    "title": topic[:60],
+                    "hook_screen_text": topic[:45],
+                    "full_spoken_script": raw.strip(),
+                    "social_caption": f"{topic[:80]} #Shorts",
+                }
+            engine_label = chosen_model
+        else:
+            parsed = LeScenariste.write_script(
+                topic=topic,
+                da_context=da_ctx or None,
+                target_duration_sec=target_dur,
+            )
+            engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+
+        return jsonify({
+            "ok": True,
+            "title": (parsed.get("title") or parsed.get("hook_screen_text") or topic[:60]).strip(),
+            "hook_screen_text": (parsed.get("hook_screen_text") or parsed.get("title") or topic[:45]).strip(),
+            "script": (parsed.get("full_spoken_script") or parsed.get("script") or "").strip(),
+            "social_caption": (parsed.get("social_caption") or "").strip(),
+            "engine_label": engine_label,
+        })
+    except ClaudeQuotaExceededError as qe:
+        return jsonify({"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"}), 429
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/antigravity/status", methods=["GET"])
 def api_antigravity_status():
     probe = request.args.get("probe", "0") in ("1", "true", "yes")

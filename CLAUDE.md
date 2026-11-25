@@ -30,6 +30,11 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
    - Active dès que Claude ou Gemini est connecté dans « Connexions ».
    - Sélecteur de modèle intégré (`Claude Sonnet / Opus / Haiku`, `Gemini 3 Flash / 3.8 Flash / 3.1 Pro`) pour choisir quel modèle répond et guide l'utilisateur sur Clipoa.
 
+5. **Refonte UI 2.0 (25/11/2026)** — `static/css/clipoa-ui.css` (chargé après `liquid-glass.css`) : verre dépoli + fond aurore, mode **Clair / Sombre** (sélecteur dans la barre latérale, `?theme=light|dark` dans l'URL), accent dégradé corail → rose.
+   - Navigation 5 + 2 : Accueil · Créer · Mes vidéos · Publier · Statistiques | Réglages : Styles · Connexions.
+   - Rubriques à onglets (`.subnav`) : **Créer** = `creer` / `montage` / `analyse` / `equipe` ; **Styles** = `plugins` / `style`. Mapping JS `VIEW_GROUP` dans `showView()`.
+   - `?open=<vue>` ouvre n'importe quelle vue. Les presets sont dans le tiroir « Personnaliser » de la Fabrique.
+
 ---
 
 ## 3. Carte des fichiers clés

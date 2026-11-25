@@ -89,7 +89,7 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         # 1. When neither provider is connected -> clean needs_connection response
         with patch("core.claude_bridge.ClaudeBridge.check_status", return_value={"connected": False, "model": "opus"}), patch(
             "core.gemini_studio.GeminiStudio.get_status", return_value={"connected": False, "model": "gemini-3-flash-preview"}
-        ):
+        ), patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": False, "model": "", "models": []}):
             r = self.client.post("/api/assistant/help", json={"message": "Comment créer un short ?", "provider": "auto"})
         self.assertEqual(r.status_code, 200)
         data = r.get_json()

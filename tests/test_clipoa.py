@@ -227,7 +227,7 @@ class TestClipoaCoreFixes(unittest.TestCase):
     def test_frontend_js_syntax_valid(self):
         clipoa_app.app.config["TESTING"] = True
         html = clipoa_app.app.test_client().get("/").get_data(as_text=True)
-        self.assertIn("presets-bar", html)
+        self.assertIn("fab-gen-script-btn", html)
         self.assertIn("modal-week", html)
         self.assertIn("modal-cmdk", html)
         scripts = re.findall(r"<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>", html)
