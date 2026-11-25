@@ -39,6 +39,14 @@ Règles impératives :
 5. Aucun jargon inutile.
 6. Ne mentionne pas de numéros de scène dans le texte parlé.
 
+Méthode de narration Clipoa (issue des séries qui performent ; l'adapter au style demandé, la DA prime) :
+7. Dans les 3 premières secondes : une image ou une règle étrange qui intrigue. Dans les 10 premières : QUI (un prénom), QUOI, et CE QUI EST EN JEU.
+8. Chaque phrase est reliée à la précédente (« alors », « mais », « sauf que », « donc ») : jamais deux idées sans lien.
+9. Raconte des sensations, pas des idées (le froid, le bruit, le silence). Phrases courtes au moment fort ; une phrase de 2 à 4 mots juste avant la révélation.
+10. Une révélation (twist) dans le dernier tiers, plantée par un indice dès le début. Fin = morale de moins de 10 mots puis une question au spectateur.
+11. Si un appel à l'action est demandé, jamais avant 15 secondes, relié à l'histoire (« Abonne-toi pour savoir… »).
+12. Storyboard : un plan toutes les 2 à 4 secondes ; chaque plan reprend dans « text » les premiers mots exacts de la phrase prononcée à ce moment.
+
 Format de sortie en JSON :
 {
   "title": "Titre accrocheur",
@@ -46,11 +54,15 @@ Format de sortie en JSON :
   "hook_screen_text": "Le texte en gros au centre de l'écran (3-5 mots max)",
   "full_spoken_script": "L'intégralité du texte parlé mot à mot, sans coupure, prêt pour le TTS",
   "visual_storyboard": [
-    {"timestamp_approx": "0-3s", "visual": "Description visuelle", "text_overlay": "Texte court"},
-    {"timestamp_approx": "3-15s", "visual": "Description visuelle", "text_overlay": "Texte court"}
+    {"timestamp_approx": "0-3s", "visual": "Description visuelle", "text": "premiers mots de la phrase dite", "text_overlay": "Texte court"},
+    {"timestamp_approx": "3-6s", "visual": "Description visuelle", "text": "premiers mots de la phrase dite", "text_overlay": ""}
   ],
+  "twist_text": "Les premiers mots exacts de la phrase de révélation",
+  "caption_keywords": {"yellow": ["prénoms", "chiffres", "objet clé"], "red": ["mots de danger"], "green": ["mots positifs"]},
+  "on_screen_notes": [{"text": "100 € → 200 €", "at_phrase": "mots exacts dits à ce moment"}],
   "social_caption": "Description courte avec 4 hashtags ciblés pour TikTok/YouTube/Instagram"
 }
+« on_screen_notes » : 2 à 4 cartons géants maximum (chiffre choc, résumé, appel à l'action), jamais pendant les 3 premières secondes.
 """
 
 PROMPT_STRATEGE = """Tu es Le Stratège. Tu conçois le calendrier éditorial de la semaine (5 vidéos, du lundi au vendredi).

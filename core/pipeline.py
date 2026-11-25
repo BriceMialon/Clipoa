@@ -18,6 +18,7 @@ from core.style_plugins import StylePluginStore, duration_to_word_range
 from core.antigravity_bridge import AntigravityBridge
 from core.sound_designer import SoundDesigner, get_wav_duration
 from core.timing_tracker import record_actual_timing
+from core import production_method as pm
 from agents.team import LeCloneur, LeScenariste, LeStratege, LeControleur
 from agents.prompts import PROMPT_SCENARISTE
 from config import STORAGE_DIR, DEFAULT_THEME, DEFAULT_SUBTITLE_STYLE
@@ -35,6 +36,68 @@ class ShortCrewPipeline:
     """
 
     @classmethod
+    def _plan_and_mix(
+        cls,
+        session_id: str,
+        script: Dict[str, Any],
+        voice_res: Dict[str, Any],
+        voice_transcript: Optional[Dict[str, Any]],
+        shots: Optional[List[Dict[str, Any]]],
+        enable_music: bool = True,
+        enable_sfx: bool = True,
+        style_overrides: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Méthode Clipoa : plan de production calé sur la voix réelle (plans 2-4 s, twist, SFX ancrés,
+        mots-clés, cartons) puis mix audio (musique d'ambiance + bruitages + version sans musique).
+        """
+        voice_wav = voice_res["audio_wav"]
+        dur = get_wav_duration(voice_wav)
+        words = VideoComposer._extract_word_list(voice_transcript, script.get("full_spoken_script", ""), dur)
+        plan = pm.build_plan(script, words, dur, shots, style_overrides=style_overrides)
+        out_dir = Path(voice_wav).parent
+        try:
+            pm.save_plan(plan, str(out_dir / f"{session_id}_production_plan.json"))
+        except Exception as e:
+            print(f"⚠️ Plan de production non sauvegardé ({e}).")
+        final_audio, no_music = voice_wav, None
+        if enable_music or enable_sfx:
+            mixed = str(out_dir / f"{session_id}_mixed.wav")
+            nm = str(out_dir / f"{session_id}_sans_musique.wav") if enable_music else None
+            final_audio = SoundDesigner.mix_ambient_and_sfx(
+                voice_wav=voice_wav,
+                output_wav=mixed,
+                spoken_script=script.get("full_spoken_script", ""),
+                title=script.get("title") or "",
+                shots=shots,
+                enable_music=enable_music,
+                enable_sfx=enable_sfx,
+                plan=plan,
+                output_no_music_wav=nm,
+            )
+            if nm and final_audio != voice_wav and os.path.exists(nm):
+                no_music = nm
+        return {
+            "plan": plan,
+            "duration": dur,
+            "audio": final_audio,
+            "premixed": final_audio != voice_wav,
+            "no_music": no_music,
+        }
+
+    @staticmethod
+    def _finalize_outputs(video_path: str, plan: Dict[str, Any], result: Dict[str, Any]) -> None:
+        """Range le plan à côté de la vidéo et expose la version sans musique."""
+        render_dir = Path(video_path).parent
+        try:
+            pm.save_plan(plan, str(render_dir / "production_plan.json"))
+        except Exception:
+            pass
+        nm = render_dir / "final_short_sans_musique.mp4"
+        result["video_path_no_music"] = str(nm) if nm.exists() else ""
+        result["production_stats"] = dict(plan.get("stats") or {}, mood=plan.get("mood"), twist_t=plan.get("twist_t"))
+
+    @classmethod
     def clone_competitor_short(
         cls,
         video_url: str,
@@ -47,6 +110,8 @@ class ShortCrewPipeline:
         voice: Optional[str] = None,
         progress_cb: Optional[Callable[[int, str], None]] = None,
         resume_session_id: Optional[str] = None,
+        enable_music: bool = True,
+        enable_sfx: bool = True,
     ) -> Dict[str, Any]:
         def _prog(pct: int, msg: str):
             print(msg)
@@ -105,15 +170,21 @@ class ShortCrewPipeline:
         voice_res = cp["voice_res"]
         voice_transcript = cp["voice_transcript"]
 
+        clone_shots = script.get("visual_storyboard") or []
+        _prog(80, "🎵 [5/5] Plan de production + musique d'ambiance & bruitages...")
+        mixres = cls._plan_and_mix(session_id, script, voice_res, voice_transcript, clone_shots, enable_music, enable_sfx)
         if "video_path" not in cp or not os.path.exists(cp["video_path"]):
             _prog(84, "🎬 [5/5] Rendu vidéo vertical 1080x1920...")
             cp["video_path"] = VideoComposer.compose_short(
                 output_name=session_id,
-                audio_path=voice_res["audio_wav"],
+                audio_path=mixres["audio"],
                 script_data=script,
                 transcript_data=voice_transcript,
                 theme=theme,
                 subtitle_style=subtitle_style,
+                plan=mixres["plan"],
+                audio_premixed=mixres["premixed"],
+                alt_audio_path=mixres["no_music"],
             )
             save_checkpoint(session_id, cp)
         video_path = cp["video_path"]
@@ -134,7 +205,11 @@ class ShortCrewPipeline:
             "video_path": video_path,
             "audit": audit,
             "social_caption": script.get("social_caption", ""),
+            "enable_music": enable_music,
+            "enable_sfx": enable_sfx,
+            "storyboard_shots": clone_shots,
         }
+        cls._finalize_outputs(video_path, mixres["plan"], result)
 
         meta_file = Path(video_path).parent / "metadata.json"
         with open(meta_file, "w", encoding="utf-8") as f:
@@ -205,7 +280,7 @@ class ShortCrewPipeline:
                         f"Script exact de l'utilisateur à conserver MOT POUR MOT dans `full_spoken_script` :\n{custom_script}\n\n"
                         f"Titre optionnel : {(custom_title or topic or '').strip()}\n"
                         f"{da_ctx}\n"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), social_caption."
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), twist_text, caption_keywords, on_screen_notes, social_caption."
                     )
                 else:
                     _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) écrit ton script (~{dur_info['duration_sec']}s)...")
@@ -214,7 +289,7 @@ class ShortCrewPipeline:
                         f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
                         f"{('Style demandé : ' + user_style + chr(10)) if user_style else ''}"
                         f"{da_ctx}\n"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, social_caption."
+                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, twist_text, caption_keywords, on_screen_notes, social_caption."
                     )
                 raw_ag = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=engine_model)
                 parsed_ag = None
@@ -278,23 +353,19 @@ class ShortCrewPipeline:
             audio_dur_sec = get_wav_duration(voice_res["audio_wav"])
             all_shots = template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or [])
 
-            # Mixage musique d'ambiance + effets sonores (SFX) si cochés
-            final_audio_wav = voice_res["audio_wav"]
-            if enable_music or enable_sfx:
-                _prog(50, "🎵 [2/4] Création musique d'ambiance & effets sonores (SFX)...")
-                mixed_wav = str(Path(voice_res["audio_wav"]).with_name(f"{session_id}_mixed.wav"))
-                final_audio_wav = SoundDesigner.mix_ambient_and_sfx(
-                    voice_wav=voice_res["audio_wav"],
-                    output_wav=mixed_wav,
-                    spoken_script=script.get("full_spoken_script", ""),
-                    title=script.get("title") or topic or "",
-                    shots=all_shots,
-                    enable_music=enable_music,
-                    enable_sfx=enable_sfx,
-                )
+            # Méthode Clipoa : plan calé sur la voix + musique d'ambiance & bruitages (SFX) si cochés
+            _prog(50, "🎵 [2/4] Plan de production, musique d'ambiance & bruitages (SFX)...")
+            mixres = cls._plan_and_mix(
+                session_id, script, voice_res, voice_transcript, all_shots,
+                enable_music=enable_music, enable_sfx=enable_sfx,
+                style_overrides=(plugin or {}).get("production") if isinstance((plugin or {}).get("production"), dict) else None,
+            )
+            plan = mixres["plan"]
+            final_audio_wav = mixres["audio"]
+            blender_bg_path = ""
 
             if not effective_bg and use_blender_3d and BlenderEngine.is_available():
-                _prog(56, f"🧊 [3/4] Rendu multi-plans 3D Blender ({max(8, len(all_shots))} plans · {int(round(audio_dur_sec))}s)...")
+                _prog(56, f"🧊 [3/4] Rendu multi-plans 3D Blender ({len(plan.get('shots') or []) or max(8, len(all_shots))} plans calés sur la voix · {int(round(audio_dur_sec))}s)...")
                 try:
                     out_dir = Path(voice_res["audio_wav"]).parent
                     py_script = str(out_dir / f"{session_id}_scene_3d.py")
@@ -313,6 +384,7 @@ class ShortCrewPipeline:
                             frames=total_frames,
                             shots=all_shots,
                             audio_duration_sec=audio_dur_sec,
+                            timed_shots=plan.get("shots"),
                         )
                         rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     else:
@@ -340,6 +412,7 @@ class ShortCrewPipeline:
                             rendered = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
                     if rendered:
                         effective_bg = bg_out
+                        blender_bg_path = bg_out
                 except Exception as e:
                     print(f"⚠️ Rendu Blender ignoré ({e}).")
 
@@ -353,7 +426,12 @@ class ShortCrewPipeline:
                 theme=effective_theme,
                 subtitle_style=effective_sub,
                 retention_boost=retention_boost,
+                plan=plan,
+                audio_premixed=mixres["premixed"],
+                alt_audio_path=mixres["no_music"],
             )
+            cp["plan"] = plan
+            cp["blender_bg"] = blender_bg_path
             save_checkpoint(session_id, cp)
         video_path = cp["video_path"]
 
@@ -377,7 +455,14 @@ class ShortCrewPipeline:
             "video_path": video_path,
             "audit": audit,
             "social_caption": script.get("social_caption", ""),
+            "enable_music": enable_music,
+            "enable_sfx": enable_sfx,
+            "blender_bg": cp.get("blender_bg", ""),
+            "storyboard_shots": template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or []),
+            "retention_boost": retention_boost,
         }
+        if cp.get("plan"):
+            cls._finalize_outputs(video_path, cp["plan"], result)
 
         meta_file = Path(video_path).parent / "metadata.json"
         with open(meta_file, "w", encoding="utf-8") as f:
@@ -434,15 +519,28 @@ class ShortCrewPipeline:
         )
         voice_transcript = AudioTranscriber.transcribe(voice_res["audio_wav"])
 
+        # Retouche : on garde musique/bruitages et le fond 3D Blender déjà rendu (pas de re-rendu coûteux)
+        mixres = cls._plan_and_mix(
+            session_id, updated_script, voice_res, voice_transcript, data.get("storyboard_shots") or updated_script.get("visual_storyboard") or [],
+            enable_music=bool(data.get("enable_music", True)), enable_sfx=bool(data.get("enable_sfx", True)),
+        )
+        bg = data.get("background_video") or ""
+        if not bg and data.get("blender_bg") and os.path.exists(data["blender_bg"]):
+            bg = data["blender_bg"]
         video_path = VideoComposer.compose_short(
             output_name=session_id,
-            audio_path=voice_res["audio_wav"],
+            audio_path=mixres["audio"],
             script_data=updated_script,
             transcript_data=voice_transcript,
-            background_video=data.get("background_video"),
+            background_video=bg or None,
             theme=data.get("theme", DEFAULT_THEME),
             subtitle_style=data.get("subtitle_style", DEFAULT_SUBTITLE_STYLE),
+            retention_boost=bool(data.get("retention_boost", True)),
+            plan=mixres["plan"],
+            audio_premixed=mixres["premixed"],
+            alt_audio_path=mixres["no_music"],
         )
+        cls._finalize_outputs(video_path, mixres["plan"], data)
 
         audit = QualityController.audit_production(video_path, updated_script)
 

@@ -18,7 +18,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 ---
 
-## 2. Où on en est (État actuel — 25/11/2026)
+## 2. Où on en est (État actuel — 25/11/2026, après la « méthode de production »)
 
 1. **Moteurs IA & Streaming temps réel** :
    - **Claude (`core/claude_bridge.py`)** et **Antigravity (`core/antigravity_bridge.py`)** streament tous les deux les scripts mot-à-mot en direct (SSE `/api/fabrique/generate-script/stream`) en bac à sable vide sans latence ni timeout de 150s.
@@ -32,7 +32,16 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 3. **Rendu 3D Roblox Blender multi-plans + Musique d'ambiance & SFX** :
    - `core/blender_engine.py` (`create_roblox_3d_scene`) génère un vrai film 3D multi-plans (5 zones 3D distinctes, coupes de caméra `CONSTANT`) couvrant **100 % de la durée audio** en **Blender Workbench** (`540×960 @ 12 fps`, lighting `STUDIO`, `MATERIAL` colors, ombres + cavity → ~45s pour 60s de vidéo, zéro timeout).
    - `core/sound_designer.py` (`SoundDesigner.mix_ambient_and_sfx`) génère et mixe localement (100 % FFmpeg, 0 clé API) une **musique d'ambiance adaptée au ton** et des **bruits/effets sonores (SFX)** pilotés par deux cases cochables dans la Fabrique (`#fab-enable-music`, `#fab-enable-sfx`).
-4. **Interface épurée** :
+4. **Méthode de production Clipoa** (`core/production_method.py`, tirée des séries Drive « Docteur Shark » et « Horreur — Christophe ») — s'applique à TOUS les pipelines (Fabrique, clone, retouche) :
+   - **Plan de production** (`production_plan.json` dans chaque dossier de rendu, modifiable) : plans calés sur la **voix réelle** (texte du plan retrouvé dans la transcription), rythme **2-4 s** imposé (découpe/fusion), **twist** détecté (`twist_text` du script ou heuristique phrase-choc), CTA détectés, **bruitages ancrés** (hook, coupes espacées ≥ 10 s, mots « argent/porte/… », twist, CTA ; ≤ 20 ; même son jamais 2× en < 4 s ; silence 0,8 s avant le twist), **mots-clés** (jaune noms/chiffres, rouge danger, vert positif), **cartons** de texte géants (`on_screen_notes` avec `at_phrase`), ambiance `dark|tension|upbeat|calm`.
+   - Un style peut surcharger via `plugin["production"]` ou `script["production"]` : `mood`, `music_db`, `shot_min_s`, `shot_max_s`, `sfx_max`, `whoosh_min_gap_s`, `sfx_repeat_gap_s`, `music_cut_before_twist_s`.
+   - **Audio** (`SoundDesigner`) : progression d'accords par ambiance + réverbe, **ducking sidechain** sous la voix, musique **coupée juste avant le twist**, voix EQ + compression, bibliothèque de SFX synthétisés (`SFX_LIBRARY`), et WAV **sans musique** en plus.
+   - **Montage** (`VideoComposer`) : mots-clés colorés + pop, cartons, **loudnorm -14 LUFS**, x264 `medium` CRF 19 bt709, agrandissement lanczos + netteté du fond Blender, et **`final_short_sans_musique.mp4`** (vidéo copiée, 0 ré-encodage). Le Monteur (vidéos longues) a aussi loudnorm + voix claire + mots-clés.
+   - **Blender** : coupes de caméra sur les plans du plan de production (`timed_shots`), variantes de cadrage (`interior_close`, `lake_close`), mouvements BEZIER adoucis, AA 11 + contours ; toujours **540×960 @ 12 fps** Workbench.
+   - **Scénariste** : règles de narration (qui/quoi/enjeu en 10 s, liens « alors/mais/sauf que », phrase 2-4 mots avant le twist, morale + question, CTA jamais avant 15 s) + champs JSON `twist_text`, `caption_keywords`, `on_screen_notes`, `visual_storyboard[].text`.
+   - **Le Contrôle** : contrôles techniques objectifs (`audit.technique` : LUFS, résolution, plans, plan moyen, bruitages, twist, alertes) + 4 images réparties sur toute la durée.
+   - **Retouche** : réutilise le fond Blender déjà rendu + musique/SFX (métadonnées `blender_bg`, `enable_music`, `enable_sfx`, `storyboard_shots`).
+5. **Interface épurée** :
    - **Barre supérieure** : la barre **Aide IA** (sélecteur de modèle + champ question + tiroir déroulant vers le bas) remplace « Demande à ton équipe Clipoa » ; en haut à droite s'affichent **ElevenLabs + ses crédits restants**.
    - **Sidebar** : loupe search supprimée à côté du logo Clipoa ; en bas à gauche, Antigravity affiche uniquement le `%`.
    - **Mes vidéos** : bouton `+ Fabriquer` retiré à côté de `▶ Regarder une par une`, et filtre `Avec un style` retiré.
@@ -49,17 +58,18 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/antigravity_bridge.py` | Pont Antigravity CLI (`query`, `stream_query`, `switch_account`, quotas 5h + hebdo 7j). |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
 | `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
-| `core/sound_designer.py` | Génération & mixage FFmpeg local de musique d'ambiance adaptée + SFX de transition sous la voix. |
+| `core/production_method.py` | Méthode Clipoa : plan de production (plans calés sur la voix, twist, SFX ancrés, mots-clés, cartons). |
+| `core/sound_designer.py` | Mixage FFmpeg local : musique par ambiance + ducking + coupure avant twist + SFX du plan + version sans musique. |
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |
-| `tests/` | 49 tests `unittest` (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
+| `tests/` | 59 tests `unittest` (dont `test_production_method.py`) (`test_clipoa.py`, `test_style_plugins.py`, `test_security_hardening.py`, `test_multi_accounts.py`, validation syntaxe JS `node --check`). |
 
 ---
 
 ## 4. Tester et redémarrer
 
-### Lancer la suite complète de tests (49 tests)
+### Lancer la suite complète de tests (59 tests)
 ```bash
 cd /Users/brice/.gemini/antigravity/scratch/shortcrew_clone
 ./venv/bin/python -m unittest discover -s tests -v

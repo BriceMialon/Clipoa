@@ -255,8 +255,11 @@ text_obj.data.materials.append(mat)
         frames: int = 180,
         shots: Optional[list] = None,
         audio_duration_sec: float = 0.0,
+        timed_shots: Optional[list] = None,
     ) -> str:
         """
+        `timed_shots` (plan de production) : [{start, end, desc}] en secondes, calés sur la voix réelle
+        -> chaque coupe de caméra tombe sur une phrase (méthode Clipoa : un plan toutes les 2-4 s).
         Generates a rich, TRUE MULTI-SHOT procedural 3D Roblox R6 movie in Blender 5.x (EEVEE, 9:16 H.264 MP4)
         covering the ENTIRE video duration with distinct camera angles & 3D zones per shot (never just 1 static shot!).
         """
@@ -268,10 +271,52 @@ text_obj.data.materials.append(mat)
         dur_sec = max(6.0, min(120.0, float(audio_duration_sec or (frames / 12.0) or 45.0)))
         total_frames = max(72, int(round(dur_sec * fps)))
 
+        def _zone_for(desc: str) -> str:
+            d = (desc or "").lower()
+            if any(k in d for k in ("sous la glace", "eau", "noy", "profond", "bleu nuit")):
+                return "underwater"
+            if any(k in d for k in ("lac", "glace", "rive", "thin ice", "danger")):
+                return "lake"
+            if any(k in d for k in ("miroir", "maison", "chambre", "cuisine", "intérieur", "interieur", "couloir", "drap", "hôpital", "hopital", "bureau", "salle")):
+                return "interior"
+            if any(k in d for k in ("drone", "survol", "village", "ville", "panoram")):
+                return "drone"
+            if any(k in d for k in ("gros plan", "visage", "yeux", "larme", "carnet", "fenêtre", "fenetre", "regard")):
+                return "closeup"
+            return ""
+
+        # Variante de cadrage pour les sous-plans d'une même scène (on ne garde jamais 2 fois le même cadre)
+        pair_zone = {"drone": "street", "street": "street_side", "street_side": "closeup", "closeup": "street",
+                     "interior": "interior_close", "interior_close": "interior", "lake": "lake_close",
+                     "lake_close": "lake", "underwater": "underwater"}
+        rotation = ["drone", "street", "closeup", "interior", "street_side", "interior_close", "lake", "lake_close", "underwater"]
+
+        timed = [t for t in (timed_shots or []) if isinstance(t, dict)]
+        if len(timed) >= 2:
+            shot_specs = []
+            prev_zone = ""
+            for idx, ts in enumerate(timed[:40]):
+                f_start = 1 if idx == 0 else max(1, int(round(float(ts.get("start", 0.0)) * fps)) + 1)
+                if shot_specs and f_start <= shot_specs[-1][0] + 5:
+                    continue
+                base = _zone_for(str(ts.get("desc", ""))) or rotation[idx % len(rotation)]
+                sub = int(ts.get("sub", 0) or 0)
+                zone = base if sub % 2 == 0 else pair_zone.get(base, "street")
+                if zone == prev_zone:
+                    zone = pair_zone.get(zone, "street")
+                if zone == prev_zone:
+                    zone = rotation[(idx + 1) % len(rotation)]
+                if shot_specs:
+                    ps, _, pz = shot_specs[-1]
+                    shot_specs[-1] = (ps, f_start - 1, pz)
+                shot_specs.append((f_start, total_frames, zone))
+                prev_zone = zone
+        else:
+            shot_specs = []
+
         # Build shot timeline covering 100% of total_frames (at least 8 distinct shots)
         shot_list = list(shots or [])
-        num_shots = max(8, min(18, len(shot_list) if len(shot_list) >= 4 else max(8, int(round(dur_sec / 4.5)))))
-        shot_specs = []
+        num_shots = 0 if shot_specs else max(8, min(18, len(shot_list) if len(shot_list) >= 4 else max(8, int(round(dur_sec / 4.5)))))
         for idx in range(num_shots):
             f_start = max(1, int(round((idx / num_shots) * total_frames)) + 1)
             f_end = total_frames if idx == num_shots - 1 else max(f_start + 12, int(round(((idx + 1) / num_shots) * total_frames)))
@@ -307,6 +352,16 @@ scene.display.shading.light = 'STUDIO'
 scene.display.shading.color_type = 'MATERIAL'
 scene.display.shading.show_shadows = True
 scene.display.shading.show_cavity = True
+for _attr, _val in (("render_aa", "11"),):
+    try:
+        setattr(scene.display, _attr, _val)
+    except Exception:
+        pass
+for _attr, _val in (("show_object_outline", True), ("cavity_type", "BOTH"), ("show_specular_highlight", True)):
+    try:
+        setattr(scene.display.shading, _attr, _val)
+    except Exception:
+        pass
 scene.render.resolution_x = 540
 scene.render.resolution_y = 960
 scene.render.resolution_percentage = 100
@@ -509,6 +564,8 @@ ZONE_CAM_PRESETS = {{
     "interior":    ((45.3, -2.6, 2.2), (math.radians(86), 0, math.radians(4)),  (44.7, -1.2, 2.3), (math.radians(85), 0, math.radians(-4))),
     "lake":        ((-45.0, -2.5, 2.8),(math.radians(80), 0, 0),            (-44.0, 2.2, 2.2), (math.radians(84), 0, math.radians(-8))),
     "underwater":  ((0.0, -51.0, 2.4), (math.radians(86), 0, 0),            (0.5, -48.5, 3.0), (math.radians(78), 0, math.radians(6))),
+    "interior_close": ((44.0, 3.7, 2.75), (math.radians(88), 0, math.radians(184)), (44.3, 3.4, 2.7), (math.radians(88), 0, math.radians(176))),
+    "lake_close":  ((-44.6, 3.3, 2.6), (math.radians(88), 0, math.radians(6)),  (-45.2, 3.9, 2.7), (math.radians(88), 0, math.radians(-4))),
 }}
 
 for (f_s, f_e, zone) in SHOT_SPECS:
@@ -535,7 +592,16 @@ if cam_o.animation_data and cam_o.animation_data.action:
                     fcurves.extend(bag.fcurves)
     for fc in (fcurves or []):
         for kp in fc.keyframe_points:
-            kp.interpolation = 'CONSTANT' if int(round(kp.co[0])) in cut_frames else 'LINEAR'
+            if int(round(kp.co[0])) in cut_frames:
+                kp.interpolation = 'CONSTANT'
+            else:
+                # Mouvement de caméra adouci (ease-in / ease-out) à l'intérieur de chaque plan
+                kp.interpolation = 'BEZIER'
+                try:
+                    kp.handle_left_type = 'AUTO_CLAMPED'
+                    kp.handle_right_type = 'AUTO_CLAMPED'
+                except Exception:
+                    pass
 '''
         with open(script_save_path, "w", encoding="utf-8") as f:
             f.write(script_content)

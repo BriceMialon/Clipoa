@@ -10,7 +10,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from config import FFMPEG_PATH, RENDERS_DIR, DOWNLOADS_DIR, DEFAULT_SUBTITLE_STYLE
 from core.scraper import CompetitorScraper
 from core.transcriber import AudioTranscriber
-from core.video_composer import VideoComposer, SUBTITLE_STYLES
+from core.video_composer import VideoComposer, SUBTITLE_STYLES, LOUDNORM
+from core.production_method import classify_keywords
 from agents.team import LeMonteur
 
 
@@ -168,12 +169,12 @@ class VideoEditor:
             bg_chain = (
                 "[0:v]split=2[vbg][vfg];"
                 "[vbg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=24:4,eq=brightness=-0.14[bg_blur];"
-                "[vfg]scale=1080:-2:force_original_aspect_ratio=decrease[fg_sharp];"
+                "[vfg]scale=1080:-2:force_original_aspect_ratio=decrease:flags=lanczos[fg_sharp];"
                 "[bg_blur][fg_sharp]overlay=(W-w)/2:(H-h)/2,fps=30,vignette=PI/5[base]"
             )
         else:
             bg_chain = (
-                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,"
+                "[0:v]scale=1080:1920:force_original_aspect_ratio=increase:flags=lanczos,crop=1080:1920,fps=30,"
                 "eq=contrast=1.04:saturation=1.06,vignette=PI/5[base]"
             )
 
@@ -191,12 +192,12 @@ class VideoEditor:
             "-filter_complex", filter_complex,
             "-map", "[vout]",
             "-map", "0:a?",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "21",
+            *VideoComposer.VIDEO_ENCODE_ARGS,
+            # Voix filmée plus claire + volume normalisé -14 LUFS (standard Shorts)
+            "-af", f"highpass=f=80,equalizer=f=3000:t=q:w=1.0:g=2,acompressor=threshold=-20dB:ratio=2.2:attack=15:release=150,{LOUDNORM}",
             "-c:a", "aac",
             "-b:a", "192k",
-            "-pix_fmt", "yuv420p",
+            "-ar", "48000",
             "-movflags", "+faststart",
             output_mp4,
         ]
@@ -342,6 +343,7 @@ class VideoEditor:
                 style_name=subtitle_style,
                 hook_text=clip["hook_screen_text"],
                 hook_duration=min(3.4, actual_dur * 0.45),
+                keywords=classify_keywords({"hook_screen_text": clip["hook_screen_text"]}, clip_words),
             )
 
             # Render final 1080x1920 vertical video
