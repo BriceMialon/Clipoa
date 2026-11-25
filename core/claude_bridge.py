@@ -292,14 +292,14 @@ class ClaudeBridge:
                     "content-type": "application/json"
                 }
                 payload: Dict[str, Any] = {
-                    "model": "claude-3-5-sonnet-20241022",
-                    "max_tokens": 4096,
+                    "model": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
+                    "max_tokens": 16000,
                     "messages": [{"role": "user", "content": prompt}],
                 }
                 if system_prompt:
                     payload["system"] = system_prompt
 
-                res = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=60)
+                res = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=300)
                 if res.status_code == 200:
                     data = res.json()
                     content = "".join([b.get("text", "") for b in data.get("content", [])])
