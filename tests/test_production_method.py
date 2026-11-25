@@ -235,3 +235,39 @@ class TestMethodRender(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAIRoutingAndScriptPrompt(unittest.TestCase):
+    def test_claude_choice_never_uses_antigravity(self):
+        from unittest.mock import patch
+        import app as clipoa_app
+        client = clipoa_app.app.test_client()
+        fake_md = "## 1. Fiche projet\n| Champ | Valeur |\n|---|---|\n| Titre | Test |\n"
+        with patch("core.antigravity_bridge.AntigravityBridge.query", side_effect=AssertionError("agy appelé")), \
+             patch("core.antigravity_bridge.AntigravityBridge.stream_query", side_effect=AssertionError("agy appelé")), \
+             patch("core.claude_bridge.ClaudeBridge.query", return_value=fake_md) as cq, \
+             patch("core.claude_bridge.ClaudeBridge.stream_query", return_value=iter([fake_md])) as cs:
+            r = client.post("/api/fabrique/generate-script", json={"topic": "Une idée", "engine": "claude", "model": "claude-opus-5-5-medium"})
+            self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+            self.assertEqual(cq.call_args.kwargs.get("model"), "opus")
+            r = client.post("/api/fabrique/generate-script/stream", json={"topic": "Une idée", "engine": "claude", "model": "claude-opus-5-5-medium"})
+            body = r.get_data(as_text=True)
+            self.assertIn("event: done", body)
+            self.assertTrue(cs.called)
+            r = client.post("/api/fabrique/refine-script", json={"current_script": fake_md, "instruction": "plus court", "engine": "claude", "model": "claude-opus-5-5-medium"})
+            self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+
+    def test_frontend_claude_engine_not_routed_to_agy(self):
+        html = (ROOT / "templates" / "index.html").read_text(encoding="utf-8")
+        self.assertNotIn("reqEngine = 'antigravity';\n          reqModel = cm;", html)
+        self.assertIn("let reqEngine = createEngine === 'antigravity' ? 'antigravity' : 'claude';", html)
+
+    def test_script_prompt_originality_and_full_da(self):
+        from core.script_template import build_script_generation_prompt
+        long_da = "DA " + ("x" * 5000) + " REGLES_NARRATIVES_FIN"
+        sys_p, user_p = build_script_generation_prompt("Un chat qui parle", 60, long_da, avoid_titles=["Dans ma ville, les miroirs sont couverts"])
+        self.assertIn("REGLES_NARRATIVES_FIN", user_p)
+        self.assertIn("les miroirs sont couverts", user_p)
+        self.assertIn("NE PAS les refaire", user_p)
+        self.assertIn("exemples de STYLE", sys_p)
+        self.assertIn("2 à 4 s", user_p)

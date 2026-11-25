@@ -35,7 +35,7 @@ Une ligne par personnage, y compris le narrateur (pour garder la même voix et l
 | [Nom] | [Âge, rôle] | [Timbre, débit, accent] | [Registre, tics] | [Émotion x/5] | [Émotion x/5] | [Secret, peur, désir] |
 
 ## 3. Le script
-Une ligne par moment de la vidéo, de 2 à 8 secondes. Timing : compter ~2,5 mots/s pour une réplique dite normalement.
+Une ligne par moment de la vidéo, de 2 à 4 secondes (un plan par phrase). Timing : compter ~2,5 mots/s pour une réplique dite normalement.
 Conventions `Qui parle` : `Nom` (à l'écran), `Nom (VO)` (voix off), `Nom (HC)` (hors champ), `Nom (pensée)` (voix intérieure), `—` (personne ne parle).
 Conventions `Émotions` (toujours dans cet ordre) : 1) Personnage + émotion, 2) Intensité 1–5, 3) Ce qui se voit (regard, posture, mains, geste), 4) Ce qui s'entend (voix, souffle, silence), 5) Ce qu'il cache si utile.
 | Temps | Scène | Action | Qui parle | Texte | Façon de le dire | Émotions | Effets sonores | Musique |
@@ -188,8 +188,12 @@ def build_script_generation_prompt(
     target_duration_sec: int = 60,
     da_context: str = "",
     template_id: Optional[str] = None,
+    avoid_titles: Optional[List[str]] = None,
 ) -> Tuple[str, str]:
-    """Construit (system_prompt, user_prompt) en s'adaptant automatiquement au template choisi (défaut ou perso)."""
+    """
+    Construit (system_prompt, user_prompt) en s'adaptant automatiquement au template choisi (défaut ou perso).
+    `avoid_titles` : titres des vidéos récentes, pour que l'IA ne ressorte pas toujours la même histoire.
+    """
     dur = duration_to_word_range(target_duration_sec)
     mmss = _format_mmss(dur["duration_sec"])
     tpl_body = get_script_template_content(template_id)
@@ -199,10 +203,22 @@ def build_script_generation_prompt(
         "Tu es un scénariste et réalisateur vidéo d'élite.\n"
         "Tu DOIS rédiger le script complet en français en suivant STRICTEMENT le modèle / template ci-dessous "
         "(remplace tous les crochets `[ ]` par du vrai contenu, aucun commentaire avant ou après le document).\n"
-        "Respecte un timing cohérent jusqu'à la durée totale (~2,5 mots/s pour les répliques).\n\n"
+        "Respecte un timing cohérent jusqu'à la durée totale (~2,5 mots/s pour les répliques).\n"
+        "Méthode de narration : dans les 10 premières secondes, QUI (un prénom), QUOI (la règle) et CE QUI EST EN JEU ; "
+        "chaque réplique reliée à la précédente (alors, mais, sauf que, donc) ; des sensations plutôt que des idées ; "
+        "une phrase de 2 à 4 mots juste avant la révélation ; révélation plantée par un indice dès le début ; "
+        "fin = morale courte puis question au spectateur.\n"
+        "ORIGINALITÉ : l'histoire part de l'idée de l'utilisateur et rien d'autre. Les objets, décors et exemples cités "
+        "dans la Direction Artistique sont des exemples de STYLE, pas des sujets imposés : n'en reprends un que s'il sert "
+        "vraiment cette idée. Invente un objet-clé, des personnages et un retournement propres à cette idée.\n\n"
         + tpl_body
     )
-    da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:3000]}\n" if da_context else ""
+    da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:12000]}\n" if da_context else ""
+    recent = [t.strip() for t in (avoid_titles or []) if t and t.strip()][:12]
+    avoid_block = (
+        "\nHistoires déjà faites récemment (NE PAS les refaire, ni leur objet central, ni leur retournement) :\n- "
+        + "\n- ".join(recent) + "\n"
+    ) if recent else ""
     extra_note = (
         "Adapte exactement la structure et les colonnes du modèle personnalisé fourni ci-dessus."
         if is_custom_tpl
@@ -210,8 +226,8 @@ def build_script_generation_prompt(
     )
     user_prompt = (
         f"Idée de l'utilisateur :\n{topic.strip()}\n\n"
-        f"Durée totale visée : {mmss} ({dur['duration_sec']} secondes, environ {dur['min_words']} à {dur['max_words']} mots parlés au total, plans de 3 à 6 s).\n"
-        f"{da_block}\n"
+        f"Durée totale visée : {mmss} ({dur['duration_sec']} secondes, environ {dur['min_words']} à {dur['max_words']} mots parlés au total, un plan toutes les 2 à 4 s).\n"
+        f"{da_block}{avoid_block}\n"
         f"{extra_note}"
     )
     return system_prompt, user_prompt
@@ -231,7 +247,7 @@ def build_script_refinement_prompt(
         "en conservant exactement le même format / template Markdown.\n"
         "Ne mets aucun blabla avant ou après le script."
     )
-    da_block = f"\nDirection Artistique (DA) active :\n{da_context[:2200]}\n" if da_context else ""
+    da_block = f"\nDirection Artistique (DA) active :\n{da_context[:12000]}\n" if da_context else ""
     user_prompt = (
         f"Consigne de modification de l'utilisateur :\n{instruction.strip()}\n"
         f"{da_block}\n"

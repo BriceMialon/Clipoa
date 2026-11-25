@@ -2111,6 +2111,37 @@ def api_revise():
     return jsonify({"job_id": job_id})
 
 
+def _recent_video_titles(limit: int = 12):
+    """Titres des dernières vidéos + jobs, pour éviter que l'IA ressorte toujours la même histoire."""
+    titles = []
+    try:
+        for r in _load_renders()[:limit]:
+            t = str((r.get("script") or {}).get("title") or "").strip()
+            if t and t not in titles:
+                titles.append(t)
+    except Exception:
+        pass
+    try:
+        for j in sorted(list(JOBS.values()), key=lambda x: x.get("created_at", 0), reverse=True):
+            t = str((j.get("params") or {}).get("custom_title") or (j.get("params") or {}).get("topic") or "").strip()
+            if t and t not in titles:
+                titles.append(t[:90])
+            if len(titles) >= limit:
+                break
+    except Exception:
+        pass
+    return titles[:limit]
+
+
+def _claude_family(model):
+    """« claude-opus-5-5-medium » -> « opus » pour le Claude CLI ; None = modèle réglé dans Connexions."""
+    m = (model or "").lower()
+    for fam in ("opus", "sonnet", "haiku"):
+        if fam in m:
+            return fam
+    return None
+
+
 @app.route("/api/fabrique/generate-script", methods=["POST"])
 def api_fabrique_generate_script():
     """
@@ -2137,19 +2168,20 @@ def api_fabrique_generate_script():
         target_duration_sec=target_dur,
         da_context=da_ctx,
         template_id=template_id,
+        avoid_titles=_recent_video_titles(),
     )
 
     t0 = time.time()
     try:
         agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-        use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
+        use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
         if use_agy:
-            chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+            chosen_model = model or "gemini-4-neon-medium"
             raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300)
             engine_label = chosen_model
             record_actual_timing("antigravity", "script", time.time() - t0, target_dur)
         else:
-            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template")
+            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model))
             engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
             record_actual_timing("claude", "script", time.time() - t0, target_dur)
 
@@ -2196,6 +2228,7 @@ def api_fabrique_generate_script_stream():
         target_duration_sec=target_dur,
         da_context=da_ctx,
         template_id=template_id,
+        avoid_titles=_recent_video_titles(),
     )
 
     def _sse(ev_name: str, payload: dict) -> str:
@@ -2219,10 +2252,10 @@ def api_fabrique_generate_script_stream():
         t0 = time.time()
         try:
             agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-            use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
+            use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
             acc = []
             if use_agy:
-                chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+                chosen_model = model or "gemini-4-neon-medium"
                 engine_label = chosen_model
                 for delta in AntigravityBridge.stream_query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300):
                     acc.append(delta)
@@ -2233,7 +2266,7 @@ def api_fabrique_generate_script_stream():
             else:
                 engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
                 yield _sse("progress", {"pct": 12, "stage": f"{engine_label} rédige en direct…"})
-                for delta in ClaudeBridge.stream_query(user_prompt, system_prompt=sys_prompt, action="script_template", timeout=300):
+                for delta in ClaudeBridge.stream_query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model), timeout=300):
                     acc.append(delta)
                     full_so_far = "".join(acc)
                     pct, stage = _compute_progress(full_so_far)
@@ -2294,13 +2327,13 @@ def api_fabrique_refine_script():
 
     try:
         agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-        use_agy = (engine == "antigravity") or (agy_connected and bool(model and ("neon" in model or "5-5" in model)))
+        use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
         if use_agy:
-            chosen_model = model or ("claude-opus-5-5-medium" if engine == "claude" else "gemini-4-neon-medium")
+            chosen_model = model or "gemini-4-neon-medium"
             raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=180)
             engine_label = chosen_model
         else:
-            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template_refine")
+            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template_refine", model=_claude_family(model))
             engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
 
         template_md = (raw or "").strip()

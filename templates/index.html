@@ -3876,21 +3876,9 @@
       const topic = isCustomScript ? (customTitle || mainText.slice(0, 60) || custom_script.slice(0, 60)) : mainText;
 
       // Détermine le moteur réel + modèle choisi (Claude Opus 5.5 Medium via agy ou Claude CLI, vs Antigravity Neon Medium)
-      let reqEngine = createEngine;
-      let reqModel = '';
-      if (createEngine === 'antigravity') {
-        reqEngine = 'antigravity';
-        reqModel = val('agy-model') || 'gemini-4-neon-medium';
-      } else {
-        const cm = val('claude-gen-model') || 'claude-opus-5-5-medium';
-        if (cm === 'cli') {
-          reqEngine = 'claude';
-          reqModel = '';
-        } else {
-          reqEngine = 'antigravity';
-          reqModel = cm;
-        }
-      }
+      // « Claude » = Claude CLI (ton quota Claude), « Antigravity » = agy (ton quota Antigravity). Jamais de mélange.
+      let reqEngine = createEngine === 'antigravity' ? 'antigravity' : 'claude';
+      let reqModel = reqEngine === 'antigravity' ? (val('agy-model') || 'gemini-4-neon-medium') : '';
 
       if (refUrl && !isCustomScript && (refUrl.startsWith('http://') || refUrl.startsWith('https://'))) {
         if (reqEngine === 'claude' && !checkClaudeQuotaGuard('clone')) return;
