@@ -451,7 +451,7 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # DA : un plan toutes les 2-3 s ; sous-titres 1-3 mots BLANCS à contour noir (pas de couleurs)
     # Stickman (réf. 2.5D, 33 000 images) : image qui change ~toutes les 2,1 s, ~8 bruitages / 10 s, souffle sur chaque mouvement de caméra
     "2d_monde_3d": {"shot_min_s": 1.6, "shot_max_s": 2.8, "keyword_colors": False, "caption_mode": "two_words", "character_style": "flat2d", "visual_style": "paper2d",
-                    "sfx_max": 40, "whoosh_min_gap_s": 2.0, "sfx_repeat_gap_s": 1.2},
+                    "sfx_max": 40, "whoosh_min_gap_s": 2.0, "sfx_repeat_gap_s": 1.2, "voice_tempo": 1.12, "trim_silence": True},
     # DA : un plan par phrase (~2,3 s), UN seul mot à la fois, pas de musique marquée (nappe très basse)
     "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
     # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
@@ -482,6 +482,9 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "hud": ("bool", None),
     "hud_color": ("hex", None),
     "caption_look": ("enum", ("", "cine")),
+    # narration dense : voix accélérée (sans changer la hauteur) et silences raccourcis avant le calage des mots
+    "voice_tempo": ("float", (0.8, 1.4)),
+    "trim_silence": ("bool", None),
 }
 
 

@@ -67,10 +67,11 @@ class BlenderEngine:
         style: str = "roblox",
         fps: int = 12,
         words: list = None,
+        quality: str = "hq",
     ) -> str:
         """
         Scène construite pour CETTE vidéo à partir du décor décrit par l'IA (core/scene_designer.py),
-        dans le style choisi (roblox | paper2d | flat_vector). Toujours 540x960 @ 12 fps Workbench.
+        dans le style choisi (roblox | paper2d | flat_vector). 12 fps ; quality « fast » = Workbench 540x960, « hq » = EEVEE 720x1280.
         """
         dur = max(3.0, float(audio_duration_sec or 0) or 30.0)
         total_frames = max(36, int(round(dur * fps)))
@@ -116,6 +117,7 @@ scene.render.use_file_extension = False
 SPEC = json.loads({json.dumps(json.dumps(full_spec, ensure_ascii=False))})
 SHOTS = json.loads({json.dumps(json.dumps(shots))})
 WORD_FR = json.loads({json.dumps(json.dumps(word_fr))})
+QUALITY = {json.dumps("fast" if quality == "fast" else "hq")}
 SEED = 7
 ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
 """
@@ -124,6 +126,10 @@ ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
         if full_spec["_style"] in ("paper2d", "explainer2d"):
             # persos 2D dessin animé + décor texturé : fonctions placées avant le kit (utilisées par lui)
             kit = cls.KIT_PATH.with_name("paper2d_bpy.py").read_text(encoding="utf-8") + "\n\n" + kit
+        # Explainer / Fête en folie sont des aplats vus de face : EEVEE n'y apporte rien, on garde le rendu rapide
+        if quality != "fast" and full_spec["_style"] in ("roblox", "paper2d"):
+            # Haute qualité : EEVEE (vraie lumière, ombres, occlusion) au lieu de Workbench — plus long à calculer
+            kit = kit + "\n\n" + cls.KIT_PATH.with_name("hq_eevee_bpy.py").read_text(encoding="utf-8")
         Path(script_save_path).write_text(header + "\n" + kit, encoding="utf-8")
         return script_save_path
 

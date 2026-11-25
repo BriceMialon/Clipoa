@@ -173,7 +173,8 @@ class ShortCrewPipeline:
             except Exception:
                 pass
             _p(58, f"🧊 [3/4] Construction Blender ({len(spec.get('locations') or [])} lieux, {len(plan.get('shots') or [])} plans, style {style})...")
-            BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style, words=words)
+            quality = "fast" if (plugin or {}).get("_render_quality") == "fast" else "hq"
+            BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style, words=words, quality=quality)
             if BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog):
                 return bg_out
             print("⚠️ Rendu du décor sur mesure échoué : scène de secours.")
@@ -347,6 +348,7 @@ class ShortCrewPipeline:
         template_shots: Optional[List[Dict[str, Any]]] = None,
         progress_cb: Optional[Callable[[int, str], None]] = None,
         resume_session_id: Optional[str] = None,
+        render_quality: str = "hq",
     ) -> Dict[str, Any]:
         """
         Creates a short directly from an idea OR a user's own script ('La Fabrique'),
@@ -365,6 +367,9 @@ class ShortCrewPipeline:
         eng_name = "Antigravity" if active_engine == "antigravity" else "Claude"
 
         plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=True) if plugin_id else None
+        if plugin:
+            # qualité Blender choisie dans la Fabrique : « hq » (EEVEE, par défaut) ou « fast » (Workbench)
+            plugin = dict(plugin, _render_quality="fast" if render_quality == "fast" else "hq")
         # Force automatiquement Blender 3D côté serveur dès que le style choisi requiert Blender (ex. 3D Roblox, 2D × Monde 3D),
         # que l'IA soit Claude ou Antigravity.
         if plugin and (plugin.get("render_mode") == "blender3d" or cls.visual_style_for(plugin)):
@@ -452,6 +457,14 @@ class ShortCrewPipeline:
                 # Le tableau du script dit qui parle : une voix par personnage s'il y en a plusieurs
                 segments=template_shots if (is_custom_script and isinstance(template_shots, list)) else None,
             )
+            # Style à narration dense (Stickman) : voix accélérée + silences raccourcis AVANT le calage mot à mot
+            _prod = (plugin or {}).get("production") or {}
+            if _prod.get("voice_tempo") or _prod.get("trim_silence"):
+                try:
+                    _prog(43, "🎙️ [2/4] Voix resserrée (rythme du style)…")
+                    SoundDesigner.tighten_voice(cp["voice_res"]["audio_wav"], float(_prod.get("voice_tempo") or 1.0), bool(_prod.get("trim_silence")))
+                except Exception as _e:
+                    print(f"⚠️ Voix non accélérée ({_e})")
             cp["voice_transcript"] = AudioTranscriber.transcribe(cp["voice_res"]["audio_wav"])
             save_checkpoint(session_id, cp)
         voice_res = cp["voice_res"]

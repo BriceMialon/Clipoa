@@ -1246,6 +1246,7 @@ def _launch_pipeline_job(job_id: str):
                     engine_model=params.get("engine_model") or None,
                     enable_music=bool(params.get("enable_music", True)),
                     enable_sfx=bool(params.get("enable_sfx", True)),
+                    render_quality=params.get("render_quality") or "hq",
                     template_shots=params.get("template_shots") or None,
                     progress_cb=cb,
                     resume_session_id=sess,
@@ -2191,6 +2192,7 @@ def api_make():
         retention_boost = request.form.get("retention_boost", "true").lower() in ("1", "true", "yes", "on")
         enable_music = request.form.get("enable_music", "true").lower() in ("1", "true", "yes", "on")
         enable_sfx = request.form.get("enable_sfx", "true").lower() in ("1", "true", "yes", "on")
+        render_quality = "fast" if (request.form.get("render_quality") or "").strip().lower() == "fast" else "hq"
         engine = (request.form.get("engine") or "claude").strip().lower()
         engine_model = (request.form.get("engine_model") or "").strip() or None
         engine_choice = (request.form.get("engine_choice") or "").strip().lower()
@@ -2222,6 +2224,7 @@ def api_make():
         retention_boost = bool(data.get("retention_boost", True))
         enable_music = bool(data.get("enable_music", True))
         enable_sfx = bool(data.get("enable_sfx", True))
+        render_quality = "fast" if str(data.get("render_quality") or "").strip().lower() == "fast" else "hq"
         engine = (data.get("engine") or "claude").strip().lower()
         engine_model = (data.get("engine_model") or "").strip() or None
         engine_choice = (data.get("engine_choice") or "").strip().lower()
@@ -2274,6 +2277,7 @@ def api_make():
         "retention_boost": retention_boost,
         "enable_music": enable_music,
         "enable_sfx": enable_sfx,
+        "render_quality": render_quality,
         "template_shots": template_shots,
         "engine": eng_norm,
         "engine_model": engine_model,

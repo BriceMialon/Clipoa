@@ -469,6 +469,14 @@
                 <button type="button" class="btn btn-primary btn-xs" id="cine-install-btn" onclick="installCineEngine()">Installer le moteur Ciné</button>
               </div>
             </div>
+            <div id="render-quality-row" style="display:none; margin:0 0 10px; padding:9px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; line-height:1.45; color:var(--ink);">
+              <b>🎞️ Qualité du rendu 3D</b>
+              <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary btn-xs" id="rq-hq" onclick="setRenderQuality('hq')">✨ Haute qualité (recommandé)</button>
+                <button type="button" class="btn btn-xs" id="rq-fast" onclick="setRenderQuality('fast')">⚡ Rapide</button>
+              </div>
+              <div id="rq-hint" style="margin-top:6px; color:var(--muted);">Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus).</div>
+            </div>
             <div id="style-ref-lock" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; color:var(--ink);">
               🎞️ <b>Style copié depuis ta vidéo</b> : Clipoa regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
             </div>
@@ -2716,6 +2724,22 @@
     }
 
     let cinePoll = null;
+    let renderQuality = 'hq';
+    function setRenderQuality(q) {
+      if (q === 'fast' && renderQuality !== 'fast' &&
+          !confirm('Attention : en mode Rapide, la vidéo sera de moins bonne qualité (lumière simplifiée, rendu plus plat).\n\nLe mode Haute qualité est recommandé. Passer quand même en Rapide ?')) return;
+      renderQuality = q === 'fast' ? 'fast' : 'hq';
+      document.getElementById('rq-hq')?.classList.toggle('btn-primary', renderQuality === 'hq');
+      document.getElementById('rq-fast')?.classList.toggle('btn-primary', renderQuality === 'fast');
+      const hint = document.getElementById('rq-hint');
+      if (hint) hint.textContent = renderQuality === 'hq'
+        ? "Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus)."
+        : '⚠️ Mode Rapide : vidéo prête plus vite, mais de moins bonne qualité.';
+    }
+    function showRenderQuality(on) {
+      const row = document.getElementById('render-quality-row');
+      if (row) row.style.display = on ? 'block' : 'none';
+    }
     async function showCineWarning(on) {
       const box = document.getElementById('cine-warning');
       if (!box) return;
@@ -2771,10 +2795,14 @@
           const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
           hintTxt = `${pl.name} · ⏱ ${mHint.timeLbl}`;
           showCineWarning(!!pl.heavy);
+          // qualité Blender au choix pour les styles rendus par Blender (pas le mode Ciné, ni un style copié sur mesure)
+          const vs = (pl.production && pl.production.visual_style) || '';
+          showRenderQuality(adapted === 'blender3d' && !pl.heavy && (vs === 'roblox' || vs === 'paper2d'));
         }
       } else {
         activePluginId = '';
         showCineWarning(false);
+        showRenderQuality(false);
         syncRenderLocksForStyle(null, null);
         // Repart des réglages par défaut : le thème / les sous-titres d'un style précédent ne doivent pas « coller »
         if (th) th.value = 'dark_luxury';
@@ -4234,6 +4262,7 @@
             engine_model: reqModel,
             voice, theme, subtitle_style: sub,
             use_blender_3d: selectedRenderType === 'blender3d',
+            render_quality: renderQuality,
             retention_boost,
             enable_music,
             enable_sfx

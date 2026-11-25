@@ -222,6 +222,38 @@ class SoundDesigner:
             output_wav,
         ]
 
+    @staticmethod
+    def tighten_voice(voice_wav: str, tempo: float = 1.0, trim_silence: bool = True) -> bool:
+        """
+        Narration dense (réf. Stickman : ~3,7 mots/s, presque sans pause) : raccourcit les silences de plus de
+        0,18 s (on en garde 0,12 s pour ne jamais couper un mot) puis accélère la voix sans changer sa hauteur.
+        Remplace le WAV sur place ; renvoie False (voix intacte) si FFmpeg échoue.
+        """
+        tempo = max(0.8, min(1.4, float(tempo or 1.0)))
+        filters = []
+        if trim_silence:
+            filters.append("silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:"
+                           "stop_duration=0.18:stop_threshold=-42dB:stop_silence=0.12")
+        if abs(tempo - 1.0) > 0.01:
+            filters.append(f"atempo={tempo:.3f}")
+        if not filters or not os.path.exists(voice_wav):
+            return False
+        tmp = voice_wav + ".tight.wav"
+        try:
+            r = subprocess.run([FFMPEG_PATH, "-y", "-i", voice_wav, "-af", ",".join(filters), tmp],
+                               capture_output=True, text=True, timeout=180)
+            if r.returncode != 0 or not os.path.exists(tmp) or get_wav_duration(tmp) < 0.5:
+                logger.warning(f"tighten_voice ignoré : {r.stderr[-300:] if r.stderr else 'sortie vide'}")
+                return False
+            os.replace(tmp, voice_wav)
+            return True
+        finally:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+
     @classmethod
     def _run(cls, cmd: List[str], output_wav: str) -> bool:
         try:
