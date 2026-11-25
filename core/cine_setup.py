@@ -42,6 +42,7 @@ CHROME_CANDIDATES = [
     r"C:\Program Files\Google\Chrome\Application\chrome.exe",
 ]
 _LOCK = threading.Lock()
+_THREAD: Optional[threading.Thread] = None  # une installation ne survit pas à un redémarrage du serveur
 
 
 def _state() -> Dict[str, Any]:
@@ -84,7 +85,7 @@ def is_ready() -> bool:
 
 def status() -> Dict[str, Any]:
     st = _state()
-    return {"ready": is_ready(), "installing": bool(st.get("installing")), "step": st.get("step", ""),
+    return {"ready": is_ready(), "installing": bool((st.get("installing") and _THREAD is not None and _THREAD.is_alive())), "step": st.get("step", ""),
             "error": st.get("error", ""), "browser": find_chrome() or ("chromium" if st.get("chromium") else "")}
 
 
@@ -130,8 +131,10 @@ def _install() -> None:
 
 
 def start_install() -> Dict[str, Any]:
-    if _state().get("installing"):
+    global _THREAD
+    if _THREAD is not None and _THREAD.is_alive():
         return status()
     _save(installing=True, step="Démarrage…", error="")
-    threading.Thread(target=_install, daemon=True).start()
+    _THREAD = threading.Thread(target=_install, daemon=True)
+    _THREAD.start()
     return status()

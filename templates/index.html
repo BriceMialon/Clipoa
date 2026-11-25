@@ -671,7 +671,7 @@
               <div class="pick-grid">
                 <button type="button" class="pick-card actif" id="vprov-free" onclick="selectVoiceProvider('free')">
                   <div class="pick-top"><span class="pick-title">Voix Studio</span><span class="pick-badge">Incluse</span></div>
-                  <div class="pick-sub" id="vprov-free-sub">{{ 'Voix HD naturelle · illimitée' if local_voices.ready else 'Français naturel illimité' }}</div>
+                  <div class="pick-sub" id="vprov-free-sub">{{ 'Voix HD naturelle · illimitée' if local_voices.auto_default else 'Français naturel illimité' }}</div>
                 </button>
                 <button type="button" class="pick-card {{ '' if el_status.connected else 'locked' }}" id="vprov-el" onclick="selectVoiceProvider('el')">
                   <div class="pick-top"><span class="pick-title">ElevenLabs</span><span class="pick-badge {{ '' if el_status.connected else 'lock' }}">{{ 'Branché' if el_status.connected else 'Optionnel' }}</span></div>
@@ -684,6 +684,12 @@
                   <button type="button" class="btn btn-primary btn-xs" id="voice-hd-btn" onclick="installLocalVoice()" {{ 'disabled' if local_voices.installing else '' }}>{{ 'Installation…' if local_voices.installing else 'Installer la voix HD' }}</button>
                 </div>
               </div>
+              {% if local_voices.ready %}
+              <label style="display:flex; gap:7px; align-items:center; margin-top:8px; font-size:12px; color:var(--muted); cursor:pointer;">
+                <input type="checkbox" id="voice-hd-auto" {{ 'checked' if local_voices.auto_default else '' }} onchange="apiJson('/api/voice/local/auto', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({on: this.checked})}).then(() => toast(this.checked ? 'Voix HD utilisée par défaut' : 'Voix rapide par défaut'))" style="accent-color:var(--accent);">
+                <span>Utiliser la <b style="color:var(--ink);">voix HD</b> par défaut <span style="opacity:.8;">({{ local_voices.speed_note }})</span></span>
+              </label>
+              {% endif %}
               <div id="voice-manual-box" style="display:none; margin-top:8px;">
                 <select id="fab-voice" class="input-sm">
                   {% if local_voices.ready %}
@@ -3897,7 +3903,6 @@
       if (st.ready) {
         box.style.display = 'none';
         const sub = document.getElementById('vprov-free-sub');
-        if (sub) sub.textContent = 'Voix HD naturelle · illimitée';
         if (localVoicePoll) { clearInterval(localVoicePoll); localVoicePoll = null; toast('✓ Voix HD installée — recharge la page pour choisir parmi les voix HD'); }
         return;
       }

@@ -24,6 +24,7 @@ WORKER = BASE_DIR / "core" / "tts_worker" / "qwen_worker.py"
 STATE_FILE = STORAGE_DIR / "local_tts_state.json"
 INSTALL_LOG = STORAGE_DIR / "tts_install.log"
 _LOCK = threading.Lock()
+_THREAD: Optional[threading.Thread] = None  # une installation ne survit pas à un redémarrage du serveur
 
 # Voix prêtes à l'emploi (le modèle parle français avec chacune ; « instruct » règle le ton)
 LOCAL_VOICES: List[Dict[str, str]] = [
@@ -58,6 +59,16 @@ def _save_state(**kw) -> None:
             pass
 
 
+def use_by_default() -> bool:
+    """La voix HD remplace la voix gratuite en mode Auto seulement si l'utilisateur l'a demandé (elle est plus lente)."""
+    return is_ready() and bool(_load_state().get("auto_default"))
+
+
+def set_auto_default(on: bool) -> Dict[str, Any]:
+    _save_state(auto_default=bool(on))
+    return status()
+
+
 def is_ready() -> bool:
     return TTS_PY.exists() and bool(_load_state().get("ready"))
 
@@ -72,12 +83,14 @@ def status() -> Dict[str, Any]:
         pass
     return {
         "ready": is_ready(),
-        "installing": bool(st.get("installing")),
+        "installing": bool((st.get("installing") and _THREAD is not None and _THREAD.is_alive())),
         "step": st.get("step", ""),
         "error": st.get("error", ""),
         "voices": LOCAL_VOICES,
         "default_voice": st.get("default_voice") or DEFAULT_LOCAL_VOICE,
-        "log_tail": tail if st.get("installing") or st.get("error") else "",
+        "auto_default": bool(st.get("auto_default")),
+        "speed_note": "≈ 1 min de calcul pour 4 s de voix sur un Mac M1 (bien plus rapide sur une carte graphique)",
+        "log_tail": tail if (st.get("installing") and _THREAD is not None and _THREAD.is_alive()) or st.get("error") else "",
     }
 
 
@@ -106,11 +119,13 @@ def _install_worker() -> None:
 
 
 def start_install() -> Dict[str, Any]:
+    global _THREAD
     st = _load_state()
-    if st.get("installing"):
+    if (st.get("installing") and _THREAD is not None and _THREAD.is_alive()):
         return status()
     _save_state(installing=True, step="Démarrage…", error="")
-    threading.Thread(target=_install_worker, daemon=True).start()
+    _THREAD = threading.Thread(target=_install_worker, daemon=True)
+    _THREAD.start()
     return status()
 
 

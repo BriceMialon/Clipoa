@@ -274,7 +274,7 @@ class VoiceEngine:
         if provider in ("gemini_tts", "edge_tts") and not explicit_free:
             try:
                 from core import local_tts
-                if local_tts.is_ready():
+                if local_tts.use_by_default():
                     provider = "local_hd"
                     chosen_voice = ""
             except Exception:

@@ -151,6 +151,7 @@ def _mean_luma(path: str) -> float:
 def film(ep: str, out_path: str, w: int = 1080, h: int = 1920, fps: int = 30,
          progress: Optional[Callable[[int, int], None]] = None) -> str:
     """Rend tous les plans dans un seul MP4 (sans son). Retourne le chemin."""
+    out_path = str(Path(out_path).resolve())
     out_dir = Path(out_path).parent / (Path(out_path).stem + "_plans")
     out_dir.mkdir(parents=True, exist_ok=True)
     parts: List[str] = []

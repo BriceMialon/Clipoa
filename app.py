@@ -1705,6 +1705,12 @@ def api_voice_local_install():
     return jsonify(local_tts.start_install())
 
 
+@app.route("/api/voice/local/auto", methods=["POST"])
+def api_voice_local_auto():
+    from core import local_tts
+    return jsonify(local_tts.set_auto_default(bool((request.json or {}).get("on"))))
+
+
 @app.route("/api/voice/local/default", methods=["POST"])
 def api_voice_local_default():
     from core import local_tts
