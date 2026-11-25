@@ -98,6 +98,8 @@ from core.video_composer import VideoComposer
 from core.quality_controller import QualityController
 
 app = Flask(__name__, template_folder=str(BASE_DIR / "templates"), static_folder=str(BASE_DIR / "static"))
+# Identifiant de cette version du serveur : un onglet resté ouvert sur une ancienne version le détecte
+APP_BUILD = f"{int(time.time())}"
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB max upload
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
@@ -591,6 +593,7 @@ def index():
 
     return render_template(
         "index.html",
+        app_build=APP_BUILD,
         renders=renders,
         validated_count=validated_count,
         unvalidated_count=unvalidated_count,
@@ -1042,6 +1045,20 @@ def api_plugin_upload_script(plugin_id):
         return jsonify({"error": str(e)}), 500
 
 
+def _normalize_engine_params(params: dict) -> dict:
+    """
+    Anciennes pages (et tâches enregistrées avant le correctif) envoyaient « Claude » sous la forme
+    engine=antigravity + engine_model=claude-… : c'était exécuté par Antigravity et vidait son quota.
+    Sans choix explicite d'Antigravity par l'utilisateur (`engine_choice`), on repasse sur le Claude CLI.
+    """
+    p = dict(params or {})
+    model = str(p.get("engine_model") or "").lower()
+    if p.get("engine") == "antigravity" and model.startswith("claude") and p.get("engine_choice") != "antigravity":
+        p["engine"] = "claude"
+        p["engine_model"] = None
+    return p
+
+
 def _launch_pipeline_job(job_id: str):
     with JOBS_LOCK:
         job = JOBS.get(job_id)
@@ -1050,7 +1067,8 @@ def _launch_pipeline_job(job_id: str):
         job["status"] = "running"
         job["error"] = None
         kind = job["kind"]
-        params = job.get("params") or {}
+        params = _normalize_engine_params(job.get("params") or {})
+        job["params"] = params
         sess = job.get("resume_session_id") or None
         _persist_jobs()
 
@@ -1905,6 +1923,7 @@ def api_make():
         enable_sfx = request.form.get("enable_sfx", "true").lower() in ("1", "true", "yes", "on")
         engine = (request.form.get("engine") or "claude").strip().lower()
         engine_model = (request.form.get("engine_model") or "").strip() or None
+        engine_choice = (request.form.get("engine_choice") or "").strip().lower()
         bg_video = (request.form.get("background_video") or "").strip() or None
         uploaded_bg = request.files.get("bg_file")
         if uploaded_bg and uploaded_bg.filename:
@@ -1935,6 +1954,7 @@ def api_make():
         enable_sfx = bool(data.get("enable_sfx", True))
         engine = (data.get("engine") or "claude").strip().lower()
         engine_model = (data.get("engine_model") or "").strip() or None
+        engine_choice = (data.get("engine_choice") or "").strip().lower()
         bg_video = (data.get("background_video") or "").strip() or None
 
     if bg_video:
@@ -1987,6 +2007,7 @@ def api_make():
         "template_shots": template_shots,
         "engine": eng_norm,
         "engine_model": engine_model,
+        "engine_choice": engine_choice,
         "est_total_sec": est_total_sec,
     }
     job_id = _create_job("make", job_label, params=params)
@@ -2109,6 +2130,11 @@ def api_revise():
     if not _run_with_job_guard(job_id, _run):
         return jsonify({"error": "Trop de tâches lourdes en cours, patiente quelques instants.", "job_id": job_id}), 429
     return jsonify({"job_id": job_id})
+
+
+@app.route("/api/build")
+def api_build():
+    return jsonify({"build": APP_BUILD})
 
 
 def _recent_video_titles(limit: int = 12):

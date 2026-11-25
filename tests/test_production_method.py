@@ -271,3 +271,21 @@ class TestAIRoutingAndScriptPrompt(unittest.TestCase):
         self.assertIn("NE PAS les refaire", user_p)
         self.assertIn("exemples de STYLE", sys_p)
         self.assertIn("2 à 4 s", user_p)
+
+
+class TestLegacyEngineParams(unittest.TestCase):
+    def test_old_page_claude_jobs_go_to_claude(self):
+        import app as clipoa_app
+        norm = clipoa_app._normalize_engine_params
+        self.assertEqual(norm({"engine": "antigravity", "engine_model": "claude-opus-5-5-medium"})["engine"], "claude")
+        kept = norm({"engine": "antigravity", "engine_model": "claude-opus-5-5-medium", "engine_choice": "antigravity"})
+        self.assertEqual(kept["engine"], "antigravity")
+        self.assertEqual(norm({"engine": "antigravity", "engine_model": "gemini-4-neon-medium"})["engine"], "antigravity")
+
+    def test_build_endpoint_and_banner(self):
+        import app as clipoa_app
+        client = clipoa_app.app.test_client()
+        self.assertEqual(client.get("/api/build").get_json()["build"], clipoa_app.APP_BUILD)
+        html = client.get("/").get_data(as_text=True)
+        self.assertIn("stale-build-banner", html)
+        self.assertIn(clipoa_app.APP_BUILD, html)

@@ -3907,6 +3907,7 @@
         if (pluginId) fd.append('plugin_id', pluginId);
         fd.append('target_duration_sec', String(targetDurationSec));
         fd.append('engine', reqEngine);
+        fd.append('engine_choice', reqEngine);
         if (reqModel) fd.append('engine_model', reqModel);
         fd.append('voice', voice);
         fd.append('theme', theme); fd.append('subtitle_style', sub);
@@ -3925,6 +3926,7 @@
             plugin_id: pluginId,
             target_duration_sec: targetDurationSec,
             engine: reqEngine,
+            engine_choice: reqEngine,
             engine_model: reqModel,
             voice, theme, subtitle_style: sub,
             use_blender_3d: selectedRenderType === 'blender3d',
@@ -5203,5 +5205,26 @@
       }
     });
   </script>
+<div id="stale-build-banner" style="display:none; position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:9999; background:#111; color:#fff; padding:10px 14px; border-radius:12px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.25); align-items:center; gap:10px;">
+  <span>Clipoa a été mis à jour. Recharge la page pour utiliser la nouvelle version.</span>
+  <button type="button" class="btn btn-primary btn-xs" onclick="location.reload()">Recharger</button>
+</div>
+<script>
+  (function () {
+    const PAGE_BUILD = {{ app_build | tojson }};
+    async function checkBuild() {
+      try {
+        const r = await fetch('/api/build', { cache: 'no-store' });
+        const d = await r.json();
+        if (d.build && d.build !== PAGE_BUILD) {
+          const b = document.getElementById('stale-build-banner');
+          if (b) b.style.display = 'flex';
+        }
+      } catch (e) { /* serveur en redémarrage */ }
+    }
+    setInterval(checkBuild, 30000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBuild(); });
+  })();
+</script>
 </body>
 </html>
