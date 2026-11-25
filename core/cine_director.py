@@ -113,6 +113,13 @@ def build_timeline(words: List[Dict[str, Any]], duration: float) -> Dict[str, An
     return {"duration": round(duration, 3), "lines": lines}
 
 
+def has_blocking_errors(report: Optional[Dict[str, Any]]) -> bool:
+    """Vrai si la scène ne démarre pas ou si un plan plante (les petits défauts de cadrage ne bloquent pas le rendu)."""
+    if not report or "problems" not in report:
+        return True
+    return any("ne démarre pas" in p or "erreur JavaScript" in p for p in report["problems"])
+
+
 def build_prompt(script: Dict[str, Any], timeline: Dict[str, Any], da_hint: str, example: str) -> str:
     tl = "\n".join(
         f"{L['id']} {L['start']:.2f}-{L['end']:.2f}s : « {L['text']} »"
@@ -203,7 +210,7 @@ def direct(session_id: str, script: Dict[str, Any], words: List[Dict[str, Any]],
         except Exception as e:
             print(f"⚠️ Correction des plans impossible ({e}) : on garde la version actuelle.")
             break
-    if any("ne démarre pas" in p or "erreur JavaScript" in p for p in (report.get("problems") or ["ne démarre pas"])):
+    if has_blocking_errors(report):
         raise RuntimeError("Les plans 3D contiennent encore des erreurs ; repli sur le rendu Blender.")
 
     t0 = time.time()

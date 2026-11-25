@@ -54,6 +54,13 @@ class CineDirectorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _extract_js("bonjour")
 
+    def test_blocking_errors(self):
+        from core.cine_director import has_blocking_errors
+        self.assertFalse(has_blocking_errors({"problems": []}))
+        self.assertFalse(has_blocking_errors({"problems": ["plan 2 (x) : visage colle au bord : c0"]}))
+        self.assertTrue(has_blocking_errors({"problems": ["plan 1 (x) : erreur JavaScript boom"]}))
+        self.assertTrue(has_blocking_errors({}))
+
     def test_cine_starter_is_heavy(self):
         from core.style_plugins import STARTER_PRODUCTION
         self.assertEqual(STARTER_PRODUCTION["roblox_cine"]["visual_style"], "cine3d")
