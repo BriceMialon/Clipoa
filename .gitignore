@@ -1,0 +1,16 @@
+# Secrets, comptes clients, tokens et médias locaux — NE JAMAIS COMMITER
+storage/
+backups_multicomptes/
+.env
+.env.*
+*.key
+vault.key
+*.log
+
+# Environnements & caches
+venv/
+.venv/
+__pycache__/
+*.pyc
+runtime/
+.DS_Store
