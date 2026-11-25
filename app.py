@@ -329,7 +329,9 @@ JOBS_LOCK = threading.Lock()
 def _persist_jobs():
     try:
         # Keep only the 20 most recent jobs (atomic write to prevent corruption)
-        ordered = sorted(JOBS.values(), key=lambda j: j.get("created_at", 0), reverse=True)[:20]
+        # (les tâches non terminées sont toujours gardées, sinon elles perdraient leur reprise automatique)
+        ordered = sorted(JOBS.values(), key=lambda j: j.get("created_at", 0), reverse=True)
+        ordered = [j for i, j in enumerate(ordered) if i < 20 or j.get("status") not in ("done", "error")]
         JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp_path = tempfile.mkstemp(dir=str(JOBS_FILE.parent), prefix=".jobs_", suffix=".tmp")
         try:
