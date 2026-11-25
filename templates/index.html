@@ -1297,31 +1297,6 @@
               </div>
             </div>
 
-            <!-- Carte 4 : La 3D sur ton Mac (Blender) -->
-            <div class="conn-opt-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <div class="conn-mini-ico" style="margin-bottom:0;">🧊</div>
-                  <span style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if blender_available else 'var(--muted)' }};">
-                    {{ '✓ Installé' if blender_available else 'Non installé' }}
-                  </span>
-                </div>
-                <div style="font-weight:700; font-size:15px; color:var(--ink);">Blender 3D</div>
-                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
-                  Rendu 3D local gratuit sur ton Mac (scènes générées par Claude ou Antigravity).
-                </div>
-              </div>
-
-              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px;">
-                <span style="font-size:11.5px; color:var(--muted);">100 % local · 0 token rendu</span>
-                {% if blender_available %}
-                <button type="button" class="btn btn-ghost btn-xs" onclick="showView('creer'); selectStylePlaque('3d')">Utiliser</button>
-                {% else %}
-                <a class="btn btn-ghost btn-xs" href="https://www.blender.org/download/" target="_blank" rel="noopener">Installer</a>
-                {% endif %}
-              </div>
-            </div>
-
           </div>
 
           <!-- Barre inférieure Réseaux Sociaux + Réglages avancés OAuth -->
