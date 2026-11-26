@@ -135,6 +135,15 @@ try {
     }
     if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
 
+    # Runtime Visual C++ : les copies fournies avec le Python de uv sont refusées par SignTool
+    # (0x800700C1) et rendent tout le .msix impossible à signer. On les remplace par celles,
+    # redistribuables, du runtime VC++ installé sur la machine de build.
+    foreach ($dll in @("vcruntime140.dll", "vcruntime140_1.dll")) {
+        $sys = Join-Path $env:WINDIR "System32\$dll"
+        if (-not (Test-Path $sys)) { continue }
+        Get-ChildItem -Path $DistDir -Recurse -File -Filter $dll | ForEach-Object { Copy-Item -Force $sys $_.FullName }
+    }
+
     Write-Host "▸ Code ClipRoll (modules compilés .pyd + fichiers)" -ForegroundColor Magenta
     Copy-Item (Join-Path $Root "packaging\windows\launcher.py") -Destination (Join-Path $Src "launcher.py")
     $AppDist = Join-Path $DistDir "app"
