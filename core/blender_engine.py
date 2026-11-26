@@ -168,6 +168,14 @@ _cs.render.use_file_extension = False
         except Exception as e:
             logger.warning(f"Réglages Blender non imposés : {e}")
 
+    FRAME_SIGNAL_EXPR = (
+        "import bpy\n"
+        "@bpy.app.handlers.persistent\n"
+        "def _clipoa_frame(scene, *args):\n"
+        "    print('CLIPOA_FRAME', scene.frame_current, flush=True)\n"
+        "bpy.app.handlers.render_post.append(_clipoa_frame)\n"
+    )
+
     @classmethod
     def render_script(
         cls,
@@ -196,6 +204,9 @@ _cs.render.use_file_extension = False
             BLENDER_PATH,
             "-b",
             "--python", python_script_path,
+            # Blender met sa sortie en mémoire tampon quand elle part dans un tuyau : sans ce signal Python vidé
+            # à chaque image, la barre de progression pouvait rester figée tout le rendu.
+            "--python-expr", cls.FRAME_SIGNAL_EXPR,
             "-o", output_path,
             "-s", "1",
             "-e", str(frames),
@@ -214,7 +225,7 @@ _cs.render.use_file_extension = False
         last_activity = time.time()
         last_out_size = 0
         last_reported_frame = 0
-        fra_re = re.compile(r"(?:Fra:|Append frame\s+)(\d+)")
+        fra_re = re.compile(r"(?:CLIPOA_FRAME\s+|Fra:|Append frame\s+)(\d+)")
 
         try:
             while True:

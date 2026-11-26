@@ -2628,9 +2628,8 @@ def _claude_family(model):
 @app.route("/api/fabrique/generate-script", methods=["POST"])
 def api_fabrique_generate_script():
     """
-    Étape 1 de la Fabrique : génère un script complet au format Template (6 sections :
-    Fiche projet, Personnages, Le script plan par plan, Musiques à créer, Effets sonores)
-    avec Claude.
+    Étape 1 de la Fabrique : Claude déduit de l'idée le format du script (genre, ton, personnages, longueur)
+    et le rend en 3 sections (Fiche projet, Personnages, Le script plan par plan).
     """
     data = request.json or {}
     topic = (data.get("topic") or "").strip()
@@ -2710,16 +2709,17 @@ def api_fabrique_generate_script_stream():
         return f"event: {ev_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
     def _compute_progress(acc_text: str) -> tuple:
+        # Format libre : 3 sections (un modèle perso peut en avoir plus, d'où les 4 et 5)
         if "## 5." in acc_text:
-            return 88, "5/5 · Effets sonores (SFX)"
+            return 96, "Dernières sections du modèle"
         if "## 4." in acc_text:
-            return 74, "4/5 · Musiques à créer"
+            return 95, "Dernières sections du modèle"
         if "## 3." in acc_text:
-            return min(70, 38 + len(acc_text) // 180), "3/5 · Écriture du script plan par plan"
+            return min(94, 34 + len(acc_text) // 70), "3/3 · Écriture du script plan par plan"
         if "## 2." in acc_text:
-            return 26, "2/5 · Fiches personnages"
+            return 24, "2/3 · Personnages et voix"
         if "## 1." in acc_text:
-            return 14, "1/5 · Fiche projet"
+            return 12, "1/3 · Format choisi par l'IA"
         return min(85, 10 + len(acc_text) // 60), "Rédaction en direct…"
 
     def _generate():

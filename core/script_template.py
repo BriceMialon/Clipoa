@@ -11,86 +11,34 @@ from core.style_plugins import duration_to_word_range
 CUSTOM_TEMPLATES_FILE = STORAGE_DIR / "script_templates.json"
 _TPL_LOCK = threading.Lock()
 
-VIDEO_SCRIPT_TEMPLATE = """# TEMPLATE DE SCRIPT VIDÉO (6 sections obligatoires)
+VIDEO_SCRIPT_TEMPLATE = """# FORMAT DE SORTIE (Clipoa lit ces titres et les colonnes du tableau 3 : garde-les tels quels)
 
-Remplace TOUS les crochets `[ ]` par du vrai contenu complet. Ne laisse aucun crochet vide ni `...`.
+Le contenu, lui, est libre : genre, ton, structure, nombre de personnages et longueur viennent de la demande.
+Remplace tous les crochets `[ ]` par du vrai contenu. Pas de `...`, pas de commentaire avant ou après le document.
 
 ## 1. Fiche projet
 | Champ | Valeur |
 |---|---|
 | Titre | [Titre] |
 | Idée en une phrase | [Ce qui se passe, en une phrase] |
-| Durée totale | [Ex. 1:00] |
-| Genre et ton | [Horreur, comédie, drame, pub, tuto…] |
-| Lieu(x) | [Où se passe l'action] |
-| Personnages | [Liste] |
-| Narrateur ou voix off | [Oui / non, qui] |
-| Émotion que le spectateur doit garder à la fin | [Une émotion] |
-| Fin | [Dernière réplique, carte titre, logo, appel à l'action] |
+| Format choisi | [Ex. conte à la 1re personne, dialogue à deux, tuto face caméra, sketch, pub, liste… et pourquoi en 5 mots] |
+| Ton | [Ex. drôle et absurde, tendre, angoissant, pédagogique, énergique] |
+| Durée totale | [Ex. 0:45] |
+| Langue | [Français, anglais…] |
+| Fin | [Comment la vidéo se termine] |
 
 ## 2. Personnages
-Une ligne par personnage, y compris le narrateur (pour garder la même voix et la même logique émotionnelle d'un bout à l'autre).
-| Personnage | Âge et rôle | Voix (timbre, débit, accent) | Façon de parler (registre, tics, mots récurrents) | Émotion au début | Émotion à la fin | Ce qu'il cache ou ne dit pas |
-|---|---|---|---|---|---|---|
-| [Nom] | [Âge, rôle] | [Timbre, débit, accent] | [Registre, tics] | [Émotion x/5] | [Émotion x/5] | [Secret, peur, désir] |
+Une ligne par voix entendue, narrateur compris. Ces infos servent à choisir les voix : sois précis sur l'âge, le genre et le timbre.
+| Personnage | Âge et genre | Rôle | Voix (timbre, débit, accent) | Façon de parler |
+|---|---|---|---|---|
+| [Nom] | [Ex. 12 ans, garçon] | [Rôle] | [Ex. aiguë, rapide, accent parisien] | [Registre, tics] |
 
 ## 3. Le script
-Une ligne par moment de la vidéo, de 2 à 4 secondes (un plan par phrase). Timing : compter ~2,5 mots/s pour une réplique dite normalement.
-Conventions `Qui parle` : `Nom` (à l'écran), `Nom (VO)` (voix off), `Nom (HC)` (hors champ), `Nom (pensée)` (voix intérieure), `—` (personne ne parle).
-Conventions `Émotions` (toujours dans cet ordre) : 1) Personnage + émotion, 2) Intensité 1–5, 3) Ce qui se voit (regard, posture, mains, geste), 4) Ce qui s'entend (voix, souffle, silence), 5) Ce qu'il cache si utile.
+Une ligne par plan de 2 à 4 secondes. Timing : ~2,5 mots/s pour une réplique dite normalement.
+`Qui parle` : `Nom` (à l'écran), `Nom (VO)` (voix off), `Nom (HC)` (hors champ), `Nom (pensée)`, `—` (personne). Écris toujours le même nom pour le même personnage.
 | Temps | Scène | Action | Qui parle | Texte | Façon de le dire | Émotions | Effets sonores | Musique |
 |---|---|---|---|---|---|---|---|---|
-| 0:00–0:04 | [Lieu, ambiance, présents] | [Geste par geste] | [Qui parle] | [Réplique exacte] | [Ton, volume, débit, pauses, souffle] | [Nom : émotion x/5 — visible & audible] | [SFX-01 : description courte] | [MUS-01 : début / continue / coupe] |
-
-## 4. Musiques à créer
-Une fiche par morceau (`MUS-01`, `MUS-02`…) référencé dans la colonne Musique, avec un prompt prêt à coller dans un générateur de musique.
-### MUS-01
-| Champ | Valeur |
-|---|---|
-| Moment | [Début – fin, durée totale] |
-| Scènes couvertes | [Lignes du script concernées] |
-| Émotion à provoquer | [Ex. malaise qui devient angoisse] |
-| Intensité | [Départ x/5 → arrivée x/5] |
-| Genre et style | [Ex. ambient sombre, drone, piano minimaliste] |
-| Instruments principaux | [Instruments] |
-| Textures et sons ajoutés | [Textures] |
-| Tempo | [BPM ou « sans pulsation »] |
-| Tonalité et couleur | [Majeur, mineur, dissonant…] |
-| Rythme | [Régulier, irrégulier, aucun] |
-| Entrée | [Fondu lent, attaque nette…] |
-| Évolution seconde par seconde | [Ex. 0:00… → 0:15… → 0:45…] |
-| Points à synchroniser | [Timecode + action ou réplique] |
-| Place par rapport aux voix | [Sous les voix / coupe / remonte] |
-| Volume | [Très discret, présent, premier plan] |
-| Sortie | [Coupure nette, fondu, silence] |
-| Références | [Films, morceaux ou ambiances] |
-| Prompt de génération | [Prompt anglais prêt à coller dans un générateur de musique] |
-
-## 5. Effets sonores à créer
-D'abord la liste récapitulative de tous les `SFX-xx` (et les `Silence`), puis une fiche détaillée par `SFX-xx`.
-| Code | Timecode | Synchronisé avec | Ce qu'on entend | Durée |
-|---|---|---|---|---|
-| SFX-01 | [0:02] | [Action ou réplique] | [Description courte] | [0,5 s] |
-
-### Fiche SFX-01 (répéter pour chaque SFX-xx)
-| Champ | Valeur |
-|---|---|
-| Timecode exact | [Ex. 0:02,0] |
-| Synchronisé avec | [Action ou réplique] |
-| Ce qu'on entend | [Description précise] |
-| Matière ou source | [Métal, bois, verre, voix, électronique, corps…] |
-| Caractère | [Sec, mou, métallique, humide, étouffé, granuleux] |
-| Hauteur | [Grave, médium, aigu, qui monte/descend] |
-| Attaque | [Brusque, progressive] |
-| Fin | [Coupure nette, résonance, écho] |
-| Durée | [En secondes] |
-| Espace | [Proche, lointain, gauche/droite, pièce vide, extérieur] |
-| Réverbération | [Aucune, légère, cathédrale, vide infini] |
-| Répétition | [Une fois, en boucle, x fois] |
-| Superposition | [Autres sons ou musique simultanés] |
-| Volume dans le mix | [Discret, au niveau des voix, devant tout] |
-| Émotion et rôle | [Rôle narratif/émotionnel] |
-| Prompt de génération | [Prompt anglais prêt à coller dans un générateur SFX] |
+| 0:00–0:03 | [Lieu, ambiance, présents] | [Geste par geste] | [Qui parle] | [Réplique exacte] | [Ton, volume, débit, pauses] | [Nom : émotion x/5, ce qui se voit et s'entend] | [Bruitage court ou —] | [Début / continue / coupe] |
 """
 
 
@@ -134,7 +82,7 @@ def list_script_templates() -> List[Dict[str, Any]]:
     """Liste le template par défaut + les modèles de script personnalisés ajoutés par l'utilisateur."""
     built_in = [{
         "id": "default",
-        "name": "Template par défaut (6 sections)",
+        "name": "Libre (l'IA choisit le format)",
         "builtin": True,
         "content": VIDEO_SCRIPT_TEMPLATE,
     }]
@@ -230,17 +178,18 @@ def build_script_generation_prompt(
     is_custom_tpl = bool(template_id and template_id != "default")
 
     system_prompt = (
-        "Tu es un scénariste et réalisateur vidéo d'élite.\n"
-        "Tu DOIS rédiger le script complet en français en suivant STRICTEMENT le modèle / template ci-dessous "
-        "(remplace tous les crochets `[ ]` par du vrai contenu, aucun commentaire avant ou après le document).\n"
-        "Respecte un timing cohérent jusqu'à la durée totale (~2,5 mots/s pour les répliques).\n"
-        "Méthode de narration : dans les 10 premières secondes, QUI (un prénom), QUOI (la règle) et CE QUI EST EN JEU ; "
-        "chaque réplique reliée à la précédente (alors, mais, sauf que, donc) ; des sensations plutôt que des idées ; "
-        "une phrase de 2 à 4 mots juste avant la révélation ; révélation plantée par un indice dès le début ; "
-        "fin = morale courte puis question au spectateur.\n"
-        "ORIGINALITÉ : l'histoire part de l'idée de l'utilisateur et rien d'autre. Les objets, décors et exemples cités "
-        "dans la Direction Artistique sont des exemples de STYLE, pas des sujets imposés : n'en reprends un que s'il sert "
-        "vraiment cette idée. Invente un objet-clé, des personnages et un retournement propres à cette idée.\n\n"
+        "Tu es un scénariste et réalisateur de vidéos courtes (Shorts, Reels, TikTok).\n"
+        "AVANT d'écrire, déduis toi-même de la demande ce qu'il faut produire : le genre (histoire, sketch, dialogue, "
+        "tuto, explication, pub, liste, témoignage…), le ton, la structure qui sert le mieux cette idée, le nombre de "
+        "personnages (un narrateur seul, un dialogue, une petite troupe) et la personne (je, tu, il). "
+        "Ce que l'utilisateur précise (durée, ton, personnages, langue, structure, fin) passe avant tout le reste.\n"
+        "Aucune recette imposée : pas de twist, de morale, de question finale ni d'appel à s'abonner si l'idée ne s'y prête pas. "
+        "Seules exigences : accrocher dès la première phrase, parler comme à l'oral, une idée claire par phrase, "
+        "et des répliques jouables à l'image.\n"
+        "Écris dans la langue de la demande (français par défaut). Rends le document dans le format ci-dessous, sans rien autour.\n"
+        "ORIGINALITÉ : l'histoire part de l'idée de l'utilisateur et rien d'autre. Les objets, décors, structures et exemples cités "
+        "dans la Direction Artistique sont des exemples de STYLE, pas des sujets ni des plans imposés : n'en reprends un que s'il sert "
+        "vraiment cette idée.\n\n"
         + tpl_body
     )
     da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:12000]}\n" if da_context else ""
@@ -248,11 +197,12 @@ def build_script_generation_prompt(
     extra_note = (
         "Adapte exactement la structure et les colonnes du modèle personnalisé fourni ci-dessus."
         if is_custom_tpl
-        else "Génère les 5 sections du template (sois précis et concis : 1 à 2 fiches MUS-xx et 3 à 5 fiches SFX-xx clés)."
+        else "Remplis les 3 sections du format (fiche, personnages, script plan par plan), sans en ajouter d'autres."
     )
     user_prompt = (
         f"Idée de l'utilisateur :\n{topic.strip()}\n\n"
-        f"Durée totale visée : {mmss} ({dur['duration_sec']} secondes, environ {dur['min_words']} à {dur['max_words']} mots parlés au total, un plan toutes les 2 à 4 s).\n"
+        f"Durée maximale : {mmss} ({dur['duration_sec']} secondes, au plus ~{dur['max_words']} mots parlés, un plan toutes les 2 à 4 s). "
+        "Si l'idée est plus forte en plus court, fais plus court.\n"
         f"{da_block}{avoid_block}\n"
         f"{extra_note}"
     )

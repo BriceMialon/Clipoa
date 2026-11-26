@@ -120,9 +120,8 @@ class ShortCrewPipeline:
         CETTE histoire, Blender le construit dans le style choisi. Repli sur l'ancienne scène si tout échoue.
         """
         from core.scene_designer import design_scene
-        def _p(pct: int, msg: str):
-            if progress:
-                progress(pct, msg)
+        from core.progress_ticker import MonotoneProgress, ticking
+        _p = MonotoneProgress(progress)  # images Blender et minuteur partagent la même barre
         style = cls.visual_style_for(plugin) or "roblox"
         from core.edition import restrict_visual_style
         style = restrict_visual_style(style, plugin)
@@ -155,11 +154,11 @@ class ShortCrewPipeline:
         total_frames = max(36, int(round(audio_dur_sec * 12)))
 
         def _blender_prog(f_cur: int, f_tot: int):
-            _p(58 + int(round(15 * min(1.0, f_cur / max(1, f_tot)))), f"🧊 [3/4] Rendu Blender en cours… image {f_cur}/{f_tot}")
+            _p(61 + int(round(25 * min(1.0, f_cur / max(1, f_tot)))), f"🧊 [3/4] Rendu Blender en cours… image {f_cur}/{f_tot}")
 
         try:
-            _p(55, f"🎬 [3/4] {eng_lbl} met en scène le décor de ton histoire...")
-            spec = design_scene(script, plan, style=style, engine=engine, model=engine_model, words=words, da_hint=da_ctx)
+            with ticking(_p, 55, 60, 60, f"🎬 [3/4] {eng_lbl} met en scène le décor de ton histoire"):
+                spec = design_scene(script, plan, style=style, engine=engine, model=engine_model, words=words, da_hint=da_ctx)
             # style copié d'une vidéo : ses vraies couleurs et sa lumière priment sur les choix du décorateur
             prod = (plugin or {}).get("production") or {}
             if isinstance(prod.get("palette"), dict) and prod["palette"]:
@@ -173,10 +172,12 @@ class ShortCrewPipeline:
                     json.dump(spec, f, indent=2, ensure_ascii=False)
             except Exception:
                 pass
-            _p(58, f"🧊 [3/4] Construction Blender ({len(spec.get('locations') or [])} lieux, {len(plan.get('shots') or [])} plans, style {style})...")
+            _p(60, f"🧊 [3/4] Construction Blender ({len(spec.get('locations') or [])} lieux, {len(plan.get('shots') or [])} plans, style {style})...")
             quality = "fast" if (plugin or {}).get("_render_quality") == "fast" else "hq"
             BlenderEngine.create_scene_from_spec(spec, plan.get("shots") or [], py_script, audio_dur_sec, style=style, words=words, quality=quality)
-            if BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog):
+            with ticking(_p, 61, 86, max(60, total_frames * 1.5), "🧊 [3/4] Rendu Blender en cours"):
+                ok = BlenderEngine.render_script(py_script, bg_out, frames=total_frames, progress_cb=_blender_prog)
+            if ok:
                 return bg_out
             print("⚠️ Rendu du décor sur mesure échoué : scène de secours.")
         except Exception as e:
@@ -357,10 +358,12 @@ class ShortCrewPipeline:
         with multi-shot Blender 3D scenes, ambient music/SFX, and self-learning timings.
         """
         t_start_total = time.time()
+        from core.progress_ticker import MonotoneProgress, ticking
+        _mono = MonotoneProgress(progress_cb)  # la barre ne recule jamais et avance pendant les longues étapes
+
         def _prog(pct: int, msg: str):
             print(msg)
-            if progress_cb:
-                progress_cb(pct, msg)
+            _mono(pct, msg)
 
         active_engine = "claude"
         eng_name = "Claude"
@@ -383,46 +386,52 @@ class ShortCrewPipeline:
         if "script" not in cp:
             if is_custom_script:
                 if plugin:
-                    _prog(15, f"🎨 [1/4] {eng_name} applique la DA « {plugin['name']} » sur ton script perso...")
+                    _msg = f"🎨 [1/4] {eng_name} applique la DA « {plugin['name']} » sur ton script perso"
                 else:
-                    _prog(15, "✍️ [1/4] Préparation de ton script personnalisé...")
-                cp["script"] = LeScenariste.direct_custom_script(
-                    custom_script=custom_script or "",
-                    title=(custom_title or topic or "").strip(),
-                    da_context=da_ctx or None,
-                )
+                    _msg = "✍️ [1/4] Préparation de ton script personnalisé"
+                with ticking(_mono, 15, 40, 45, _msg):
+                    cp["script"] = LeScenariste.direct_custom_script(
+                        custom_script=custom_script or "",
+                        title=(custom_title or topic or "").strip(),
+                        da_context=da_ctx or None,
+                    )
             else:
                 if plugin:
-                    _prog(15, f"🎨 [1/4] {eng_name} écrit le script dans la DA « {plugin['name']} »...")
+                    _msg = f"🎨 [1/4] {eng_name} écrit le script dans la DA « {plugin['name']} »"
                 else:
-                    _prog(15, f"✍️ [1/4] Le Scénariste écrit ton script avec {eng_name}...")
-                cp["script"] = LeScenariste.write_script(
-                    topic=topic,
-                    user_style=user_style,
-                    da_context=da_ctx or None,
-                    target_duration_sec=target_duration_sec,
-                )
+                    _msg = f"✍️ [1/4] Le Scénariste écrit ton script avec {eng_name}"
+                with ticking(_mono, 15, 40, 70, _msg):
+                    cp["script"] = LeScenariste.write_script(
+                        topic=topic,
+                        user_style=user_style,
+                        da_context=da_ctx or None,
+                        target_duration_sec=target_duration_sec,
+                    )
             save_checkpoint(session_id, cp)
         script = cp["script"]
 
         if "voice_res" not in cp or "voice_transcript" not in cp:
-            _prog(42, "🎙️ [2/4] Synthèse vocale + synchronisation mot-par-mot...")
-            cp["voice_res"] = VoiceEngine.generate_voice(
-                text=script.get("full_spoken_script", ""),
-                output_name=session_id,
-                voice=voice,
-                # Le tableau du script dit qui parle : une voix par personnage s'il y en a plusieurs
-                segments=template_shots if (is_custom_script and isinstance(template_shots, list)) else None,
-            )
+            _dialogue = script.get("dialogue") if isinstance(script.get("dialogue"), list) and len(script.get("dialogue")) >= 2 else None
+            with ticking(_mono, 41, 46, 45, "🎙️ [2/4] Choix des voix et synthèse vocale"):
+                cp["voice_res"] = VoiceEngine.generate_voice(
+                    text=script.get("full_spoken_script", ""),
+                    output_name=session_id,
+                    voice=voice,
+                    # Le tableau du script (ou le « dialogue » écrit par l'IA) dit qui parle : une voix par personnage
+                    segments=template_shots if (is_custom_script and isinstance(template_shots, list)) else _dialogue,
+                    style_hint=" · ".join(x for x in ((plugin or {}).get("name"), (plugin or {}).get("tagline"), (topic or "")[:120]) if x),
+                    voices_hint=script.get("voices") if isinstance(script.get("voices"), list) else None,
+                )
             # Style à narration dense (Stickman) : voix accélérée + silences raccourcis AVANT le calage mot à mot
             _prod = (plugin or {}).get("production") or {}
             if _prod.get("voice_tempo") or _prod.get("trim_silence"):
                 try:
-                    _prog(43, "🎙️ [2/4] Voix resserrée (rythme du style)…")
+                    _prog(46, "🎙️ [2/4] Voix resserrée (rythme du style)…")
                     SoundDesigner.tighten_voice(cp["voice_res"]["audio_wav"], float(_prod.get("voice_tempo") or 1.0), bool(_prod.get("trim_silence")))
                 except Exception as _e:
                     print(f"⚠️ Voix non accélérée ({_e})")
-            cp["voice_transcript"] = AudioTranscriber.transcribe(cp["voice_res"]["audio_wav"])
+            with ticking(_mono, 46, 50, 40, "🎙️ [2/4] Calage des sous-titres mot à mot"):
+                cp["voice_transcript"] = AudioTranscriber.transcribe(cp["voice_res"]["audio_wav"])
             save_checkpoint(session_id, cp)
         voice_res = cp["voice_res"]
         voice_transcript = cp["voice_transcript"]
@@ -433,12 +442,12 @@ class ShortCrewPipeline:
             all_shots = template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or [])
 
             # Méthode Clipoa : plan calé sur la voix + musique d'ambiance & bruitages (SFX) si cochés
-            _prog(50, "🎵 [2/4] Plan de production, musique d'ambiance & bruitages (SFX)...")
-            mixres = cls._plan_and_mix(
-                session_id, script, voice_res, voice_transcript, all_shots,
-                enable_music=enable_music, enable_sfx=enable_sfx,
-                style_overrides=(plugin or {}).get("production") if isinstance((plugin or {}).get("production"), dict) else None,
-            )
+            with ticking(_mono, 50, 54, 20, "🎵 [2/4] Plan de production, musique d'ambiance & bruitages (SFX)"):
+                mixres = cls._plan_and_mix(
+                    session_id, script, voice_res, voice_transcript, all_shots,
+                    enable_music=enable_music, enable_sfx=enable_sfx,
+                    style_overrides=(plugin or {}).get("production") if isinstance((plugin or {}).get("production"), dict) else None,
+                )
             plan = mixres["plan"]
             final_audio_wav = mixres["audio"]
             blender_bg_path = ""
@@ -455,27 +464,27 @@ class ShortCrewPipeline:
                     effective_bg = bg
                     blender_bg_path = bg
 
-            _prog(74, "🎬 [3/4] Montage final 1080x1920 + sous-titres...")
-            cp["video_path"] = VideoComposer.compose_short(
-                output_name=session_id,
-                audio_path=final_audio_wav,
-                script_data=script,
-                transcript_data=voice_transcript,
-                background_video=effective_bg,
-                theme=effective_theme,
-                subtitle_style=effective_sub,
-                retention_boost=retention_boost,
-                plan=plan,
-                audio_premixed=mixres["premixed"],
-                alt_audio_path=mixres["no_music"],
-            )
+            with ticking(_mono, 87, 95, 70, "🎬 [3/4] Montage final 1080x1920 + sous-titres"):
+                cp["video_path"] = VideoComposer.compose_short(
+                    output_name=session_id,
+                    audio_path=final_audio_wav,
+                    script_data=script,
+                    transcript_data=voice_transcript,
+                    background_video=effective_bg,
+                    theme=effective_theme,
+                    subtitle_style=effective_sub,
+                    retention_boost=retention_boost,
+                    plan=plan,
+                    audio_premixed=mixres["premixed"],
+                    alt_audio_path=mixres["no_music"],
+                )
             cp["plan"] = plan
             cp["blender_bg"] = blender_bg_path
             save_checkpoint(session_id, cp)
         video_path = cp["video_path"]
 
-        _prog(90, "🔍 [4/4] Audit qualité par Le Contrôle...")
-        audit = QualityController.audit_production(video_path, script)
+        with ticking(_mono, 95, 99, 40, "🔍 [4/4] Audit qualité par Le Contrôle"):
+            audit = QualityController.audit_production(video_path, script)
         record_actual_timing(active_engine, "blender3d" if use_blender_3d else "motion", time.time() - t_start_total, target_duration_sec)
         if not resume_session_id:
             # benchmark par style : temps réel + coût Claude réel de CETTE fabrication

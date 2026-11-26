@@ -1323,7 +1323,11 @@ class StylePluginStore:
             )
 
         if not preserve_user_script and plugin.get("narrative_rules"):
-            parts.append(f"Règles narratives :\n{plugin['narrative_rules']}")
+            parts.append(
+                "Rythme et structure habituels de ce style (une piste, pas une obligation : suis-la seulement si "
+                "l'idée de l'utilisateur s'y prête, sinon choisis la structure qui sert le mieux cette idée ; "
+                "les phrases d'exemple ne doivent jamais être recopiées) :\n" + str(plugin["narrative_rules"])
+            )
 
         # Cette DA vient souvent d'une vidéo de référence précise : ses décors, objets et exemples (ex. « neige,
         # miroirs couverts ») décrivent un STYLE. Sans cette règle, l'IA refait l'histoire de la référence à chaque fois.
