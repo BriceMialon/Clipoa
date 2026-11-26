@@ -15,3 +15,6 @@ __pycache__/
 runtime/
 .DS_Store
 venv_tts/
+
+# Paquets fabriqués par packaging/build_release.sh
+dist/
