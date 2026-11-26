@@ -2900,6 +2900,11 @@ def api_assistant_help():
         }), 500
 
 
+# Mises à jour automatiques (installation par packaging/install.sh ; muet sur une copie git)
+from core import updater as _updater  # noqa: E402
+_updater.register(app)
+
+
 @app.route("/api/system/health", methods=["GET"])
 def api_system_health():
     return jsonify({
