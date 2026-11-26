@@ -15,6 +15,7 @@ TOKEN_DAYS = "7"
 PRICE_MONTHLY = "price_A_REMPLIR"   # 19 €/mois (mode test d'abord)
 PRICE_YEARLY = "price_A_REMPLIR"    # 149 €/an, présélectionné sur le site
 PUBLIC_URL = "https://clipoa-license.clipoa-studio.workers.dev"
+SITE_URL = "https://cliproll.app"   # retour après abandon du paiement ou sortie du portail
 
 # Secrets (npx wrangler secret put NOM) :
 #   STRIPE_SECRET_KEY        sk_test_... (jamais sk_live tant que Brice n'a pas validé)
