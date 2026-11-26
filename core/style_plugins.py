@@ -715,6 +715,23 @@ def estimate_plugin_cost_and_time(raw: Dict[str, Any], sheets_count: int = 0, du
     }
 
 
+def _ensure_starter_cover(pid: str) -> None:
+    """Copie la vignette livrée (assets/style_covers/<id>.jpg) dans le style si elle manque."""
+    if not pid or not _SAFE_ID_FOR_COVER.match(pid):
+        return
+    try:
+        cover = Path(__file__).resolve().parent.parent / "assets" / "style_covers" / f"{pid}.jpg"
+        dest = PLUGINS_DIR / pid / "sheets" / f"{pid}.jpg"
+        if cover.exists() and not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(cover, dest)
+    except Exception:
+        pass
+
+
+_SAFE_ID_FOR_COVER = re.compile(r"^[a-z0-9_]{1,64}$")
+
+
 def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False) -> Dict[str, Any]:
     pid = raw.get("id", "")
     sheets = []
@@ -823,6 +840,8 @@ class StylePluginStore:
                 item["updated_at"] = now
                 seeded.append(item)
             _atomic_write_json(PLUGINS_INDEX_FILE, seeded)
+            for p in seeded:
+                _ensure_starter_cover(p.get("id", ""))
             return seeded
         try:
             with open(PLUGINS_INDEX_FILE, "r", encoding="utf-8") as f:
@@ -839,15 +858,9 @@ class StylePluginStore:
                 item["created_at"] = item["updated_at"] = time.strftime("%Y-%m-%d %H:%M")
                 data.append(item)
                 added = True
-                # vignette livrée avec Clipoa (assets/style_covers/<id>.jpg)
-                try:
-                    cover = Path(__file__).resolve().parent.parent / "assets" / "style_covers" / f"{sp['id']}.jpg"
-                    dest = PLUGINS_DIR / sp["id"] / "sheets" / f"{sp['id']}.jpg"
-                    if cover.exists() and not dest.exists():
-                        dest.parent.mkdir(parents=True, exist_ok=True)
-                        shutil.copyfile(cover, dest)
-                except Exception:
-                    pass
+        for p in data:
+            if isinstance(p, dict) and p.get("starter"):
+                _ensure_starter_cover(p.get("id", ""))
         # Réglages livrés corrigés depuis : appliqués seulement si l'utilisateur a gardé l'ancienne valeur livrée
         for p in data:
             if not isinstance(p, dict):
