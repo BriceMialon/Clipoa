@@ -98,7 +98,8 @@ def _social_step(social_accounts: Dict[str, Any], oauth_apps: Dict[str, Any]) ->
 
 def compute(tools_status: Dict[str, Any], claude_connected: bool, renders_count: int,
             unvalidated_count: int, social_accounts: Dict[str, Any], oauth_apps: Dict[str, Any],
-            state: Optional[Dict[str, Any]] = None, voice_pro_connected: bool = False) -> Dict[str, Any]:
+            state: Optional[Dict[str, Any]] = None, voice_pro_connected: bool = False,
+            published_count: int = 0, first_video: str = "") -> Dict[str, Any]:
     """Étapes du guide + la prochaine chose à faire (une phrase, un bouton)."""
     state = state or {"status": "new"}
     tools = _tools_step(tools_status)
@@ -119,6 +120,8 @@ def compute(tools_status: Dict[str, Any], claude_connected: bool, renders_count:
         nxt = {"text": ("Ta nouvelle vidéo t'attend." if unvalidated_count == 1
                         else f"{unvalidated_count} vidéos t'attendent."),
                "button": "Regarder", "action": "watch"}
+    elif social["done"] and published_count == 0 and first_video:
+        nxt = {"text": "Publie ta première vidéo.", "button": "Publier", "action": "publish", "video": first_video}
     elif not social["done"] and any(i["ready"] for i in social["items"]):
         first = next(i for i in social["items"] if i["ready"])
         nxt = {"text": f"Connecte {first['label']} pour publier en un clic.", "button": "Connecter",

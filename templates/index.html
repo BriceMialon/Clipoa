@@ -366,11 +366,11 @@
           <!-- Écran simplifié tant qu'aucune IA n'est connectée -->
           <div class="composer lg-sheen" style="text-align:center; padding:42px 24px;">
             <div style="font-size:32px; margin-bottom:10px;">🔌</div>
-            <h2 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--ink);">Connecte une IA pour commencer</h2>
+            <h2 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--ink);">Connecte Claude pour commencer</h2>
             <p style="font-size:13.5px; color:var(--muted); max-width:420px; margin:8px auto 18px; line-height:1.5;">
-              Branche Claude dans Connexions pour débloquer la génération de scripts et de vidéos.
+              Claude écrit tes vidéos. Ça prend une minute.
             </p>
-            <button type="button" class="btn btn-coral" onclick="showView('reglages')">Ouvrir Connexions →</button>
+            <button type="button" class="btn btn-coral" onclick="window.ClipoaOnboarding ? ClipoaOnboarding.show('claude') : showView('reglages')">Connecter Claude →</button>
           </div>
           {% else %}
           <!-- Grand Composer Liquid Glass (2 étapes simples : 1. Script · 2. Rendu & IA) -->
@@ -378,7 +378,7 @@
 
             <!-- ===== ÉTAPE 1 : LE SCRIPT ===== -->
             <div class="step-label" style="margin-top:0; margin-bottom:10px;">
-              <span>1 · Le script</span>
+              <span>1 · Ton idée</span>
               <span class="script-meter" id="fab-script-meter"></span>
             </div>
 
@@ -539,8 +539,8 @@
               </div>
             </div>
 
-            <!-- IA qui génère : Claude -->
-            <div class="step-block" style="margin-top:14px;">
+            <!-- IA qui génère : Claude (un seul choix possible, donc masqué) -->
+            <div class="step-block" style="margin-top:14px; display:none;">
               <div class="step-label">
                 <span>2 · IA qui génère</span>
                 <span id="engine-active-hint" style="display:none; text-transform:none; letter-spacing:0; font-weight:600; color:var(--ink);"></span>
@@ -561,7 +561,7 @@
             <!-- Voix compacte -->
             <div class="step-block" style="margin-top:14px;">
               <div class="step-label">
-                <span>3 · Voix</span>
+                <span>2 · Voix</span>
                 <div style="display:flex; gap:5px; text-transform:none; letter-spacing:0;">
                   <button type="button" class="chip actif" id="vmode-auto" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('auto')">Auto</button>
                   <button type="button" class="chip" id="vmode-manual" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('manual')">Choisir</button>
@@ -569,12 +569,12 @@
               </div>
               <div class="pick-grid">
                 <button type="button" class="pick-card actif" id="vprov-free" onclick="selectVoiceProvider('free')">
-                  <div class="pick-top"><span class="pick-title">Voix Studio</span><span class="pick-badge">Incluse</span></div>
-                  <div class="pick-sub" id="vprov-free-sub"><span style="color:var(--danger, #d9534f);">▲</span> Gratuit, moins bien qu’ElevenLabs</div>
+                  <div class="pick-top"><span class="pick-title">Voix incluse</span><span class="pick-badge">Gratuite</span></div>
+                  <div class="pick-sub" id="vprov-free-sub">Prête à l’emploi</div>
                 </button>
                 <button type="button" class="pick-card {{ '' if el_status.connected else 'locked' }}" id="vprov-el" onclick="selectVoiceProvider('el')">
                   <div class="pick-top"><span class="pick-title">ElevenLabs</span><span class="pick-badge {{ '' if el_status.connected else 'lock' }}">{{ 'Branché' if el_status.connected else 'Optionnel' }}</span></div>
-                  <div class="pick-sub">{{ (el_status.est_videos_left ~ ' shorts restants') if el_status.connected else 'Ta voix clonée' }}</div>
+                  <div class="pick-sub">{{ (el_status.est_videos_left ~ ' vidéos restantes') if el_status.connected else 'Plus naturelle (payant)' }}</div>
                 </button>
               </div>
               <div id="voice-hd-box" style="margin-top:8px; padding:9px 11px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12px; color:var(--muted); display:{{ 'none' if local_voices.ready else 'block' }};">
@@ -627,7 +627,7 @@
             <!-- Pied de la Fabrique -->
             <div class="fabrique-footer" style="margin-top:16px;">
               <span id="studio-summary-text" style="font-size:12px; color:var(--muted);">
-                <b>Claude Opus 5.5 (Medium)</b> · Fond animé · Voix Auto
+                <b>Style choisi pour toi</b> · Voix incluse
               </span>
               <button type="button" class="btn btn-coral" id="create-submit-btn" onclick="submitUnifiedCreate()">
                 Fabriquer la vidéo →
@@ -812,7 +812,7 @@
                     <span>{{ acc.short_name }}</span>
                   </div>
                   <div style="font-size:11.5px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:{{ 'var(--ok)' if acc.auto_api else 'var(--muted)' }};">
-                    {{ '✓ ' ~ acc.label if acc.auto_api else 'Non branché à l’API' }}
+                    {{ '✓ ' ~ acc.label if acc.auto_api else 'Non connecté' }}
                   </div>
                   {% if acc.auto_api and acc.accounts|length > 1 %}
                   <select class="input-sm" title="Changer de compte {{ acc.short_name }}" style="margin-top:6px; padding:4px 8px; font-size:11.5px; max-width:100%;" data-plat="{{ key }}" onchange="switchSocialAccount(this.dataset.plat, this.value)">
@@ -852,17 +852,17 @@
                 </div>
               </div>
               <div class="field">
-                <label>Vidéo à diffuser</label>
+                <label>Ta vidéo</label>
                 <select id="pub-video" class="input-sm" onchange="syncPostizFields(true)">
                   {% for v in renders %}
                   <option value="{{ v.id }}" data-title="{{ v.script.title or v.id }}" data-caption="{{ v.social_caption or '' }}">{{ '✓ ' if v.validated else '' }}{{ v.script.title or v.id }}</option>
                   {% else %}
-                  <option value="">Aucun short — importe un MP4 ou crée-le dans Fabrique</option>
+                  <option value="">Pas encore de vidéo : fabrique-la d’abord</option>
                   {% endfor %}
                 </select>
               </div>
               <div class="field">
-                <label>Réseaux cibles (envoi simultané)</label>
+                <label>Où publier</label>
                 <div class="plat-row" id="pub-platforms">
                   {% for key, acc in social_accounts.items() %}
                   <div class="plat-pill {{ 'selected' if acc.auto_api else '' }}" data-plat="{{ key }}" data-oauth="{{ acc.oauth_provider }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" data-connected="{{ '1' if acc.auto_api else '0' }}" style="{{ '' if acc.auto_api else 'opacity:0.78; border-style:dashed;' }}" onclick="togglePulsePlatform(this)">
@@ -873,8 +873,8 @@
                 </div>
               </div>
               <div class="field"><label>Titre</label><input type="text" id="pub-title" class="input-sm" placeholder="Titre accrocheur #Shorts"></div>
-              <div class="field"><label>Description & Hashtags</label><textarea id="pub-caption" class="input-sm" rows="3" placeholder="Description et hashtags (#Shorts #Reels #TikTok)…"></textarea></div>
-              <div class="field"><label>Programmer pour plus tard (vide = immédiat)</label><input type="datetime-local" id="pub-schedule" class="input-sm"></div>
+              <div class="field"><label>Description</label><textarea id="pub-caption" class="input-sm" rows="3" placeholder="Description et hashtags (#Shorts #Reels #TikTok)…"></textarea></div>
+              <div class="field"><label>Plus tard ? (sinon tout de suite)</label><input type="datetime-local" id="pub-schedule" class="input-sm"></div>
               <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="quickExportPulse()" title="Télécharger MP4 + copier légende">MP4</button>
                 <button type="button" class="btn btn-ghost" id="btn-pub-schedule" style="flex:1;" onclick="submitPostiz(false)">Programmer</button>
@@ -892,7 +892,7 @@
                     <div style="color:var(--muted); font-size:12.5px; margin-top:2px;">
                       {{ p.platforms|join(', ') }} ·
                       {% if p.status == 'publishing' %}
-                      <b style="color:var(--indigo);"><span class="pulse-dot"></span>Envoi API en cours…</b>
+                      <b style="color:var(--indigo);"><span class="pulse-dot"></span>Envoi en cours…</b>
                       {% elif p.status == 'scheduled' %}
                       <b style="color:var(--indigo);">Programmé · {{ p.scheduled_at.replace('T', ' à ') }}</b>
                       {% elif p.status == 'published' %}
@@ -2008,7 +2008,9 @@
       const c1 = document.getElementById('lib-validated-count'); if (c1) c1.textContent = valCount;
       const c2 = document.getElementById('tab-val-count'); if (c2) c2.textContent = valCount;
       const c3 = document.getElementById('tab-unval-count'); if (c3) c3.textContent = unvalCount;
-      toast(isVal ? '✓ Vidéo validée !' : 'Validation retirée');
+      if (isVal && window.toastAction) {
+        toastAction('✓ Vidéo validée', 'Publier →', () => sendToPostiz(id, (item && item.title) || '', (item && item.caption) || ''));
+      } else toast(isVal ? '✓ Vidéo validée !' : 'Validation retirée');
       return isVal;
     }
 
@@ -2096,6 +2098,7 @@
 
     function submitHomeQuickPrompt() {
       const q = val('home-quick-input');
+      if (!{{ 'true' if claude_status.connected else 'false' }} && window.ClipoaOnboarding) return ClipoaOnboarding.show('claude');
       if (homeQuickMode === 'clone') {
         // Copier une vidéo = coller son lien dans Nouvelle vidéo (le style est copié, la liste des styles se verrouille)
         if (q && /^https?:\/\//.test(q)) return useInspirationLink(q);
@@ -2723,6 +2726,7 @@
       if (key === 'new_plugin') return;
       if (refUrlLocksStyle()) return toast('Un lien vidéo est collé : Clipoa copie le style de cette vidéo. Efface le lien pour choisir un style.');
       selectedStylePlaque = key;
+      if (btnEl) window.__styleChosenByUser = true; // sinon Clipoa choisit le style d'après l'idée
       document.querySelectorAll('#style-plaques-strip .style-plaque').forEach(el => {
         el.classList.toggle('actif', el.dataset.splaque === key);
       });
@@ -2943,27 +2947,29 @@
 
       const renderLabels = {
         motion: 'Fond animé',
-        broll: 'Ta vidéo B-roll',
+        broll: 'Ta vidéo en fond',
         blender3d: '3D Blender',
       };
       const hasReviewedScript = !!(document.getElementById('fab-script-review-box')?.style.display !== 'none' && val('fab-review-text'));
       const sumEl = document.getElementById('studio-summary-text');
       if (sumEl) {
-        const vTxt = voiceProvider === 'el' ? 'ElevenLabs' : 'Voix Studio';
+        const vTxt = voiceProvider === 'el' ? 'Voix ElevenLabs' : 'Voix incluse';
         const durTxt = ` · ~${formatDurShort(targetDurationSec)}`;
         const plTxt = activePl ? ` · ${escHtml(activePl.name)}` : '';
         const scTxt = (fabInputMode === 'custom_script' || hasReviewedScript) ? ' · Script prêt' : '';
-        sumEl.innerHTML = `<b>${escHtml(engLabel)}</b>${durTxt} · ${escHtml(renderLabels[selectedRenderType] || 'Fond animé')} · ${vTxt}${plTxt}${scTxt}`;
+        const lookTxt = activePl ? escHtml(activePl.name) : escHtml(renderLabels[selectedRenderType] || 'Fond animé');
+        sumEl.innerHTML = `<b>${lookTxt}</b>${durTxt} · ${vTxt}${scTxt}`;
       }
       const isLocked = (selectedRenderType === 'blender3d' && !BLENDER_AVAILABLE);
-      btn.disabled = isLocked;
-      btn.style.opacity = isLocked ? '0.45' : '1';
+      // jamais grisé : au clic, le message propose d'installer la 3D
+      btn.disabled = false;
+      btn.style.opacity = '1';
       if (refUrlLocksStyle()) {
         btn.textContent = 'Fabriquer dans le style de ta vidéo →';
       } else if (activePl) {
-        btn.textContent = isLocked ? 'Blender indisponible' : `Fabriquer en ${activePl.name} →`;
+        btn.textContent = isLocked ? 'Installer la 3D puis fabriquer' : `Fabriquer en ${activePl.name} →`;
       } else {
-        btn.textContent = isLocked ? 'Blender indisponible' : 'Fabriquer la vidéo →';
+        btn.textContent = isLocked ? 'Installer la 3D puis fabriquer' : 'Fabriquer la vidéo →';
       }
     }
 
@@ -3387,7 +3393,7 @@
           window.__lastStyleJobsDone = styleJobsDone;
           fetch('/api/plugins').then(r => r.json()).then(res => {
             if (res && res.plugins) {
-              STYLE_PLUGINS = res.plugins;
+              STYLE_PLUGINS = res.plugins.filter(p => !({{ 'true' if clipoa_edition == 'public' else 'false' }} && p.heavy));
               try { renderPluginsGallery(); renderStylePlaquesStrip(); } catch (e) { /* vue pas encore affichée */ }
             }
           }).catch(() => {});
@@ -3906,6 +3912,7 @@
     {% if local_voices.installing %}setTimeout(installLocalVoice, 800);{% endif %}
 
     function selectVoiceProvider(prov) {
+      if (prov === 'el' && !EL_CONNECTED && window.ClipoaEleven) return ClipoaEleven.open();
       voiceProvider = prov === 'el' ? 'el' : 'free';
       document.getElementById('vprov-free')?.classList.toggle('actif', voiceProvider === 'free');
       document.getElementById('vprov-el')?.classList.toggle('actif', voiceProvider === 'el');
@@ -4025,7 +4032,9 @@
         return toast('Écris ton idée ou colle ton script ci-dessus.');
       }
 
-      if (voiceProvider === 'el' && !EL_CONNECTED) return toast('Branche ta clé ElevenLabs ou choisis la voix incluse.');
+      if (voiceProvider === 'el' && !EL_CONNECTED) return toast('Connecte ElevenLabs ou choisis la voix incluse.');
+      if (!refUrl && window.ClipoaUX) await ClipoaUX.autoStyle(mainText || custom_script);
+      if (selectedRenderType === 'blender3d' && !BLENDER_AVAILABLE) return toast('❌ La 3D n’est pas encore installée.');
       const pluginId = activePluginId || '';
       const voice = getSelectedVoiceValue();
       const theme = val('fab-theme') || 'dark_luxury';
@@ -4684,7 +4693,7 @@
       }
       box.innerHTML = queue.map(p => {
         let statusHtml = '';
-        if (p.status === 'publishing') statusHtml = '<b style="color:var(--indigo);"><span class="pulse-dot"></span>Envoi API en cours…</b>';
+        if (p.status === 'publishing') statusHtml = '<b style="color:var(--indigo);"><span class="pulse-dot"></span>Envoi en cours…</b>';
         else if (p.status === 'scheduled') statusHtml = `<b style="color:var(--indigo);">Programmé · ${escapePulseHtml((p.scheduled_at || '').replace('T', ' à '))}</b>`;
         else if (p.status === 'published') statusHtml = '<b style="color:var(--ok);">✓ Publié</b>';
         else if (p.status === 'partial') statusHtml = '<b style="color:var(--accent);">Partiel</b>';
@@ -4750,8 +4759,8 @@
     async function submitPostiz(now) {
       const render_id = val('pub-video');
       const platforms = Array.from(document.querySelectorAll('#pub-platforms .plat-pill.selected')).map(e => e.dataset.plat);
-      if (!render_id) return toast('Choisis ou importe un MP4 d’abord.');
-      if (!platforms.length) return toast('Branche et sélectionne au moins un réseau.');
+      if (!render_id) return toast('❌ Pas encore de vidéo à publier.');
+      if (!platforms.length) return toast('Connecte YouTube ou TikTok pour publier.');
       const scheduled_at = val('pub-schedule');
       if (!now && !scheduled_at) {
         document.getElementById('pub-schedule')?.focus();
@@ -5433,6 +5442,7 @@
 </style>
 {% endif %}
 <script src="/static/js/clipoa_update.js" defer></script>
+<script src="/static/js/clipoa_ux.js" defer></script>
 <script src="/static/js/clipoa_elevenlabs.js" defer></script>
 <script src="/static/js/clipoa_onboarding.js" defer></script>
 </body>

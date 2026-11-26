@@ -45,6 +45,12 @@
   function runAction(action) {
     if (action && action.indexOf("guide:") === 0) return open(action.slice(6));
     if (action === "watch" && typeof window.openTheaterMode === "function") return window.openTheaterMode(0);
+    if (action === "publish" && typeof window.showView === "function") {
+      window.showView("auto");
+      var sel = $("pub-video");
+      if (sel && data.next.video) { sel.value = data.next.video; if (typeof window.syncPostizFields === "function") window.syncPostizFields(true); }
+      return;
+    }
     if (typeof window.showView === "function") window.showView("accueil");
     var inp = $("home-quick-input");
     if (inp) { inp.focus(); inp.scrollIntoView({ behavior: "smooth", block: "center" }); }
@@ -249,6 +255,7 @@
   // ---------- Démarrage ----------
   window.ClipoaOnboarding = {
     open: function (at) { api("POST", { action: "restart" }).then(function () { open(at || "welcome"); }); },
+    show: function (at) { open(at); },
     refresh: function () { return api("GET"); }
   };
 

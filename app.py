@@ -695,6 +695,8 @@ def index():
     publish_queue = FreeSocialPublisher.load_queue()
     night_tasks = NightFactory.load_tasks()
     style_plugins = StylePluginStore.list_plugins(include_script_body=False)
+    if _edition.is_public():  # pas de mode Ciné (style « lourd ») dans la version publique
+        style_plugins = [p for p in style_plugins if not p.get("heavy")]
     bib = DriveClient.load_bibliotheque()
     custom_voices = [
         {"role": k, "name": v.get("nom", k), "voice_id": v.get("voice_id", "")}
@@ -1725,12 +1727,22 @@ def _onboarding_payload():
         tools_status=tools_setup.status(),
         claude_connected=bool(ClaudeBridge.check_status(live_probe=False).get("connected")),
         voice_pro_connected=bool(VoiceEngine.get_elevenlabs_key()),
+        published_count=len(FreeSocialPublisher.load_queue() or []),
+        first_video=(renders[0] if renders else {}).get("id", ""),
         renders_count=len(renders),
         unvalidated_count=unvalidated,
         social_accounts=FreeSocialPublisher.get_public_accounts_status(),
         oauth_apps=FreeSocialPublisher.get_public_oauth_apps(),
         state=onboarding.load_state(),
     )
+
+
+@app.route("/api/auto-style", methods=["GET"])
+def api_auto_style():
+    """Style proposé d'après l'idée quand l'utilisateur n'en a pas choisi (core/auto_choice.py)."""
+    from core import auto_choice
+    plugins = StylePluginStore.list_plugins(include_script_body=False)
+    return jsonify(auto_choice.suggest_style(request.args.get("topic", "")[:500], plugins) or {})
 
 
 @app.route("/api/onboarding", methods=["GET"])
