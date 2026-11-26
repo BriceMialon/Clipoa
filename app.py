@@ -47,6 +47,7 @@ from core.security import (
     redact_sensitive_text,
     is_allowed_host_header,
 )
+from core import edition as _edition
 from core.scraper import CompetitorScraper
 from core.pipeline import ShortCrewPipeline
 from core.claude_bridge import ClaudeBridge, ClaudeQuotaExceededError
@@ -145,6 +146,9 @@ _HEAVY_API_PATHS = frozenset({
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
+_AGY_OFF_STATUS = {"connected": False, "models": [], "quota": {"remaining_pct": 0, "exhausted": False}}
+
+
 def _is_safe_id(val: str) -> bool:
     return bool(val and _SAFE_ID_RE.match(val) and ".." not in val)
 
@@ -195,8 +199,16 @@ def _run_with_job_guard(job_id: str, fn):
     return True
 
 
+@app.context_processor
+def _edition_ctx():
+    return {"clipoa_edition": _edition.EDITION}
+
+
 @app.before_request
 def _security_guard():
+    # Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
+    if _edition.is_blocked_path(request.path):
+        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de Clipoa."}), 403
     # 0. Anti-DNS-Rebinding guard (blocks malicious domains pointing to 127.0.0.1)
     lan_ip_allowed = get_lan_ip() if CLIPOA_ALLOW_LAN else ""
     if not is_allowed_host_header(request.host, allow_lan=CLIPOA_ALLOW_LAN, lan_ip=lan_ip_allowed):
@@ -715,7 +727,7 @@ def index():
         claude_status=claude_status,
         claude_plans=CLAUDE_PLAN_BUDGETS,
         gemini_status=GeminiStudio.get_status(),
-        agy_status=AntigravityBridge.check_status(live_probe=False),
+        agy_status=(AntigravityBridge.check_status(live_probe=False) if not _edition.is_public() else _AGY_OFF_STATUS),
         el_status=el_status,
         drive_status=drive_status,
         social_accounts=social_accounts,
@@ -1177,7 +1189,7 @@ def _normalize_engine_params(params: dict) -> dict:
     engine=antigravity + engine_model=claude-… : c'était exécuté par Antigravity et vidait son quota.
     Sans choix explicite d'Antigravity par l'utilisateur (`engine_choice`), on repasse sur le Claude CLI.
     """
-    p = dict(params or {})
+    p = _edition.restrict_engine_params(dict(params or {}))
     model = str(p.get("engine_model") or "").lower()
     if p.get("engine") == "antigravity" and model.startswith("claude") and p.get("engine_choice") != "antigravity":
         p["engine"] = "claude"

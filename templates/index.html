@@ -5610,5 +5610,13 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBuild(); });
   })();
 </script>
+{% if clipoa_edition == 'public' %}
+<!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
+<style>
+  [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe,
+  #eng-card-antigravity, #agy-model-row, .conn-opt-plaque:has(#reg-agy-status),
+  div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn { display: none !important; }
+</style>
+{% endif %}
 </body>
 </html>

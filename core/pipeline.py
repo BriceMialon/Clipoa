@@ -125,6 +125,8 @@ class ShortCrewPipeline:
             if progress:
                 progress(pct, msg)
         style = cls.visual_style_for(plugin) or "roblox"
+        from core.edition import restrict_visual_style
+        style = restrict_visual_style(style, plugin)
         eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
         py_script = str(out_dir / f"{session_id}_scene_3d.py")
         bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
