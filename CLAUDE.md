@@ -39,6 +39,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/license.py` + `license_worker/` | Abonnement Stripe (Worker Cloudflare + D1) et licence signée Ed25519 vérifiée hors ligne ; fabrication bloquée (402) sans licence en édition public. |
 | `core/edition.py` | Édition `perso` / `public` (fonctions coupées côté serveur). |
 | `core/code_guard.py` | Contrôle du code Blender écrit par l'IA avant exécution. |
+| `core/crash_report.py` | Rapports de plantage + contact support (capture locale, secrets masqués, envoi au clic vers le relais `/support/report`, voir `docs/SUPPORT.md`). |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
 | `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
 | `core/scene_designer.py` + `core/blender_kit/` | Décor sur mesure décrit par l'IA + constructeurs Blender par style ; `assets/blender_kit/` = modèles GLB. |

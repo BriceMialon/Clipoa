@@ -119,6 +119,12 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `app.py` : `/api/license/status|activate|deactivate` ; en édition publique, les POST `/api/make` et `/api/fabrique/*` renvoient 402 sans licence valide (lecture seule, rien supprimé). Édition perso : licence non exigée.
 - Reste à faire : écran Licence dans l'UI, email avec la clé, relais OAuth réservé aux abonnés (en-tête `X-Clipoa-License`), déploiement du Worker, `DEFAULT_PUBKEY_HEX` à remplir.
 
+## Rapports de plantage et contact support (2026-11-26)
+- `core/crash_report.py` : capture locale (console en mémoire, `sys.excepthook`, `threading.excepthook`, erreurs Flask non rattrapées → JSON 500 avec `incident_id`, échecs de fabrication via `_finish_job` → `job.incident_id`). Incidents dans `storage/support/incidents.json` (20 derniers, dédoublonnés sur 60 s).
+- Routes : GET `/api/support/incidents`, POST `/api/support/preview`, `/api/support/send`, `/api/support/dismiss`. Envoi seulement au clic, nettoyage des secrets (valeurs exactes de `storage/*.json` + motifs), repli `storage/support/outbox/`.
+- UI : `static/js/clipoa_support.js` (fenêtre d'envoi, bulle de plantage), bouton « ? » dans la topbar, « Envoyer le rapport » sur une tâche en erreur.
+- Relais : `/support/report` (KV `SUPPORT_KV`, 90 jours, alerte Discord ou e-mail en option), `/support/reports` protégé par `SUPPORT_ADMIN_TOKEN`, page /privacy complétée. Mise en place : `docs/SUPPORT.md`.
+
 ## 26/11/2026 — Accessibilité clavier de l'interface (audit Vercel/Emil)
 - `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
 - `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
