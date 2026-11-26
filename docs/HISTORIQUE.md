@@ -111,3 +111,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Cause de la mauvaise voix : l'ancien « Auto » prenait la 1re voix du compte (voix par défaut anglophones, accent en français) et « Nino (VO) » / « Nino » devenaient deux personnages à voix différentes (`_speaker_key` corrigé).
 - Progression : `core/progress_ticker.py` (barre qui ne recule jamais + minuteur qui avance doucement et affiche le temps écoulé pendant script, voix, calage, décor IA, rendu Blender, montage FFmpeg, audit). Blender : `--python-expr` ajoute un signal `CLIPOA_FRAME n` vidé à chaque image (la sortie de Blender en tuyau était mise en mémoire tampon, d'où la barre figée vers 57-58 %). Nouvelles plages : rendu 61→86 %, montage 87→95 %, audit 95→99 %.
 - Tests : `tests/test_voice_casting_progress.py`.
+## 26/11/2026 — Accessibilité clavier de l'interface (audit Vercel/Emil)
+- `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
+- `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
+- Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.

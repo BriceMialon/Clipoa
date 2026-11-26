@@ -1,0 +1,89 @@
+name: Build Windows (MSIX & Web)
+
+# Déclenchement manuel ou sur tag release uniquement (dépôt privé : minutes Windows x2).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Numéro de version (ex. 0.1.0)"
+        required: true
+        default: "0.1.0"
+      build_target:
+        description: "Cible à construire"
+        type: choice
+        default: "msix"
+        options:
+          - msix
+          - web
+          - both
+      identity_name:
+        description: "Partner Center Identity Name (MSIX)"
+        required: false
+        default: "BriceMialon.Clipoa"
+      publisher:
+        description: "Partner Center Publisher CN=... (MSIX)"
+        required: false
+        default: "CN=BriceMialon"
+      update_url:
+        description: "URL Cloudflare R2 pour la release Web (si web ou both)"
+        required: false
+        default: "https://dl.clipoa.app/windows"
+      self_sign:
+        description: "Signer localement le MSIX (pour essai sur VM Windows uniquement)"
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*-win*"
+
+jobs:
+  test-and-build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.13.10"
+
+      - name: Setup Python 3.9 & run unit tests on Windows
+        shell: pwsh
+        run: |
+          uv python install 3.9
+          uv venv --python 3.9 .venv-test
+          uv pip install --python .venv-test\Scripts\python.exe -r requirements.txt
+          .venv-test\Scripts\python.exe -m unittest discover -s tests -v
+
+      - name: Build MSIX (Microsoft Store)
+        if: ${{ inputs.build_target == 'msix' || inputs.build_target == 'both' || startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          $ver = if ("${{ inputs.version }}") { "${{ inputs.version }}" } else { "${{ github.ref_name }}".TrimStart("v").Split("-")[0] }
+          $argsList = @(
+            "-Version", $ver,
+            "-IdentityName", "${{ inputs.identity_name || 'BriceMialon.Clipoa' }}",
+            "-Publisher", "${{ inputs.publisher || 'CN=BriceMialon' }}"
+          )
+          if ("${{ inputs.self_sign }}" -eq "true") { $argsList += "-SelfSign" }
+          .\packaging\windows\build_msix.ps1 @argsList
+
+      - name: Build Web Release (Cloudflare R2)
+        if: ${{ inputs.build_target == 'web' || inputs.build_target == 'both' }}
+        shell: pwsh
+        run: |
+          .\packaging\windows\build_web_release.ps1 `
+            -Version "${{ inputs.version }}" `
+            -UpdateUrl "${{ inputs.update_url }}"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipoa-windows-${{ inputs.version || github.ref_name }}
+          path: |
+            dist/*.msix
+            dist/clipoa-*-windows-x64.zip
+            dist/latest-windows.json
+            dist/install.ps1
+          if-no-files-found: error
