@@ -1,11 +1,12 @@
 """
-Édition de Clipoa : « perso » (défaut, tout est actif) ou « public » (version vendue).
+Édition de ClipRoll : « perso » (défaut, tout est actif) ou « public » (version vendue).
 
 La version publique coupe ce qui n'est pas autorisé ou pas prêt pour des clients :
 - Gemini Studio (connexion Google perso) ;
 - Mode Nuit / Pilote auto, mode Ciné, moteurs sur mesure écrits par l'IA ;
 - radar S'inspirer, copie d'une vidéo de quelqu'un d'autre, scan de concurrents (CGU TikTok/Meta, droit d'auteur) ;
-- connexion aux réseaux par cookies du navigateur (seul l'OAuth officiel reste).
+- connexion aux réseaux par cookies du navigateur (seul l'OAuth officiel reste) ;
+- Équipe d'agents IA (lance des fabrications) et lecture des profils TikTok publics par yt-dlp (CGU TikTok).
 
 Activer : variable d'environnement CLIPOA_EDITION=public. Le blocage est fait côté serveur
 (routes refusées, moteur IA forcé) ; l'interface masque seulement les boutons correspondants.
@@ -27,6 +28,8 @@ PUBLIC_BLOCKED_PREFIXES = (
     "/api/script-lab/from-competitors",
     "/api/analytics/external",
     "/api/social/portal-login/",
+    "/api/agent-team/",
+    "/api/channel-stats/tiktok-handle",
 )
 
 PUBLIC_DISABLED_ENGINES = ("gemini",)

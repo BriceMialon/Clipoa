@@ -1,5 +1,5 @@
 """
-Clipoa Security, Guardrails & Resource Hygiene Module.
+ClipRoll Security, Guardrails & Resource Hygiene Module.
 
 Centralizes:
 - SSRF-safe public HTTP(S) URL validation (blocks private/loopback/link-local IPs & flag injection)
@@ -165,7 +165,7 @@ def validate_local_media_path(raw_path: str, allowed_roots: Iterable[Path]) -> P
         except ValueError:
             continue
     if not inside:
-        raise ValueError("Accès refusé : le fichier doit se trouver dans le dossier de stockage Clipoa.")
+        raise ValueError("Accès refusé : le fichier doit se trouver dans le dossier de stockage ClipRoll.")
     if not p.exists() or not p.is_file():
         raise ValueError("Fichier média local introuvable.")
     if p.suffix.lower() not in ALLOWED_MEDIA_EXTENSIONS:
@@ -302,7 +302,7 @@ def cleanup_temp_storage(
 ) -> Dict[str, object]:
     """
     Removes expired temporary download/audio folders older than `max_age_days`
-    to prevent Clipoa from silently filling the user's hard drive.
+    to prevent ClipRoll from silently filling the user's hard drive.
     Never touches finished renders in storage/renders.
     """
     cutoff = time.time() - max(1, int(max_age_days)) * 86400
@@ -338,7 +338,7 @@ def cleanup_temp_storage(
 
 
 def get_storage_health(storage_dir: Path) -> Dict[str, object]:
-    """Returns disk free space and Clipoa storage breakdown (in MB)."""
+    """Returns disk free space and ClipRoll storage breakdown (in MB)."""
     def _dir_size_mb(p: Path) -> float:
         if not p.exists():
             return 0.0

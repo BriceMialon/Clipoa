@@ -1,0 +1,10 @@
+/* Accessibilité (Vercel Web Interface Guidelines + règles d'animation d'Emil Kowalski).
+   Fichier séparé pour ne pas toucher à la charte visuelle. */
+:focus-visible { outline: 2px solid var(--accent, #FF3B5C) !important; outline-offset: 2px; }
+.modal-bg:focus-visible { outline: none !important; }
+[role="button"] { cursor: pointer; }
+button, .btn, [role="button"], a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.modal { overscroll-behavior: contain; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

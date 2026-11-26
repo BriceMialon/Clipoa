@@ -1,0 +1,224 @@
+/* ==========================================================================
+   ClipRoll Design System v1.0
+   Aligné sur le Logo 4 "Creator Roll & Spark" (#101022 / #00E5FF / #FF3B5C)
+   Prêt à importer dans l'app desktop (macOS/Windows) et le site cliproll.app
+   ========================================================================== */
+
+:root {
+  /* Surfaces (Dark-first studio) */
+  --cr-bg: #0B0B16;
+  --cr-bg-brand: #101022;
+  --cr-surface: #15152B;
+  --cr-surface-elevated: #1C1C38;
+  --cr-border: #28284A;
+  --cr-border-bright: rgba(0, 229, 255, 0.35);
+
+  /* Typographie */
+  --cr-text: #F8FAFF;
+  --cr-text-muted: #98A0C2;
+  --cr-font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --cr-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --cr-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Couleurs signatures ClipRoll (issues du Logo 4) */
+  --cr-coral: #FF3B5C;
+  --cr-coral-hover: #FF5270;
+  --cr-cyan: #00E5FF;
+  --cr-cyan-soft: rgba(0, 229, 255, 0.14);
+  --cr-coral-soft: rgba(255, 59, 92, 0.15);
+  --cr-spark: #FFFFFF;
+
+  /* Dégradés */
+  --cr-grad-brand: linear-gradient(135deg, #00E5FF 0%, #FF3B5C 100%);
+  --cr-grad-cta: linear-gradient(135deg, #FF3B5C 0%, #FF1E6E 55%, #E02482 100%);
+  --cr-grad-surface: linear-gradient(180deg, rgba(28, 28, 56, 0.9) 0%, rgba(16, 16, 34, 0.96) 100%);
+
+  /* Rayons & ombres */
+  --cr-radius-sm: 8px;
+  --cr-radius-md: 12px;
+  --cr-radius-lg: 18px;
+  --cr-radius-pill: 9999px;
+  --cr-shadow-coral: 0 8px 28px -6px rgba(255, 59, 92, 0.55);
+  --cr-shadow-cyan: 0 8px 24px -6px rgba(0, 229, 255, 0.4);
+}
+
+/* ---------- 1. BOUTONS SPÉCIAUX CLIPROLL ---------- */
+
+.cr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--cr-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  padding: 12px 22px;
+  border-radius: var(--cr-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease,
+              background 0.2s ease;
+  user-select: none;
+}
+
+.cr-btn:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+/* CTA Principal — Corail + reflet cinétique + étincelle */
+.cr-btn-spark {
+  background: var(--cr-grad-cta);
+  color: #FFFFFF;
+  box-shadow: var(--cr-shadow-coral), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.cr-btn-spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 25%, rgba(255, 255, 255, 0.26) 50%, transparent 75%);
+  transform: translateX(-120%);
+  transition: transform 0.65s ease;
+}
+.cr-btn-spark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px -4px rgba(255, 59, 92, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.cr-btn-spark:hover::after {
+  transform: translateX(120%);
+}
+.cr-btn-spark .cr-spark-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.cr-btn-spark:hover .cr-spark-icon {
+  transform: rotate(22deg) scale(1.15);
+}
+
+/* Bouton Secondaire — Bordure Cyan néon (Exporter / Télécharger) */
+.cr-btn-cyan {
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--cr-cyan);
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(0, 229, 255, 0.2);
+}
+.cr-btn-cyan:hover {
+  background: rgba(0, 229, 255, 0.16);
+  border-color: var(--cr-cyan);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: var(--cr-shadow-cyan);
+}
+
+/* Bouton Double-Accent "ClipRoll Gradient Border" (Upgrade Pro / Site Hero) */
+.cr-btn-pro {
+  background: linear-gradient(var(--cr-bg-brand), var(--cr-bg-brand)) padding-box,
+              var(--cr-grad-brand) border-box;
+  border: 2px solid transparent;
+  color: #FFFFFF;
+}
+.cr-btn-pro:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -8px rgba(0, 229, 255, 0.45), 0 10px 30px -8px rgba(255, 59, 92, 0.45);
+}
+
+/* Boutons Plateformes (YouTube Shorts, TikTok, Instagram Reels, macOS/Windows) */
+.cr-btn-platform {
+  background: var(--cr-surface);
+  color: var(--cr-text);
+  border-color: var(--cr-border);
+  font-weight: 600;
+  padding: 10px 16px;
+}
+.cr-btn-platform img,
+.cr-btn-platform svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.cr-btn-platform:hover {
+  background: var(--cr-surface-elevated);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+.cr-btn-platform.is-youtube:hover { border-color: rgba(255, 0, 0, 0.65); }
+.cr-btn-platform.is-tiktok:hover  { border-color: rgba(0, 229, 255, 0.65); }
+.cr-btn-platform.is-insta:hover   { border-color: rgba(228, 64, 95, 0.65); }
+.cr-btn-platform.is-claude:hover  { border-color: rgba(217, 119, 87, 0.65); }
+
+/* ---------- 2. BADGES & PILLS ---------- */
+
+.cr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--cr-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 5px 10px;
+  border-radius: var(--cr-radius-pill);
+  border: 1px solid var(--cr-border);
+  background: var(--cr-surface);
+  color: var(--cr-text-muted);
+}
+.cr-badge-ai {
+  background: var(--cr-cyan-soft);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: var(--cr-cyan);
+}
+.cr-badge-live {
+  background: var(--cr-coral-soft);
+  border-color: rgba(255, 59, 92, 0.45);
+  color: #FF6B84;
+}
+.cr-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* ---------- 3. BARRE DE PROGRESSION IA ---------- */
+
+.cr-progress {
+  width: 100%;
+  height: 8px;
+  background: var(--cr-surface-elevated);
+  border-radius: var(--cr-radius-pill);
+  overflow: hidden;
+  border: 1px solid var(--cr-border);
+}
+.cr-progress-fill {
+  height: 100%;
+  border-radius: var(--cr-radius-pill);
+  background: var(--cr-grad-brand);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.5);
+  transition: width 0.35s ease;
+}
+
+/* ---------- 4. CARTE STUDIO & APERÇU 9:16 ---------- */
+
+.cr-card {
+  background: var(--cr-grad-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-lg);
+  padding: 20px;
+}
+.cr-phone-916 {
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  background: radial-gradient(circle at 20% 15%, rgba(0, 229, 255, 0.22), transparent 55%),
+              radial-gradient(circle at 80% 85%, rgba(255, 59, 92, 0.25), transparent 55%),
+              #0D0D1C;
+  border: 2px solid var(--cr-border);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}

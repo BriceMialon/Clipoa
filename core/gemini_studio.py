@@ -64,7 +64,7 @@ VIDEO_AI_EST_COST_USD = 0.75  # ~10s 720p clip estimate on Omni 1.2 Flash
 
 class GeminiStudio:
     """
-    Studio Google Gemini & Veo / Omni intégré à Clipoa :
+    Studio Google Gemini & Veo / Omni intégré à ClipRoll :
     - Auth par clé Google AI Studio OU OAuth Google direct
     - Suivi en direct du quota/tokens journaliers Gemini
     - Génération de Shorts (script + voix + Submagic) OU vidéo IA directe 9:16 (Omni / Veo)
@@ -100,10 +100,10 @@ class GeminiStudio:
             f'export PATH="{NODE_BIN_DIR}:{GEMINI_CLI_BIN.parent}:$PATH"\n'
             "clear\n"
             'echo "================================================"\n'
-            'echo "  Connexion Google Gemini pour Clipoa"\n'
+            'echo "  Connexion Google Gemini pour ClipRoll"\n'
             'echo "  1. Choisis Login with Google"\n'
             'echo "  2. Valide dans ton navigateur"\n'
-            'echo "  3. Ferme cette fenetre et rafraichis Clipoa"\n'
+            'echo "  3. Ferme cette fenetre et rafraichis ClipRoll"\n'
             'echo "================================================"\n'
             "exec gemini\n",
             encoding="utf-8",
@@ -112,7 +112,7 @@ class GeminiStudio:
         subprocess.Popen(["open", "-a", "Terminal", str(login_cmd)])
         return {
             "ok": True,
-            "message": "Terminal ouvert : choisis « Login with Google », valide dans ton navigateur puis rafraîchis Clipoa !",
+            "message": "Terminal ouvert : choisis « Login with Google », valide dans ton navigateur puis rafraîchis ClipRoll !",
         }
 
     @classmethod
@@ -532,7 +532,7 @@ class GeminiStudio:
         )
         voice_transcript = AudioTranscriber.transcribe(voice_res["audio_wav"])
 
-        # Méthode Clipoa (même circuit que la Fabrique) : plan calé sur la voix + musique & bruitages
+        # Méthode ClipRoll (même circuit que la Fabrique) : plan calé sur la voix + musique & bruitages
         from core.pipeline import ShortCrewPipeline
         from core.sound_designer import get_wav_duration
         shots = script.get("visual_storyboard") or []

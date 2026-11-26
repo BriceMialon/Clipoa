@@ -10,7 +10,7 @@ from core.scraper import CompetitorScraper
 from agents.team import _clean_json_response
 
 
-EXPERT_SCRIPT_SKILL = """Tu es l'Agent Expert Script de Clipoa — un scénariste d'élite spécialisé dans la rétention extrême sur YouTube Shorts, TikTok et Instagram Reels.
+EXPERT_SCRIPT_SKILL = """Tu es l'Agent Expert Script de ClipRoll — un scénariste d'élite spécialisé dans la rétention extrême sur YouTube Shorts, TikTok et Instagram Reels.
 
 === SKILL : ARCHITECTURE VIRALE HAUTE RÉTENTION ===
 1. HOOK 0-2s (Stop-Scroll absolu) :
@@ -31,7 +31,7 @@ EXPERT_SCRIPT_SKILL = """Tu es l'Agent Expert Script de Clipoa — un scénarist
 
 class ScriptExpertAgent:
     """
-    Agent Expert Script de Clipoa :
+    Agent Expert Script de ClipRoll :
     - Tourne sur Claude Opus (medium) OU le meilleur modèle Google Gemini disponible
     - Injecte automatiquement la Direction Artistique (DA) du Plugin de Style sélectionné
     - Connecté au scraper concurrents pour générer soit du 100% neuf, soit à partir des pépites d'un concurrent

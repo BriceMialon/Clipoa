@@ -1,5 +1,5 @@
 """
-Clipoa Local Encrypted Vault (Zero-Dependency Authenticated Encryption).
+ClipRoll Local Encrypted Vault (Zero-Dependency Authenticated Encryption).
 
 Protects client secrets at rest (OAuth access_token / refresh_token, client_secret,
 API keys, proxy credentials) so that even if `storage/*.json` is copied, synced,

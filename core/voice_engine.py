@@ -253,7 +253,9 @@ class VoiceEngine:
 
     @classmethod
     def _speaker_key(cls, name: str) -> str:
-        n = re.sub(r"[*_`«»\"'()\[\]]", "", str(name or "")).strip().lower()
+        n = re.sub(r"\([^)]*\)|\[[^\]]*\]", " ", str(name or ""))  # « Nino (VO) », « Léa (HC) » = Nino, Léa
+        n = re.sub(r"[*_`«»\"'()\[\]]", "", n)
+        n = re.sub(r"\s+", " ", n).strip().lower()
         if not n or n in ("—", "-", "–", "...", "…", "aucun", "aucune", "silence", "personne"):
             return ""
         if any(n == w or n.startswith(w) for w in cls._NARRATOR_WORDS):
@@ -298,7 +300,8 @@ class VoiceEngine:
                 ["edge:fr-FR-DeniseNeural", "edge:fr-FR-VivienneMultilingualNeural", "edge:fr-FR-EloiseNeural"])
 
     @classmethod
-    def _generate_multi_voice(cls, segments, output_name: str, voice: Optional[str], model_id: Optional[str]):
+    def _generate_multi_voice(cls, segments, output_name: str, voice: Optional[str], model_id: Optional[str],
+                              cast: Optional[Dict[str, Any]] = None, main_settings: Optional[Dict[str, float]] = None):
         """Une voix par personnage si au moins 2 personnages parlent ; sinon None (voix unique)."""
         segs = [{"key": cls._speaker_key(s.get("speaker")), "text": str(s.get("text") or "").strip().strip("«»\"' ")}
                 for s in (segments or []) if isinstance(s, dict)]
@@ -309,11 +312,19 @@ class VoiceEngine:
                 characters.append(s["key"])
         if len(characters) < 2:
             return None
-        males, females = cls._voice_pools(voice)
         main = (voice or "").strip()
         assigned: Dict[str, str] = {}
+        settings_of: Dict[str, Optional[Dict[str, float]]] = {main: main_settings}
+        cast_chars = (cast or {}).get("characters") or {}
+        for c in characters:
+            if c in cast_chars:
+                assigned[c] = "el:" + cast_chars[c]["voice_id"]
+                settings_of[assigned[c]] = cast_chars[c].get("settings")
+        males, females = cls._voice_pools(voice) if len(assigned) < len(characters) else ([], [])
         mi = fi = 0
         for c in characters:
+            if c in assigned:
+                continue
             if cls._guess_female(c):
                 pool, idx = females, fi; fi += 1
             else:
@@ -336,7 +347,8 @@ class VoiceEngine:
         parts = []
         providers = set()
         for i, (v, texts) in enumerate(groups):
-            r = cls.generate_voice(text=" ".join(texts), output_name=f"{output_name}/part_{i:02d}", voice=v, model_id=model_id)
+            r = cls.generate_voice(text=" ".join(texts), output_name=f"{output_name}/part_{i:02d}", voice=v, model_id=model_id,
+                                   voice_settings=settings_of.get(v or ""))
             parts.append(r["audio_wav"])
             providers.add(r.get("provider", ""))
         audio_wav = target_dir / "speech.wav"
@@ -356,7 +368,41 @@ class VoiceEngine:
             "audio_mp3": str(audio_mp3),
             "srt_path": "",
             "voices_by_character": assigned,
+            "casting": cast or None,
         }
+
+    @classmethod
+    def _cast_voices(cls, text: str, segments, style_hint: str = "", voices_hint=None) -> Optional[Dict[str, Any]]:
+        """Casting IA des voix ElevenLabs ; None si impossible (on garde alors l'ancien choix automatique)."""
+        try:
+            from core import voice_casting
+            hints: Dict[str, str] = {}
+            for vh in voices_hint or []:
+                if isinstance(vh, dict) and vh.get("name"):
+                    hints[cls._speaker_key(vh["name"]) or "__narrator__"] = " · ".join(
+                        str(vh.get(k)) for k in ("age_gender", "timbre", "role") if vh.get(k))
+            speakers, lines = [], []
+            for sgt in segments or []:
+                if not isinstance(sgt, dict):
+                    continue
+                raw_name = str(sgt.get("speaker") or "").strip()
+                k = cls._speaker_key(raw_name)
+                t = str(sgt.get("text") or "").strip()
+                if t and t not in ("—", "-", "–", "…"):
+                    lines.append(f"{raw_name or 'Narrateur'} : {t}")
+                if k and k not in [x["key"] for x in speakers]:
+                    name = re.sub(r"\([^)]*\)", "", raw_name).strip(" *_")
+                    speakers.append({"key": k, "name": name or k, "female": None, "hint": hints.get(k, "")})
+            for sp in speakers:
+                if not sp["hint"]:
+                    sp["female"] = cls._guess_female(sp["key"])
+            if hints.get("__narrator__"):
+                style_hint = f"{style_hint} · narrateur : {hints['__narrator__']}".strip(" ·")
+            script_view = "\n".join(lines) if len(speakers) >= 2 else text
+            return voice_casting.cast_voices(cls.get_elevenlabs_key(), script_view or text, speakers, style_hint=style_hint)
+        except Exception as e:
+            print(f"Casting des voix indisponible ({e}).")
+            return None
 
     @classmethod
     def _pick_auto_el_voice(cls, tags) -> str:
@@ -390,6 +436,9 @@ class VoiceEngine:
         use_elevenlabs: Optional[bool] = None,
         model_id: Optional[str] = None,
         segments: Optional[List[Dict[str, Any]]] = None,
+        voice_settings: Optional[Dict[str, float]] = None,
+        style_hint: str = "",
+        voices_hint: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, str]:
         """
         Synthesizes speech from text and returns paths to audio file (.wav/.mp3).
@@ -402,10 +451,18 @@ class VoiceEngine:
         if not (text or "").strip():
             raise ValueError("Le script vocal est vide — impossible de synthétiser la voix.")
 
+        # « Auto » ElevenLabs : l'IA choisit les voix (narrateur + personnages) et leurs réglages d'après le script et le style
+        cast = None
+        if (voice or "").strip() == "auto_el" and cls.get_elevenlabs_key():
+            cast = cls._cast_voices(text, segments, style_hint, voices_hint)
+            if cast:
+                voice = "el:" + cast["narrator"]["voice_id"]
+                voice_settings = cast["narrator"].get("settings")
+
         # Plusieurs personnages qui parlent → une voix par personnage (un simple narrateur garde une seule voix)
         if segments:
             try:
-                multi = cls._generate_multi_voice(segments, output_name, voice, model_id)
+                multi = cls._generate_multi_voice(segments, output_name, voice, model_id, cast=cast, main_settings=voice_settings)
                 if multi:
                     return multi
             except Exception as e:
@@ -426,8 +483,7 @@ class VoiceEngine:
         chosen_voice = (voice or "").strip()
         explicit_free = chosen_voice.startswith(("edge:", "gemini:", "fr-"))
         style_prompt = auto_profile["style_prompt"]
-        el_stability = auto_profile["el_stability"]
-        el_style = auto_profile["el_style"]
+        el_settings = dict(voice_settings or {"stability": auto_profile["el_stability"], "style": auto_profile["el_style"]})
         provider = "gemini_tts" if gem_key else "edge_tts"
 
         if chosen_voice == "auto_gemini":
@@ -477,7 +533,7 @@ class VoiceEngine:
             voice_id = chosen_voice or el_cfg.get("default_voice_id") or ELEVENLABS_VOICE_ID or ""
             el_model = model_id or el_cfg.get("model_id") or "eleven_multilingual_v2"
             try:
-                cls._generate_elevenlabs(text, audio_mp3, el_key, voice_id, el_model, stability=el_stability, style=el_style)
+                cls._generate_elevenlabs(text, audio_mp3, el_key, voice_id, el_model, settings=el_settings)
             except Exception as e:
                 print(f"ElevenLabs indisponible ({e}) — bascule vers Gemini 3.8 TTS / Edge-TTS.")
                 if gem_key:
@@ -518,12 +574,15 @@ class VoiceEngine:
         ]
         subprocess.run(cmd_convert, check=True, capture_output=True)
 
-        return {
+        out = {
             "provider": provider,
             "audio_wav": str(audio_wav),
             "audio_mp3": str(audio_mp3 if audio_mp3.exists() else audio_wav),
             "srt_path": str(srt_path) if srt_path.exists() else ""
         }
+        if cast:
+            out["casting"] = cast
+        return out
 
     @classmethod
     def _generate_gemini_tts(cls, text: str, voice_name: str, out_wav: Path, api_key: str, style_prompt: str = ""):
@@ -607,7 +666,8 @@ class VoiceEngine:
         asyncio.run(_run())
 
     @classmethod
-    def _generate_elevenlabs(cls, text: str, audio_path: Path, api_key: str, voice_id: str, model_id: str, stability: float = 0.45, style: float = 0.25):
+    def _generate_elevenlabs(cls, text: str, audio_path: Path, api_key: str, voice_id: str, model_id: str,
+                             stability: float = 0.45, style: float = 0.25, settings: Optional[Dict[str, float]] = None):
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         headers = {
             "xi-api-key": api_key,
@@ -618,12 +678,14 @@ class VoiceEngine:
             "text": text,
             "model_id": model_id,
             "voice_settings": {
-                "stability": stability,
-                "similarity_boost": 0.78,
-                "style": style,
+                "stability": float((settings or {}).get("stability", stability)),
+                "similarity_boost": float((settings or {}).get("similarity_boost", 0.78)),
+                "style": float((settings or {}).get("style", style)),
                 "use_speaker_boost": True,
             },
         }
+        if (settings or {}).get("speed"):
+            payload["voice_settings"]["speed"] = float(settings["speed"])
         res = requests.post(url, headers=headers, json=payload, timeout=90)
         if res.status_code == 200:
             with open(audio_path, "wb") as f:

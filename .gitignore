@@ -18,3 +18,4 @@ venv_tts/
 
 # Paquets fabriqués par packaging/build_release.sh
 dist/
+license_worker/wrangler.toml

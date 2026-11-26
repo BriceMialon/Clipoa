@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fabrique une version installable de Clipoa (Mac Apple Silicon), code compilé avec Nuitka.
+# Fabrique une version installable de ClipRoll (Mac Apple Silicon), code compilé avec Nuitka.
 #   packaging/build_release.sh 0.1.0 "Notes de version" [--edition public|perso] [--update-url https://…]
 # Résultat dans dist/ : clipoa-<v>-macos-arm64.tar.gz, latest.json, install.sh (à mettre en ligne tels quels).
 # Seuls les fichiers COMMITÉS sont embarqués (git archive HEAD) : storage/, clés et venv n'y vont jamais.
@@ -27,6 +27,7 @@ DIST="$ROOT/dist"
 B="$(mktemp -d /tmp/clipoa_build.XXXX)"
 SRC="$B/src"
 PY_VERSION="3.9"
+BLENDER_VERSION="${CLIPOA_BLENDER_VERSION:-5.3.0}"   # version testée avec ClipRoll (voir CLAUDE.md)
 UV="$(command -v uv || echo "$ROOT/venv/bin/uv")"
 [ -x "$UV" ] || { echo "uv introuvable (pip install uv)" >&2; exit 2; }
 command -v clang >/dev/null || { echo "clang manquant : xcode-select --install" >&2; exit 2; }
@@ -44,6 +45,8 @@ UV_PYTHON_PREFERENCE=only-managed "$UV" python install --no-bin "$PY_VERSION" >/
 UV_PYTHON_PREFERENCE=only-managed "$UV" venv -q --python "$PY_VERSION" "$B/venv"
 "$UV" pip install -q --python "$B/venv/bin/python" "nuitka>=2.5,<3" ordered-set zstandard
 "$UV" pip install -q --python "$B/venv/bin/python" -r requirements.txt   # Nuitka doit voir les mêmes paquets
+echo "▸ Verrou des dépendances (versions + empreintes)"
+"$UV" pip compile -q requirements.txt --generate-hashes --python-version "$PY_VERSION" --python-platform aarch64-apple-darwin -o requirements.lock
 NUITKA=("$B/venv/bin/python" -m nuitka --module --no-pyi-file --remove-output --output-dir="$B/out" --assume-yes-for-downloads)
 
 echo "▸ Compilation de core/ et agents/ (plusieurs minutes)"
@@ -63,7 +66,7 @@ find . -name '__pycache__' -prune -exec rm -rf {} +
 cp "$B"/out/*.so .
 codesign -s - -f ./*.so >/dev/null 2>&1 || true
 cat > app.py <<'EOS'
-"""Lanceur de Clipoa (le code de l'application est compilé)."""
+"""Lanceur de ClipRoll (le code de l'application est compilé)."""
 import os
 import threading
 
@@ -91,14 +94,25 @@ rm -f venv storage
 leftover="$(find core agents -maxdepth 1 -name '*.py' | head -3)"
 [ -z "$leftover" ] || { echo "sources restantes : $leftover" >&2; exit 1; }
 
+echo "▸ Blender $BLENDER_VERSION (empreinte officielle blender.org)"
+BL_DIR="https://download.blender.org/release/Blender${BLENDER_VERSION%.*}"
+BL_FILE="blender-$BLENDER_VERSION-macos-arm64.dmg"
+BL_SHA="$(curl -fsSL "$BL_DIR/blender-$BLENDER_VERSION.sha256" | awk -v f="$BL_FILE" '$2==f {print $1}')"
+[ -n "$BL_SHA" ] || { echo "empreinte de $BL_FILE introuvable sur blender.org" >&2; exit 1; }
+
+WH_REV="$(curl -fsSL https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main | "$B/venv/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+[ -n "$WH_REV" ] || { echo "révision Whisper introuvable" >&2; exit 1; }
+
 mkdir -p "$DIST"
-PKG="clipoa-$VERSION-macos-arm64.tar.gz"
+PKG="cliproll-$VERSION-macos-arm64.tar.gz"
 tar -czf "$DIST/$PKG" -C "$SRC" .
 SHA="$(shasum -a 256 "$DIST/$PKG" | cut -d' ' -f1)"
 NOTES_JSON="$("$B/venv/bin/python" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$NOTES")"
 cat > "$DIST/latest.json" <<EOS
 {"version": "$VERSION", "platform": "macos-arm64", "url": "$PKG", "sha256": "$SHA",
- "size": $(stat -f%z "$DIST/$PKG"), "notes": $NOTES_JSON}
+ "size": $(stat -f%z "$DIST/$PKG"), "notes": $NOTES_JSON,
+ "blender_version": "$BLENDER_VERSION", "blender_url": "$BL_DIR/$BL_FILE", "blender_sha256": "$BL_SHA",
+ "whisper_revision": "$WH_REV"}
 EOS
 sed "s#__CLIPOA_UPDATE_URL__#$UPDATE_URL#" "$ROOT/packaging/install.sh" > "$DIST/install.sh"
 rm -rf "$B"

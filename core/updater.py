@@ -1,5 +1,5 @@
 """
-Mises à jour automatiques de Clipoa installé par packaging/install.sh.
+Mises à jour automatiques de ClipRoll installé par packaging/install.sh.
 
 Disposition d'une installation (dossier CLIPOA_HOME, par défaut ~/Library/Clipoa) :
   app -> versions/<v>                 lien symbolique basculé à chaque mise à jour
@@ -17,9 +17,12 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tarfile
+import tempfile
 import threading
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urljoin, urlparse
@@ -27,10 +30,11 @@ from urllib.parse import urljoin, urlparse
 import requests
 
 from config import BASE_DIR
+from core.platform_win import is_store_app, subprocess_kwargs
 
 RESTART_EXIT_CODE = 42
 CHECK_TTL_S = 3600
-SHARED_LINKS = {"storage": "../../data/storage", "runtime": "../../data/runtime", "venv": "../../venv"}
+SHARED_LINKS = {"storage": "../../data/storage", "runtime": "../../data/runtime", "venv": "../../venv", "venv_tts": "../../data/venv_tts"}
 
 _LOCK = threading.Lock()
 _CACHE: Dict[str, Any] = {"at": 0.0, "info": None}
@@ -53,10 +57,17 @@ def release_info(base_dir: Optional[Path] = None) -> Dict[str, Any]:
 
 
 def install_home(base_dir: Optional[Path] = None) -> Optional[Path]:
-    """Dossier d'installation, ou None pour une copie de développement."""
+    """Dossier d'installation, ou None pour une copie de développement.
+
+    - macOS : `app` est un lien symbolique vers `versions/<v>`.
+    - Windows (hors Store) : `current_version` est un fichier texte contenant `<v>` (sans droits admin).
+    """
     base = Path(base_dir or BASE_DIR).resolve()
-    if base.parent.name == "versions" and (base.parent.parent / "app").is_symlink():
-        return base.parent.parent
+    if base.parent.name != "versions":
+        return None
+    parent = base.parent.parent
+    if (parent / "app").is_symlink() or (parent / "current_version").is_file():
+        return parent
     return None
 
 
@@ -73,6 +84,8 @@ def safe_url(url: str) -> bool:
 
 
 def enabled() -> bool:
+    if is_store_app():
+        return False
     rel = release_info()
     return bool(rel.get("version")) and install_home() is not None and safe_url(_update_url(rel))
 
@@ -80,7 +93,15 @@ def enabled() -> bool:
 def check(force: bool = False) -> Dict[str, Any]:
     rel = release_info()
     current = rel.get("version") or ""
-    info: Dict[str, Any] = {"enabled": enabled(), "current": current, "available": False, "latest": current, "notes": ""}
+    store = is_store_app()
+    info: Dict[str, Any] = {
+        "enabled": enabled(),
+        "store_managed": store,
+        "current": current,
+        "available": False,
+        "latest": current,
+        "notes": "",
+    }
     if not info["enabled"]:
         return info
     now = time.time()
@@ -118,8 +139,16 @@ def _download(url: str, dest: Path, expected_sha: str) -> None:
 
 
 def safe_extract(archive: Path, dest: Path) -> None:
-    """Extrait sans jamais écrire hors de dest (chemins absolus, .., liens sortants refusés)."""
+    """Extrait .tar.gz ou .zip sans jamais écrire hors de dest (chemins absolus, .., liens sortants refusés)."""
     dest = dest.resolve()
+    if str(archive).lower().endswith(".zip"):
+        with zipfile.ZipFile(archive, "r") as zf:
+            for info in zf.infolist():
+                target = (dest / info.filename).resolve()
+                if target != dest and dest not in target.parents:
+                    raise RuntimeError(f"chemin interdit dans le paquet : {info.filename}")
+            zf.extractall(dest)
+        return
     with tarfile.open(archive, "r:gz") as tar:
         for m in tar.getmembers():
             target = (dest / m.name).resolve()
@@ -135,6 +164,9 @@ def safe_extract(archive: Path, dest: Path) -> None:
 
 
 def link_shared(version_dir: Path) -> None:
+    if sys.platform == "win32":
+        # Sur Windows, les données persistantes passent par CLIPOA_DATA_DIR (aucun symlink requis)
+        return
     for name, target in SHARED_LINKS.items():
         p = version_dir / name
         if p.is_symlink() or p.exists():
@@ -146,7 +178,12 @@ def link_shared(version_dir: Path) -> None:
 
 
 def switch_current(home: Path, version: str) -> None:
-    """Bascule atomique du lien app -> versions/<version>."""
+    """Bascule atomique vers la version choisie (symlink sur macOS, fichier current_version sur Windows)."""
+    if sys.platform == "win32":
+        tmp = home / "current_version.tmp"
+        tmp.write_text(version + "\n", encoding="utf-8")
+        os.replace(tmp, home / "current_version")
+        return
     tmp = home / "app.new"
     if tmp.is_symlink() or tmp.exists():
         tmp.unlink()
@@ -161,15 +198,68 @@ def prune_versions(home: Path, keep: Tuple[str, ...]) -> None:
 
 
 def _install_requirements(home: Path, req: Path) -> None:
-    py = home / "venv" / "bin" / "python"
-    uv = home / "tools" / "uv" / "uv"
+    if sys.platform == "win32":
+        py = home / "venv" / "Scripts" / "python.exe"
+        uv = home / "tools" / "uv" / "uv.exe"
+    else:
+        py = home / "venv" / "bin" / "python"
+        uv = home / "tools" / "uv" / "uv"
     if uv.exists():
         cmd = [str(uv), "pip", "install", "-q", "--python", str(py), "-r", str(req)]
+        if req.name.endswith(".lock"):
+            cmd.insert(3, "--require-hashes")
     else:
         cmd = [str(py), "-m", "pip", "install", "-q", "-r", str(req)]
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, **subprocess_kwargs())
     if res.returncode != 0:
         raise RuntimeError("installation des dépendances impossible : " + (res.stderr or res.stdout)[-300:])
+
+
+def _install_blender(home: Path, latest: Dict[str, Any]) -> None:
+    """Installe la version de Blender demandée par le paquet, seulement si elle change (data/runtime partagé)."""
+    version = str(latest.get("blender_version") or "")
+    runtime = home / "data" / "runtime"
+    marker = runtime / "blender_version"
+    if not version or (marker.exists() and marker.read_text(encoding="utf-8").strip() == version):
+        return
+    url = str(latest.get("blender_url") or "")
+    if not url.startswith("https://download.blender.org/"):
+        raise RuntimeError("adresse de Blender inattendue")
+    if sys.platform == "win32" or url.lower().endswith(".zip"):
+        archive = home / "data" / "updates" / "blender.zip"
+        _STATE.update(step=f"Téléchargement de Blender {version} (une seule fois)…", progress=78)
+        _download(url, archive, str(latest.get("blender_sha256") or ""))
+        tmp_dir = Path(tempfile.mkdtemp(prefix="clipoa_blender_", dir=str(runtime)))
+        new_dir = runtime / "blender.new"
+        try:
+            safe_extract(archive, tmp_dir)
+            matches = list(tmp_dir.rglob("blender.exe"))
+            if not matches:
+                raise RuntimeError("blender.exe introuvable dans l'archive Blender")
+            shutil.rmtree(new_dir, ignore_errors=True)
+            shutil.move(str(matches[0].parent), str(new_dir))
+            shutil.rmtree(runtime / "blender", ignore_errors=True)
+            new_dir.rename(runtime / "blender")
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            archive.unlink(missing_ok=True)
+        marker.write_text(version + "\n", encoding="utf-8")
+        return
+    dmg = home / "data" / "updates" / "blender.dmg"
+    _STATE.update(step=f"Téléchargement de Blender {version} (une seule fois)…", progress=78)
+    _download(url, dmg, str(latest.get("blender_sha256") or ""))
+    mnt = Path(tempfile.mkdtemp(prefix="clipoa_blender_"))
+    new_app = runtime / "Blender.app.new"
+    try:
+        subprocess.run(["hdiutil", "attach", str(dmg), "-nobrowse", "-quiet", "-mountpoint", str(mnt)], check=True, timeout=300)
+        shutil.rmtree(new_app, ignore_errors=True)
+        subprocess.run(["cp", "-R", str(mnt / "Blender.app"), str(new_app)], check=True, timeout=900)
+    finally:
+        subprocess.run(["hdiutil", "detach", str(mnt), "-quiet", "-force"], timeout=120)
+        dmg.unlink(missing_ok=True)
+    shutil.rmtree(runtime / "Blender.app", ignore_errors=True)
+    new_app.rename(runtime / "Blender.app")
+    marker.write_text(version + "\n", encoding="utf-8")
 
 
 def _apply(info: Dict[str, Any]) -> None:
@@ -187,7 +277,8 @@ def _apply(info: Dict[str, Any]) -> None:
         raise RuntimeError("adresse de téléchargement non sécurisée")
     updates = home / "data" / "updates"
     updates.mkdir(parents=True, exist_ok=True)
-    archive = updates / f"clipoa-{version}.tar.gz"
+    ext = ".zip" if url.lower().endswith(".zip") else ".tar.gz"
+    archive = updates / f"clipoa-{version}{ext}"
     _STATE.update(step="Téléchargement de la nouvelle version…", progress=1)
     _download(url, archive, str(latest.get("sha256") or ""))
 
@@ -201,11 +292,14 @@ def _apply(info: Dict[str, Any]) -> None:
         raise RuntimeError("le paquet ne correspond pas à la version annoncée")
     link_shared(tmp_dir)
 
-    old_req = BASE_DIR / "requirements.txt"
-    new_req = tmp_dir / "requirements.txt"
+    req_name = "requirements.lock" if (tmp_dir / "requirements.lock").exists() else "requirements.txt"
+    old_req = BASE_DIR / req_name
+    new_req = tmp_dir / req_name
     if new_req.exists() and (not old_req.exists() or old_req.read_bytes() != new_req.read_bytes()):
         _STATE.update(step="Mise à jour des outils…", progress=75)
         _install_requirements(home, new_req)
+
+    _install_blender(home, latest)
 
     final_dir = versions / version
     if final_dir.exists():
@@ -220,7 +314,7 @@ def _apply(info: Dict[str, Any]) -> None:
 
 def start_update() -> Dict[str, Any]:
     if not enabled():
-        return {"ok": False, "error": "Mises à jour indisponibles sur cette copie de Clipoa."}
+        return {"ok": False, "error": "Mises à jour indisponibles sur cette copie de ClipRoll."}
     with _LOCK:
         if _STATE["running"]:
             return {"ok": True, "already": True}
@@ -232,7 +326,7 @@ def start_update() -> Dict[str, Any]:
             if os.getenv("CLIPOA_LAUNCHER") == "1":
                 threading.Timer(1.5, lambda: os._exit(RESTART_EXIT_CODE)).start()
             else:
-                _STATE["step"] = "Mise à jour installée. Relance Clipoa pour l'utiliser."
+                _STATE["step"] = "Mise à jour installée. Relance ClipRoll pour l'utiliser."
         except Exception as e:
             _STATE["error"] = f"Mise à jour impossible : {str(e)[:200]}"
             home = install_home()

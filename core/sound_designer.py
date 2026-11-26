@@ -107,7 +107,7 @@ SFX_LIBRARY: Dict[str, Tuple[str, str]] = {
 
 class SoundDesigner:
     """
-    Générateur et mixeur audio local (100% FFmpeg, 0 clé API) appliquant la méthode Clipoa :
+    Générateur et mixeur audio local (100% FFmpeg, 0 clé API) appliquant la méthode ClipRoll :
     - Musique d'ambiance par ambiance (sombre / tension / dynamique / calme), à -16..-18 dB, qui
       s'efface sous la voix (sidechain) et se COUPE juste avant le twist (silence franc).
     - Bruitages ancrés sur des événements du plan (hook, coupes espacées, mots, twist, CTA), <= 20.

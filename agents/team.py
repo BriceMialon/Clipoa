@@ -69,7 +69,7 @@ class LeScenariste:
         if da_context:
             prompt += f"\n{da_context}\n"
         if recipe:
-            prompt += f"\nRecette virale à appliquer impérativement :\n{json.dumps(recipe, ensure_ascii=False, indent=2)}\n"
+            prompt += f"\nRecette d'une vidéo qui marche (piste de rythme et de style, l'idée prime) :\n{json.dumps(recipe, ensure_ascii=False, indent=2)}\n"
         if user_style:
             prompt += f"\nStyle et façon de parler de l'utilisateur :\n{user_style}\n"
         from core.script_template import recent_video_titles, avoid_titles_block

@@ -48,6 +48,7 @@ from core.security import (
     is_allowed_host_header,
 )
 from core import edition as _edition
+from core.license import LicenseManager, LICENSED_PREFIXES
 from core.scraper import CompetitorScraper
 from core.pipeline import ShortCrewPipeline
 from core.claude_bridge import ClaudeBridge, ClaudeQuotaExceededError
@@ -195,6 +196,27 @@ def _run_with_job_guard(job_id: str, fn):
     return True
 
 
+LICENSE = LicenseManager(str(STORAGE_DIR))
+
+
+@app.route("/api/license/status", methods=["GET"])
+def api_license_status():
+    return jsonify(LICENSE.refresh())
+
+
+@app.route("/api/license/activate", methods=["POST"])
+def api_license_activate():
+    try:
+        return jsonify(LICENSE.activate((request.get_json(silent=True) or {}).get("key", "")))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/license/deactivate", methods=["POST"])
+def api_license_deactivate():
+    return jsonify(LICENSE.deactivate())
+
+
 @app.context_processor
 def _edition_ctx():
     return {"clipoa_edition": _edition.EDITION}
@@ -204,7 +226,12 @@ def _edition_ctx():
 def _security_guard():
     # Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
     if _edition.is_blocked_path(request.path):
-        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de Clipoa."}), 403
+        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de ClipRoll."}), 403
+    # Version publique : fabrication réservée aux abonnés (lecture seule sinon, rien n'est supprimé)
+    if (_edition.is_public() and request.method == "POST"
+            and request.path.startswith(LICENSED_PREFIXES) and not LICENSE.can_fabricate()):
+        return jsonify({"error": "Abonnement inactif : activez votre licence ClipRoll pour fabriquer des vidéos.",
+                        "license_required": True}), 402
     # 0. Anti-DNS-Rebinding guard (blocks malicious domains pointing to 127.0.0.1)
     lan_ip_allowed = get_lan_ip() if CLIPOA_ALLOW_LAN else ""
     if not is_allowed_host_header(request.host, allow_lan=CLIPOA_ALLOW_LAN, lan_ip=lan_ip_allowed):
@@ -234,9 +261,9 @@ def _security_guard():
         )
         if not hmac.compare_digest(str(provided), _LAN_ACCESS_TOKEN):
             if path.startswith("/api/"):
-                return jsonify({"error": "Accès LAN non autorisé — ouvre l'URL avec ton jeton Clipoa."}), 401
+                return jsonify({"error": "Accès LAN non autorisé — ouvre l'URL avec ton jeton ClipRoll."}), 401
             return Response(
-                "Accès LAN protégé — ouvre l'URL complète avec ?token=... affichée au démarrage de Clipoa.",
+                "Accès LAN protégé — ouvre l'URL complète avec ?token=... affichée au démarrage de ClipRoll.",
                 status=401,
                 mimetype="text/plain; charset=utf-8",
             )
@@ -368,7 +395,7 @@ def _load_persisted_jobs():
         for j in items:
             if j.get("status") == "running":
                 if j.get("kind") in RESUMABLE_KINDS and int(j.get("auto_resumes") or 0) < MAX_AUTO_RESUMES:
-                    # coupé par un arrêt de Clipoa / du Mac : on reprend tout seul à la dernière étape sauvegardée
+                    # coupé par un arrêt de ClipRoll / du Mac : on reprend tout seul à la dernière étape sauvegardée
                     j["status"] = "paused_restart"
                     j["step"] = "⏸️ Coupé par un arrêt — reprise automatique à la dernière étape sauvegardée…"
                 else:
@@ -487,12 +514,19 @@ def _update_job(job_id: str, progress: int, step: str):
 
 
 def _finish_job(job_id: str, result=None, error: str = None):
+    ended = None
     with JOBS_LOCK:
         if job_id in JOBS:
             if error:
+                failed_step = JOBS[job_id].get("step") or ""
                 JOBS[job_id]["status"] = "error"
                 JOBS[job_id]["error"] = error
                 JOBS[job_id]["step"] = f"Erreur : {error}"
+                try:
+                    JOBS[job_id]["incident_id"] = _crash_report.record_incident(
+                        "job", error, step=failed_step, job_kind=JOBS[job_id].get("kind") or "", job_id=job_id)
+                except Exception:
+                    pass
             else:
                 JOBS[job_id]["status"] = "done"
                 JOBS[job_id]["progress"] = 100
@@ -508,6 +542,13 @@ def _finish_job(job_id: str, result=None, error: str = None):
                         JOBS[job_id]["session_id"] = first.get("session_id", "")
                         JOBS[job_id]["video_title"] = f"{len(result['clips'])} short(s) extrait(s)"
             _persist_jobs()
+            ended = dict(JOBS[job_id])
+    if ended:
+        try:
+            from core import notifier
+            notifier.video_done(ended.get("video_title") or "", error)
+        except Exception:
+            pass
 
 
 def _tag_render_account(session_id: str, account) -> None:
@@ -687,6 +728,8 @@ def index():
     publish_queue = FreeSocialPublisher.load_queue()
     night_tasks = NightFactory.load_tasks()
     style_plugins = StylePluginStore.list_plugins(include_script_body=False)
+    if _edition.is_public():  # pas de mode Ciné (style « lourd ») dans la version publique
+        style_plugins = [p for p in style_plugins if not p.get("heavy")]
     bib = DriveClient.load_bibliotheque()
     custom_voices = [
         {"role": k, "name": v.get("nom", k), "voice_id": v.get("voice_id", "")}
@@ -748,26 +791,24 @@ def index():
 @app.route("/manifest.json")
 def pwa_manifest():
     return jsonify({
-        "name": "Clipoa",
-        "short_name": "Clipoa",
+        "name": "ClipRoll",
+        "short_name": "ClipRoll",
         "start_url": "/",
         "display": "standalone",
-        "background_color": "#0E0E11",
-        "theme_color": "#0E0E11",
+        "background_color": "#0B0B16",
+        "theme_color": "#0B0B16",
         "orientation": "portrait-primary",
-        "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}],
+        "icons": [
+            {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+            {"src": "/static/brand/web/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/brand/web/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ],
     })
 
 
 @app.route("/icon.svg")
 def pwa_icon():
-    svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="120" fill="#E11D48"/>
-  <rect x="200" y="80" width="184" height="288" rx="48" fill="#FFFFFF" fill-opacity="0.42"/>
-  <rect x="120" y="128" width="216" height="320" rx="52" fill="#FFFFFF" stroke="#E11D48" stroke-width="20"/>
-  <path d="M202 234L290 288L202 342V234Z" fill="#E11D48"/>
-</svg>"""
-    return Response(svg, mimetype="image/svg+xml")
+    return send_file(str(BASE_DIR / "static" / "brand" / "cliproll-icon.svg"), mimetype="image/svg+xml")
 
 
 @app.route("/stream/<render_id>")
@@ -787,7 +828,7 @@ def download_video(render_id):
     video_path = RENDERS_DIR / render_id / "final_short.mp4"
     if not video_path.exists():
         return "Video not found", 404
-    return send_file(str(video_path), mimetype="video/mp4", as_attachment=True, download_name=f"clipoa_{render_id}.mp4")
+    return send_file(str(video_path), mimetype="video/mp4", as_attachment=True, download_name=f"cliproll_{render_id}.mp4")
 
 
 # ---------- Claude Account & Quota APIs ----------
@@ -1029,6 +1070,25 @@ def api_el_connect():
     )
     if not res.get("connected"):
         return jsonify({"error": res.get("message", "Connexion échouée")}), 400
+    from core import elevenlabs_accounts
+    elevenlabs_accounts.remember(api_key, res)
+    return jsonify(res)
+
+
+@app.route("/api/elevenlabs/accounts", methods=["GET"])
+def api_el_accounts():
+    from core import elevenlabs_accounts
+    return jsonify({"accounts": elevenlabs_accounts.list_accounts()})
+
+
+@app.route("/api/elevenlabs/switch", methods=["POST"])
+def api_el_switch():
+    """Changer de compte ElevenLabs en un clic (comptes déjà branchés une fois)."""
+    from core import elevenlabs_accounts
+    try:
+        res = elevenlabs_accounts.switch(str((request.get_json(silent=True) or {}).get("id") or ""))
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
     return jsonify(res)
 
 
@@ -1163,7 +1223,7 @@ def api_plugin_preview(plugin_id):
 
 @app.route("/api/plugins/<plugin_id>/reference-video", methods=["GET"])
 def api_plugin_reference_video(plugin_id):
-    # Lecture seule : les vidéos de référence sont fournies avec Clipoa (assets/style_refs/<id>.mp4)
+    # Lecture seule : les vidéos de référence sont fournies avec ClipRoll (assets/style_refs/<id>.mp4)
     fpath = StylePluginStore.get_reference_video_path(plugin_id)
     if not fpath:
         return "Video not found", 404
@@ -1435,7 +1495,7 @@ def oauth_start(provider):
 
 @app.route("/oauth/<provider>/relay-done", methods=["GET", "POST"])
 def oauth_relay_done(provider):
-    """Réceptionne le retour 1-clic sécurisé (POST/GET) du relais OAuth Clipoa et enregistre le compte."""
+    """Réceptionne le retour 1-clic sécurisé (POST/GET) du relais OAuth ClipRoll et enregistre le compte."""
     src = request.form if request.method == "POST" else request.args
     nonce = (src.get("nonce") or "").strip()
     state_entry = FreeSocialPublisher.consume_oauth_state(nonce) if nonce else None
@@ -1527,7 +1587,7 @@ def api_social_publish():
     data = request.json or {}
     render_id = (data.get("render_id") or "").strip()
     platforms = data.get("platforms") or []
-    title = data.get("title") or "Clipoa Short"
+    title = data.get("title") or "ClipRoll Short"
     caption = data.get("caption") or ""
     scheduled_at = (data.get("scheduled_at") or "").strip() or None
     publish_now = bool(data.get("publish_now", not scheduled_at))
@@ -1688,6 +1748,59 @@ def api_tools_blender_install():
     return jsonify({"started": started, **tools_setup.status()})
 
 
+@app.route("/api/tools/<tool>/install", methods=["POST"])
+def api_tools_generic_install(tool):
+    from core import tools_setup
+    if tool not in ("blender", "ffmpeg", "whisper", "all"):
+        return jsonify({"error": "Outil inconnu."}), 400
+    started = tools_setup.start_tool_install(tool)
+    return jsonify({"started": started, **tools_setup.status()})
+
+
+# ---------- Assistant de premier lancement + « prochaine chose à faire » (core/onboarding.py) ----------
+
+def _onboarding_payload():
+    from core import onboarding, tools_setup
+    renders = _load_renders()
+    unvalidated = sum(1 for r in renders if not r.get("validated"))
+    return onboarding.compute(
+        tools_status=tools_setup.status(),
+        claude_connected=bool(ClaudeBridge.check_status(live_probe=False).get("connected")),
+        voice_pro_connected=bool(VoiceEngine.get_elevenlabs_key()),
+        published_count=len(FreeSocialPublisher.load_queue() or []),
+        first_video=(renders[0] if renders else {}).get("id", ""),
+        renders_count=len(renders),
+        unvalidated_count=unvalidated,
+        social_accounts=FreeSocialPublisher.get_public_accounts_status(),
+        oauth_apps=FreeSocialPublisher.get_public_oauth_apps(),
+        state=onboarding.load_state(),
+    )
+
+
+@app.route("/api/auto-style", methods=["GET"])
+def api_auto_style():
+    """Style proposé d'après l'idée quand l'utilisateur n'en a pas choisi (core/auto_choice.py)."""
+    from core import auto_choice
+    plugins = StylePluginStore.list_plugins(include_script_body=False)
+    return jsonify(auto_choice.suggest_style(request.args.get("topic", "")[:500], plugins) or {})
+
+
+@app.route("/api/onboarding", methods=["GET"])
+def api_onboarding():
+    return jsonify(_onboarding_payload())
+
+
+@app.route("/api/onboarding", methods=["POST"])
+def api_onboarding_action():
+    from core import onboarding
+    action = str((request.get_json(silent=True) or {}).get("action") or "")
+    try:
+        onboarding.apply_action(action)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    return jsonify(_onboarding_payload())
+
+
 # ---------- Statistiques : toutes les vidéos de la chaîne connectée, score et pourquoi ----------
 
 @app.route("/api/channel-stats", methods=["GET"])
@@ -1701,6 +1814,19 @@ def api_channel_stats_sync():
     from core import channel_stats
     started = channel_stats.start_sync()
     return jsonify({"started": started, **channel_stats.load()})
+
+
+@app.route("/api/channel-stats/tiktok-handle", methods=["POST"])
+def api_channel_stats_tiktok_handle():
+    """Enregistre le @handle TikTok public du compte actif et lance la synchronisation."""
+    from core import channel_stats
+    data = request.get_json(silent=True) or {}
+    try:
+        clean = channel_stats.set_tiktok_handle(data.get("handle") or "")
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    started = channel_stats.start_sync()
+    return jsonify({"ok": True, "handle": clean, "started": started, **channel_stats.load()})
 
 
 @app.route("/api/channel-stats/<video_id>/remake", methods=["POST"])
@@ -1718,6 +1844,139 @@ def api_channel_stats_remake(video_id):
     with app.test_client() as c:
         r = c.post(req["route"], json=payload, headers={k: v for k, v in request.headers.items() if k.lower() in ("x-clipoa-token", "authorization", "cookie")})
     return (r.get_data(), r.status_code, {"Content-Type": "application/json"})
+
+
+@app.route("/api/channel-stats/audit", methods=["POST"])
+def api_channel_stats_audit():
+    """Audit global de rétention sur les 12 derniers Shorts du compte actif (Prompt #1 @jeffar_ai)."""
+    from core import channel_stats, retention_audit
+    try:
+        report = retention_audit.audit_channel(channel_stats.load())
+        return jsonify({"ok": True, "audit": report})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/script/optimize-retention", methods=["POST"])
+def api_script_optimize_retention():
+    """Optimise un script selon les règles de rétention Shorts/TikTok (Prompts #2 à #7 @jeffar_ai)."""
+    from core import retention_audit
+    data = request.get_json(silent=True) or {}
+    script = (data.get("script") or "").strip()
+    topic = (data.get("topic") or "").strip()
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 30)))
+    except (TypeError, ValueError):
+        dur = 30
+    try:
+        res = retention_audit.optimize_script_retention(script, topic=topic, duration_sec=dur)
+        return jsonify({"ok": True, **res})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/script/swipe-audit", methods=["POST"])
+def api_script_swipe_audit():
+    """Audit anti-swipe avant export + checklist 5 points (Prompt #8 @jeffar_ai)."""
+    from core import retention_audit
+    data = request.get_json(silent=True) or {}
+    script = (data.get("script") or "").strip()
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 30)))
+    except (TypeError, ValueError):
+        dur = 30
+    try:
+        res = retention_audit.swipe_away_audit(script, duration_sec=dur)
+        return jsonify({"ok": True, **res})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/agent-team/roster", methods=["GET"])
+def api_agent_team_roster():
+    from core import agent_team
+    return jsonify({"ok": True, "roster": agent_team.TEAM_ROSTER})
+
+
+@app.route("/api/agent-team/run", methods=["POST"])
+def api_agent_team_run():
+    """Exécute une mission autonome via l'Équipe d'agents IA de la barre du haut."""
+    from core import agent_team
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Indique une mission pour l'équipe d'agents."}), 400
+    engine = (data.get("engine") or "claude").strip().lower()
+    plugin_id = (data.get("plugin_id") or "").strip()
+    voice = data.get("voice") or None
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 60)))
+    except (TypeError, ValueError):
+        dur = 60
+
+    fwd_headers = {k: v for k, v in request.headers.items() if k.lower() in ("x-clipoa-token", "authorization", "cookie")}
+
+    def _enqueue_week(topics, plugin_id="", duration_sec=60, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post("/api/night/enqueue", json={
+                "topics": topics,
+                "plugin_id": plugin_id,
+                "target_duration_sec": duration_sec,
+                "engine": engine,
+                "voice": voice,
+                "keep_awake": True,
+            }, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de programmer la semaine.")
+            return int(d.get("created") or len(topics))
+
+    def _make_video(topic, plugin_id="", duration_sec=60, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post("/api/make", json={
+                "topic": topic,
+                "plugin_id": plugin_id or None,
+                "target_duration_sec": duration_sec,
+                "engine": engine,
+                "voice": voice,
+                "enable_music": True,
+                "enable_sfx": True,
+            }, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de lancer la fabrication.")
+            return d
+
+    def _remake_video(vid, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post(f"/api/channel-stats/{vid}/remake", json={"engine": engine, "voice": voice}, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de refaire cette vidéo.")
+            return d
+
+    try:
+        out = agent_team.run_mission(
+            message=message,
+            engine=engine,
+            plugin_id=plugin_id,
+            duration_sec=dur,
+            voice=voice,
+            enqueue_week_fn=_enqueue_week,
+            make_video_fn=_make_video,
+            remake_video_fn=_remake_video,
+            confirmed=data.get("confirmed") is True,
+            topics=data.get("topics") if isinstance(data.get("topics"), list) else None,
+        )
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------- S'inspirer : radar des vidéos IA récentes qui cartonnent ----------
@@ -1800,7 +2059,7 @@ def api_videos():
 
 @app.route("/api/videos/upload", methods=["POST"])
 def api_upload_short_video():
-    """Importe un Short existant (.mp4 / .mov / .webm) directement dans Clipoa pour publication ou programmation."""
+    """Importe un Short existant (.mp4 / .mov / .webm) directement dans ClipRoll pour publication ou programmation."""
     uploaded = request.files.get("video")
     if not uploaded or not uploaded.filename:
         return jsonify({"error": "Sélectionne un fichier vidéo (.mp4 ou .mov)."}), 400
@@ -1963,7 +2222,7 @@ def api_voice_preview():
     voice = (data.get("voice") or "").strip() or None
     try:
         res = VoiceEngine.generate_voice(
-            text="Salut, ici ton studio Clipoa. Prêt à fabriquer tes prochains shorts viraux.",
+            text="Salut, ici ton studio ClipRoll. Prêt à fabriquer tes prochains shorts viraux.",
             output_name="studio_voice_preview",
             voice=voice,
         )
@@ -2555,9 +2814,8 @@ def _claude_family(model):
 @app.route("/api/fabrique/generate-script", methods=["POST"])
 def api_fabrique_generate_script():
     """
-    Étape 1 de la Fabrique : génère un script complet au format Template (6 sections :
-    Fiche projet, Personnages, Le script plan par plan, Musiques à créer, Effets sonores)
-    avec Claude.
+    Étape 1 de la Fabrique : Claude déduit de l'idée le format du script (genre, ton, personnages, longueur)
+    et le rend en 3 sections (Fiche projet, Personnages, Le script plan par plan).
     """
     data = request.json or {}
     topic = (data.get("topic") or "").strip()
@@ -2637,16 +2895,17 @@ def api_fabrique_generate_script_stream():
         return f"event: {ev_name}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
     def _compute_progress(acc_text: str) -> tuple:
+        # Format libre : 3 sections (un modèle perso peut en avoir plus, d'où les 4 et 5)
         if "## 5." in acc_text:
-            return 88, "5/5 · Effets sonores (SFX)"
+            return 96, "Dernières sections du modèle"
         if "## 4." in acc_text:
-            return 74, "4/5 · Musiques à créer"
+            return 95, "Dernières sections du modèle"
         if "## 3." in acc_text:
-            return min(70, 38 + len(acc_text) // 180), "3/5 · Écriture du script plan par plan"
+            return min(94, 34 + len(acc_text) // 70), "3/3 · Écriture du script plan par plan"
         if "## 2." in acc_text:
-            return 26, "2/5 · Fiches personnages"
+            return 24, "2/3 · Personnages et voix"
         if "## 1." in acc_text:
-            return 14, "1/5 · Fiche projet"
+            return 12, "1/3 · Format choisi par l'IA"
         return min(85, 10 + len(acc_text) // 60), "Rédaction en direct…"
 
     def _generate():
@@ -2773,7 +3032,7 @@ def api_delete_script_template(tid):
 @app.route("/api/assistant/help", methods=["POST"])
 def api_assistant_help():
     """
-    Assistant d'aide IA intégré à la barre des tâches Clipoa.
+    Assistant d'aide IA intégré à la barre des tâches ClipRoll.
     Utilise le modèle Claude ou Gemini choisi par l'utilisateur s'il est connecté.
     """
     data = request.json or {}
@@ -2823,17 +3082,17 @@ def api_assistant_help():
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
+            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur ClipRoll.",
         }), 200
 
     plugins = StylePluginStore.list_plugins(include_script_body=False)
     styles_str = ", ".join(f"{p['name']} ({p.get('est_time_label', '~1 min')})" for p in plugins) or "aucun"
 
     system_prompt = (
-        "Tu es l'assistant d'aide intégré de Clipoa, une application de création de vidéos courtes faites à l'IA (Shorts, TikTok, Reels).\n"
+        "Tu es l'assistant d'aide intégré de ClipRoll, une application de création de vidéos courtes faites à l'IA (Shorts, TikTok, Reels).\n"
         "Réponds en français, clair, concret et court (3 à 7 lignes, étapes numérotées si utile). "
         "Donne toujours le nom exact de l'onglet et du bouton. Ne parle jamais d'une fonction qui n'existe pas.\n"
-        "Fonctions de Clipoa :\n"
+        "Fonctions de ClipRoll :\n"
         "- Accueil : vue rapide, vidéos à valider, création rapide.\n"
         "- Créer > Nouvelle vidéo : un seul champ où l'on écrit une idée en quelques mots OU colle son script complet ; "
         "durée (30 s à 2 min) ; bouton « ✨ Générer le script avec l'IA » (facultatif : le script s'écrit en direct puis se modifie à la main "
@@ -2848,7 +3107,7 @@ def api_assistant_help():
         "- Créer > Pilote auto : préparer les vidéos de la semaine.\n"
         "- Mes vidéos : regarder, valider, retoucher, télécharger.\n"
         "- Publier : programmer et publier sur YouTube, TikTok, Instagram, Facebook.\n"
-        "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec Clipoa ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
+        "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec ClipRoll ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
         "- Connexions : brancher Claude, ElevenLabs et ses réseaux sociaux.\n"
         "Les utilisateurs ne peuvent pas créer de nouveaux styles."
     )
@@ -2904,6 +3163,10 @@ def api_assistant_help():
 from core import updater as _updater  # noqa: E402
 _updater.register(app)
 
+# Rapports de plantage + contact support (capture locale, envoi seulement au clic)
+from core import crash_report as _crash_report  # noqa: E402
+_crash_report.register(app)
+
 
 @app.route("/api/system/health", methods=["GET"])
 def api_system_health():
@@ -2932,12 +3195,19 @@ def api_system_cleanup():
 
 
 def run_app(port=8080):
+    _crash_report.install_capture()
     harden_sensitive_files(STORAGE_DIR)
     cleanup_res = cleanup_temp_storage(DOWNLOADS_DIR, AUDIO_DIR, max_age_days=CLIPOA_TEMP_TTL_DAYS)
     FreeSocialPublisher.start_scheduler()
     NightFactory.start_worker()
+    try:  # notifications + icône barre de menus (macOS ; rien ailleurs)
+        from core import notifier, menubar
+        notifier.activate()
+        menubar.launch(port)
+    except Exception as _e:
+        print(f"⚠️ Barre de menus : {_e}")
     bind_host = CLIPOA_HOST
-    print(f"\n🚀 Clipoa démarré (sécurisé · Pulse & Gemini/Veo intégrés) !")
+    print(f"\n🚀 ClipRoll démarré (sécurisé · Pulse & Gemini/Veo intégrés) !")
     print(f"   💻 Sur ton Mac       : http://localhost:{port}")
     if bind_host == "0.0.0.0":
         lan_ip = get_lan_ip()

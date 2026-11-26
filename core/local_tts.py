@@ -1,10 +1,10 @@
 """
-Voix HD gratuite et locale (Qwen3-TTS, licence Apache 2.0) pour Clipoa.
+Voix HD gratuite et locale (Qwen3-TTS, licence Apache 2.0) pour ClipRoll.
 
 Pensée pour tout utilisateur : un clic sur « Installer la voix HD » dans la Fabrique crée un Python isolé
 (`venv_tts`, Python 3.11 fourni par `uv`, aucune installation système), installe Qwen3-TTS puis télécharge
 le modèle. Ensuite la voix HD devient la voix gratuite par défaut ; Edge-TTS reste le secours automatique.
-Le worker tourne dans son propre processus : un plantage ou un manque de mémoire ne fait jamais tomber Clipoa.
+Le worker tourne dans son propre processus : un plantage ou un manque de mémoire ne fait jamais tomber ClipRoll.
 """
 import json
 import os

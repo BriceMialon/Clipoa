@@ -1,0 +1,580 @@
+/* ==========================================================================
+   ClipRoll Design System v1.0
+   Aligné sur le Logo 4 "Creator Roll & Spark" (#101022 / #00E5FF / #FF3B5C)
+   Prêt à importer dans l'app desktop (macOS/Windows) et le site cliproll.app
+   Chargé APRÈS liquid-glass.css et cliproll-ui.css : la section 0 recâble les
+   variables de l'app (--bg, --accent, --cta-grad…) sur la charte ClipRoll.
+   Source : pack de marque « cliproll-brand » (design-system.css), 26/11/2026.
+   ========================================================================== */
+
+:root {
+  /* Surfaces (Dark-first studio) */
+  --cr-bg: #0B0B16;
+  --cr-bg-brand: #101022;
+  --cr-surface: #15152B;
+  --cr-surface-elevated: #1C1C38;
+  --cr-border: #28284A;
+  --cr-border-bright: rgba(0, 229, 255, 0.35);
+
+  /* Typographie */
+  --cr-text: #F8FAFF;
+  --cr-text-muted: #98A0C2;
+  --cr-font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --cr-font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --cr-font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Couleurs signatures ClipRoll (issues du Logo 4) */
+  --cr-coral: #FF3B5C;
+  --cr-coral-hover: #FF5270;
+  --cr-cyan: #00E5FF;
+  --cr-cyan-soft: rgba(0, 229, 255, 0.14);
+  --cr-coral-soft: rgba(255, 59, 92, 0.15);
+  --cr-spark: #FFFFFF;
+
+  /* Dégradés */
+  --cr-grad-brand: linear-gradient(135deg, #00E5FF 0%, #FF3B5C 100%);
+  --cr-grad-cta: linear-gradient(135deg, #D92648 0%, #D4145C 55%, #BF1D72 100%); /* texte blanc AA ≥ 4.5 */
+  --cr-grad-surface: linear-gradient(180deg, rgba(28, 28, 56, 0.9) 0%, rgba(16, 16, 34, 0.96) 100%);
+
+  /* Rayons & ombres */
+  --cr-radius-sm: 8px;
+  --cr-radius-md: 12px;
+  --cr-radius-lg: 18px;
+  --cr-radius-pill: 9999px;
+  --cr-shadow-coral: 0 8px 24px -8px rgba(255, 59, 92, 0.38);
+  --cr-shadow-cyan: 0 8px 24px -8px rgba(0, 0, 0, 0.5); /* halo coloré réservé au bouton principal */
+}
+
+/* ---------- 1. BOUTONS SPÉCIAUX CLIPROLL ---------- */
+
+.cr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--cr-font-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  padding: 12px 22px;
+  border-radius: var(--cr-radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s ease,
+              border-color 0.2s ease,
+              background 0.2s ease;
+  user-select: none;
+}
+
+.cr-btn:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+/* CTA Principal — Corail + reflet cinétique + étincelle */
+.cr-btn-spark {
+  background: var(--cr-grad-cta);
+  color: #FFFFFF;
+  box-shadow: var(--cr-shadow-coral), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.cr-btn-spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 25%, rgba(255, 255, 255, 0.26) 50%, transparent 75%);
+  transform: translateX(-120%);
+  transition: transform 0.65s ease;
+}
+.cr-btn-spark:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 34px -4px rgba(255, 59, 92, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.cr-btn-spark:hover::after {
+  transform: translateX(120%);
+}
+.cr-btn-spark .cr-spark-icon {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cr-btn-spark:hover .cr-spark-icon {
+  transform: rotate(22deg) scale(1.15);
+}
+
+/* Bouton Secondaire — Bordure Cyan néon (Exporter / Télécharger) */
+.cr-btn-cyan {
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--cr-cyan);
+  border-color: rgba(0, 229, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(0, 229, 255, 0.2);
+}
+.cr-btn-cyan:hover {
+  background: rgba(0, 229, 255, 0.16);
+  border-color: var(--cr-cyan);
+  color: #FFFFFF;
+  transform: translateY(-2px);
+  box-shadow: var(--cr-shadow-cyan);
+}
+
+/* Bouton Double-Accent "ClipRoll Gradient Border" (Upgrade Pro / Site Hero) */
+.cr-btn-pro {
+  background: linear-gradient(var(--cr-bg-brand), var(--cr-bg-brand)) padding-box,
+              var(--cr-grad-brand) border-box;
+  border: 2px solid transparent;
+  color: #FFFFFF;
+}
+.cr-btn-pro:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.55);
+}
+
+/* Boutons Plateformes (YouTube Shorts, TikTok, Instagram Reels, macOS/Windows) */
+.cr-btn-platform {
+  background: var(--cr-surface);
+  color: var(--cr-text);
+  border-color: var(--cr-border);
+  font-weight: 600;
+  padding: 10px 16px;
+}
+.cr-btn-platform img,
+.cr-btn-platform svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.cr-btn-platform:hover {
+  background: var(--cr-surface-elevated);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+/* ---------- 1b. ICÔNES DA CLIPROLL & FIX EMOJI DANS GRAD-TEXT ---------- */
+.cr-emoji-native {
+  display: inline-block;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  color: var(--ink) !important;
+  -webkit-text-fill-color: initial !important;
+  font-style: normal;
+}
+.cr-ico {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  vertical-align: -2.5px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cr-ico-lg {
+  width: 28px;
+  height: 28px;
+  vertical-align: middle;
+}
+.cr-ico-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.14), rgba(255, 59, 92, 0.14));
+  border: 1px solid rgba(0, 229, 255, 0.28);
+  color: var(--cr-cyan);
+  margin: 0 auto 12px;
+}
+html[data-theme="light"] .cr-ico-badge {
+  background: linear-gradient(135deg, rgba(0, 180, 216, 0.10), rgba(255, 59, 92, 0.10));
+  border-color: rgba(255, 59, 92, 0.22);
+  color: var(--cr-coral);
+}
+
+/* ---------- 1c. ÉQUIPE D'AGENTS IA (BARRE DU HAUT) & AUDIT RÉTENTION ---------- */
+.ai-mode-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--stroke-subtle);
+  flex-shrink: 0;
+}
+html[data-theme="light"] .ai-mode-seg {
+  background: rgba(16, 16, 34, 0.05);
+}
+.ai-mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font: 600 12px var(--font-body);
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+.ai-mode-btn.actif {
+  background: var(--cr-grad-cta);
+  color: #FFFFFF;
+}
+.ai-roster-strip {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--stroke-subtle);
+  background: rgba(0, 229, 255, 0.04);
+}
+.ai-roster-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--glass-soft);
+  border: 1px solid var(--stroke-subtle);
+  color: var(--ink-2);
+}
+.ai-team-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 229, 255, 0.06);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  font-size: 12px;
+}
+.ai-team-step {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--ink-2);
+}
+.ai-team-step b {
+  color: var(--cr-cyan);
+  font-weight: 700;
+  white-space: nowrap;
+}
+html[data-theme="light"] .ai-team-step b {
+  color: var(--cr-coral);
+}
+.cr-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.cr-audit-kpi {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--glass-soft);
+  border: 1px solid var(--stroke-subtle);
+  text-align: center;
+}
+.cr-audit-kpi strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.cr-audit-kpi span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- 1d. INDICATEUR TOPBAR EN FABRICATION, PAGE FABRIQUE 9:16 & MONTAGE 2 OPTIONS ---------- */
+.topbar-fab-pill {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--glass-soft);
+  border: 1px solid var(--stroke-subtle);
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 148px;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.topbar-fab-pill.active {
+  display: inline-flex;
+}
+.topbar-fab-pill:hover {
+  border-color: var(--cr-cyan);
+  transform: translateY(-1px);
+}
+.topbar-fab-pill-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.topbar-fab-bar {
+  position: relative;
+  height: 3px;
+  width: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+html[data-theme="light"] .topbar-fab-bar {
+  background: rgba(16, 16, 34, 0.12);
+}
+.topbar-fab-bar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 45%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cr-grad-brand);
+  animation: cr-fab-slide 1.6s ease-in-out infinite;
+}
+@keyframes cr-fab-slide {
+  0% { left: -45%; }
+  100% { left: 105%; }
+}
+
+.cr-fab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 235px));
+  gap: 16px;
+  margin-top: 14px;
+}
+.cr-fab-card {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  background: linear-gradient(155deg, #1E1636 0%, #3E1834 52%, #18132B 100%);
+  border: 1px solid rgba(255, 59, 92, 0.28);
+  box-shadow: 0 14px 36px -14px rgba(0, 0, 0, 0.6);
+  color: #FFFFFF;
+}
+.cr-fab-card.queued {
+  background: linear-gradient(155deg, #141930 0%, #1F1A36 60%, #121224 100%);
+  border-color: rgba(0, 229, 255, 0.24);
+}
+.cr-fab-card.done {
+  background: linear-gradient(155deg, #112A2A 0%, #141C34 100%);
+  border-color: rgba(50, 215, 96, 0.4);
+}
+.cr-fab-card-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #FFFFFF;
+  margin-bottom: 6px;
+}
+.cr-fab-card-meta {
+  font-size: 12px;
+  color: rgba(248, 250, 255, 0.72);
+  margin-bottom: 12px;
+}
+.cr-fab-card-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+.cr-fab-card-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--cr-grad-brand);
+  transition: width 0.4s ease;
+}
+
+.cr-montage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 960px;
+}
+@media (max-width: 780px) {
+  .cr-montage-grid { grid-template-columns: 1fr; }
+}
+.cr-montage-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 22px;
+  background: var(--glass-soft);
+  border: 1.5px dashed var(--border);
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+.cr-montage-card:hover {
+  border-color: var(--cr-cyan);
+}
+.cr-montage-card h2 {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 6px;
+}
+.cr-montage-card p {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+.cr-btn-platform.is-youtube:hover { border-color: rgba(255, 0, 0, 0.65); }
+.cr-btn-platform.is-tiktok:hover  { border-color: rgba(0, 229, 255, 0.65); }
+.cr-btn-platform.is-insta:hover   { border-color: rgba(228, 64, 95, 0.65); }
+.cr-btn-platform.is-claude:hover  { border-color: rgba(217, 119, 87, 0.65); }
+
+/* ---------- 2. BADGES & PILLS ---------- */
+
+.cr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--cr-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 5px 10px;
+  border-radius: var(--cr-radius-pill);
+  border: 1px solid var(--cr-border);
+  background: var(--cr-surface);
+  color: var(--cr-text-muted);
+}
+.cr-badge-ai {
+  background: var(--cr-cyan-soft);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: var(--cr-cyan);
+}
+.cr-badge-live {
+  background: var(--cr-coral-soft);
+  border-color: rgba(255, 59, 92, 0.45);
+  color: #FF6B84;
+}
+.cr-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------- 3. BARRE DE PROGRESSION IA ---------- */
+
+.cr-progress {
+  width: 100%;
+  height: 8px;
+  background: var(--cr-surface-elevated);
+  border-radius: var(--cr-radius-pill);
+  overflow: hidden;
+  border: 1px solid var(--cr-border);
+}
+.cr-progress-fill {
+  height: 100%;
+  border-radius: var(--cr-radius-pill);
+  background: var(--cr-grad-brand);
+  transition: width 0.35s ease;
+}
+
+/* ---------- 4. CARTE STUDIO & APERÇU 9:16 ---------- */
+
+.cr-card {
+  background: var(--cr-grad-surface);
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-lg);
+  padding: 20px;
+}
+.cr-phone-916 {
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  background: radial-gradient(circle at 20% 15%, rgba(0, 229, 255, 0.22), transparent 55%),
+              radial-gradient(circle at 80% 85%, rgba(255, 59, 92, 0.25), transparent 55%),
+              #0D0D1C;
+  border: 2px solid var(--cr-border);
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+}
+
+/* ---------- 0. CHARTE APPLIQUÉE À L'APP (variables existantes) ---------- */
+
+:root,
+html[data-theme="dark"] {
+  --bg: var(--cr-bg);
+  --bg-elev: var(--cr-bg-brand);
+  --glass: rgba(21, 21, 43, 0.62);
+  --glass-strong: rgba(28, 28, 56, 0.78);
+  --glass-soft: rgba(152, 160, 194, 0.06);
+  --glass-hover: rgba(152, 160, 194, 0.11);
+  --lg-sidebar: rgba(16, 16, 34, 0.62);
+  --border: rgba(152, 160, 194, 0.13);
+  --border-hi: rgba(152, 160, 194, 0.24);
+  --stroke-subtle: rgba(152, 160, 194, 0.09);
+
+  --ink: var(--cr-text);
+  --ink-2: #DCE0F0;
+  --muted: var(--cr-text-muted);
+  --faint: #8A90B4; /* AA ≥ 4.5 sur les surfaces sombres */
+  --btn-bg: var(--cr-text);
+  --btn-text: var(--cr-bg);
+
+  --accent: var(--cr-coral);
+  --accent-fill: #D92648; /* corail des fonds sous texte blanc (AA ≥ 4.5) */
+  --accent-link: #FF6B84;
+  --accent-soft: var(--cr-coral-soft);
+  --cta-grad: var(--cr-grad-cta);
+  --cta-shadow: var(--cr-shadow-coral), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --indigo: var(--cr-cyan);
+  --indigo-soft: var(--cr-cyan-soft);
+
+  --aurora-1: rgba(0, 229, 255, 0.12);
+  --aurora-2: rgba(255, 59, 92, 0.16);
+  --aurora-3: rgba(123, 44, 255, 0.12);
+
+  --font-display: var(--cr-font-display);
+  --font-body: var(--cr-font-ui);
+  --font-mono: var(--cr-font-mono);
+}
+
+html[data-theme="light"] {
+  --bg: #F6F7FB;
+  --bg-elev: #FFFFFF;
+  --ink: var(--cr-bg);
+  --ink-2: #1F2033;
+  --muted: #5A5F7A;
+  --faint: #6A6F8B; /* AA ≥ 4.5 sur fond blanc */
+  --btn-bg: var(--cr-bg);
+  --btn-text: #FFFFFF;
+  /* Corail et cyan assombris pour rester lisibles sur fond blanc (contraste AA ≥ 4.5). */
+  --accent: #D61F45;
+  --accent-fill: #D61F45;
+  --accent-link: #C81E44;
+  --accent-soft: rgba(214, 31, 69, 0.10);
+  --indigo: #007A8F;
+  --indigo-soft: rgba(0, 122, 143, 0.10);
+  --aurora-1: rgba(0, 229, 255, 0.14);
+  --aurora-2: rgba(255, 59, 92, 0.12);
+  --aurora-3: rgba(123, 44, 255, 0.10);
+}
+
+.brand-mark-svg { border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.5); }
+.plugin-card.on { border-color: rgba(0, 229, 255, 0.38); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-btn, .cr-btn-spark::after, .cr-btn-spark .cr-spark-icon, .cr-progress-fill { transition: none; }
+}

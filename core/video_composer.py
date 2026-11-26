@@ -94,7 +94,7 @@ THEMES: Dict[str, Dict[str, str]] = {
 }
 
 
-# Couleurs des mots-clés (méthode Clipoa) : jaune = noms/chiffres, rouge = danger, vert = positif
+# Couleurs des mots-clés (méthode ClipRoll) : jaune = noms/chiffres, rouge = danger, vert = positif
 KEYWORD_COLORS: Dict[str, str] = {
     "yellow": "&H0000E6FF",  # #FFE600
     "red": "&H003C4CE7",     # #E74C3C
@@ -694,7 +694,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     # Encodage final : qualité supérieure (les plateformes ré-encodent, il faut leur donner une bonne source)
     VIDEO_ENCODE_ARGS = [
-        "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-profile:v", "high",
+        "-c:v", "libx264", "-preset", "fast", "-threads", "0", "-crf", "19", "-profile:v", "high",
         "-r", "30", "-g", "60", "-pix_fmt", "yuv420p",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
     ]

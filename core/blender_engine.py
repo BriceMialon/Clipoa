@@ -136,13 +136,13 @@ ASSET_DIR = {json.dumps(str(cls.ASSET_DIR) if cls.ASSET_DIR.exists() else "")}
     @classmethod
     def enforce_render_settings(cls, python_script_path: str, frames: int, fps: int = 12) -> None:
         """
-        Pour les scripts écrits par l'IA : impose la sortie Clipoa à la fin du script (540x960 @ 12 fps,
+        Pour les scripts écrits par l'IA : impose la sortie ClipRoll à la fin du script (540x960 @ 12 fps,
         MP4 H.264, durée = durée de la voix, jamais Cycles) pour que le fond couvre toute la vidéo
         sans dérapage de durée ni rendu interminable.
         """
         footer = f"""
 
-# ===== Réglages imposés par Clipoa (ajoutés automatiquement) =====
+# ===== Réglages imposés par ClipRoll (ajoutés automatiquement) =====
 import bpy as _clipoa_bpy
 _cs = _clipoa_bpy.context.scene
 _cs.render.resolution_x = 540
@@ -167,6 +167,14 @@ _cs.render.use_file_extension = False
                 f.write(footer)
         except Exception as e:
             logger.warning(f"Réglages Blender non imposés : {e}")
+
+    FRAME_SIGNAL_EXPR = (
+        "import bpy\n"
+        "@bpy.app.handlers.persistent\n"
+        "def _clipoa_frame(scene, *args):\n"
+        "    print('CLIPOA_FRAME', scene.frame_current, flush=True)\n"
+        "bpy.app.handlers.render_post.append(_clipoa_frame)\n"
+    )
 
     @classmethod
     def render_script(
@@ -196,6 +204,9 @@ _cs.render.use_file_extension = False
             BLENDER_PATH,
             "-b",
             "--python", python_script_path,
+            # Blender met sa sortie en mémoire tampon quand elle part dans un tuyau : sans ce signal Python vidé
+            # à chaque image, la barre de progression pouvait rester figée tout le rendu.
+            "--python-expr", cls.FRAME_SIGNAL_EXPR,
             "-o", output_path,
             "-s", "1",
             "-e", str(frames),
@@ -214,7 +225,7 @@ _cs.render.use_file_extension = False
         last_activity = time.time()
         last_out_size = 0
         last_reported_frame = 0
-        fra_re = re.compile(r"(?:Fra:|Append frame\s+)(\d+)")
+        fra_re = re.compile(r"(?:CLIPOA_FRAME\s+|Fra:|Append frame\s+)(\d+)")
 
         try:
             while True:
@@ -378,7 +389,7 @@ text_obj.data.materials.append(mat)
     ) -> str:
         """
         `timed_shots` (plan de production) : [{start, end, desc}] en secondes, calés sur la voix réelle
-        -> chaque coupe de caméra tombe sur une phrase (méthode Clipoa : un plan toutes les 2-4 s).
+        -> chaque coupe de caméra tombe sur une phrase (méthode ClipRoll : un plan toutes les 2-4 s).
         Generates a rich, TRUE MULTI-SHOT procedural 3D Roblox R6 movie in Blender 5.x (EEVEE, 9:16 H.264 MP4)
         covering the ENTIRE video duration with distinct camera angles & 3D zones per shot (never just 1 static shot!).
         """

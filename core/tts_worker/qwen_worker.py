@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Worker voix HD locale (Qwen3-TTS, Apache 2.0). Exécuté avec le Python isolé `venv_tts` (>= 3.10),
-jamais importé par Clipoa (dont le Python est 3.9). Entrée : un fichier JSON ; sortie : un WAV mono.
+jamais importé par ClipRoll (dont le Python est 3.9). Entrée : un fichier JSON ; sortie : un WAV mono.
 
   python qwen_worker.py job.json
   job = {"text": "...", "out": "/chemin/speech.wav", "speaker": "Ryan", "instruct": "ton posé",

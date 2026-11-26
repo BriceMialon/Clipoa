@@ -27,7 +27,7 @@ def _tar(path: Path, members):
 
 class UpdaterTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp()).resolve()  # macOS : /var -> /private/var
 
     def test_parse_version(self):
         self.assertGreater(updater.parse_version("0.10.0"), updater.parse_version("0.9.9"))
@@ -43,6 +43,7 @@ class UpdaterTests(unittest.TestCase):
         self.assertIsNone(updater.install_home(self.tmp))
         self.assertEqual(updater.release_info(self.tmp), {})
 
+    @unittest.skipIf(os.name == "nt", "disposition macOS par symlink (Windows passe par current_version)")
     def test_install_layout_and_switch(self):
         home = self.tmp
         for v in ("0.1.0", "0.2.0", "0.0.9"):
@@ -54,6 +55,16 @@ class UpdaterTests(unittest.TestCase):
         updater.prune_versions(home, keep=("0.2.0", "0.1.0"))
         self.assertEqual(sorted(p.name for p in (home / "versions").iterdir()), ["0.1.0", "0.2.0"])
 
+    def test_switch_current_windows_marker(self):
+        from unittest.mock import patch
+        home = self.tmp
+        (home / "versions" / "0.2.0").mkdir(parents=True)
+        with patch.object(updater.sys, "platform", "win32"):
+            updater.switch_current(home, "0.2.0")
+        self.assertEqual((home / "current_version").read_text(encoding="utf-8").strip(), "0.2.0")
+        self.assertFalse((home / "current_version.tmp").exists())
+
+    @unittest.skipIf(os.name == "nt", "symlinks macOS (Windows passe par CLIPOA_DATA_DIR)")
     def test_link_shared(self):
         d = self.tmp / "versions" / "1.0.0"
         (d / "storage").mkdir(parents=True)
