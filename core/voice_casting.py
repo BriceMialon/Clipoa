@@ -158,8 +158,11 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
 
 def build_candidates(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
     acc = account_voices(key)
-    own = [v for v in acc if v.get("category") in ("cloned", "professional", "generated")]
-    lib = library_voices(key, language, free_only=free_only)
+    # Compte gratuit : l'API refuse toute voix de la bibliothèque (402 paid_plan_required), même
+    # « free_users_allowed » et même déjà ajoutée au compte (catégorie « professional »).
+    own_cats = ("cloned", "generated") if free_only else ("cloned", "professional", "generated")
+    own = [v for v in acc if v.get("category") in own_cats]
+    lib = [] if free_only else library_voices(key, language, free_only=free_only)
     seen = set()
     out: List[Dict[str, Any]] = []
     for group in (own[:8], lib, [v for v in acc if v.get("category") == "premade"], DEFAULT_VOICES):

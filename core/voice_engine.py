@@ -531,6 +531,10 @@ class VoiceEngine:
                 cls._generate_edge_tts(text, DEFAULT_TTS_VOICE, audio_mp3, srt_path)
         elif provider == "elevenlabs" and el_key:
             voice_id = chosen_voice or el_cfg.get("default_voice_id") or ELEVENLABS_VOICE_ID or ""
+            if not voice_id:
+                # Aucun réglage : sans voix, l'API répond 404. On prend une voix de base, utilisable en gratuit.
+                from core.voice_casting import DEFAULT_VOICES
+                voice_id = DEFAULT_VOICES[0]["voice_id"]
             el_model = model_id or el_cfg.get("model_id") or "eleven_multilingual_v2"
             try:
                 cls._generate_elevenlabs(text, audio_mp3, el_key, voice_id, el_model, settings=el_settings)

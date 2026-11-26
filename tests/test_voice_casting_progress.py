@@ -92,6 +92,23 @@ class TestVoiceCasting(unittest.TestCase):
                 self.assertEqual(post.call_count, 1)
             self.assertEqual(vc.resolve_voice_id("k", dict(self.CANDS[2])), "JBFqnCBsd6RMkjVDRZzb")
 
+    def test_free_tier_never_offers_library_voices(self):
+        from core import voice_casting as vc
+        acc = [{"voice_id": "anatole", "name": "Anatole", "category": "professional"},
+               {"voice_id": "moi", "name": "Ma voix", "category": "cloned"},
+               {"voice_id": "TX3LPaxmHKxFdv7VOQHJ", "name": "Liam", "category": "premade"}]
+        with patch.object(vc, "account_voices", return_value=acc), \
+             patch.object(vc, "library_voices", return_value=[{"voice_id": "lib_fr", "name": "Lib"}]) as lib:
+            free = [v["voice_id"] for v in vc.build_candidates("k", "fr", free_only=True)]
+            paid = [v["voice_id"] for v in vc.build_candidates("k", "fr", free_only=False)]
+        self.assertNotIn("anatole", free)
+        self.assertNotIn("lib_fr", free)
+        self.assertIn("moi", free)
+        self.assertIn("TX3LPaxmHKxFdv7VOQHJ", free)
+        self.assertEqual(lib.call_count, 1)
+        self.assertIn("anatole", paid)
+        self.assertIn("lib_fr", paid)
+
     def test_cast_voices_falls_back_without_ai(self):
         from core import voice_casting as vc
         sub = MagicMock(status_code=200)
@@ -122,6 +139,20 @@ class TestVoiceCasting(unittest.TestCase):
         self.assertEqual(out["provider"], "elevenlabs")
         self.assertIn("casting", out)
 
+
+    def test_empty_default_voice_falls_back_to_base_voice(self):
+        from core.voice_engine import VoiceEngine
+        from core.voice_casting import DEFAULT_VOICES
+        with tempfile.TemporaryDirectory() as td, \
+             patch("core.voice_engine.AUDIO_DIR", Path(td)), \
+             patch("core.voice_engine.load_settings", return_value={"elevenlabs": {"default_voice_id": ""}}), \
+             patch("core.voice_engine.ELEVENLABS_VOICE_ID", ""), \
+             patch.object(VoiceEngine, "get_elevenlabs_key", return_value="k"), \
+             patch.object(VoiceEngine, "_generate_elevenlabs") as gen, \
+             patch("core.voice_engine.subprocess.run"):
+            out = VoiceEngine.generate_voice("Bonjour à tous.", "t2", voice="el:")
+        self.assertEqual(gen.call_args[0][3], DEFAULT_VOICES[0]["voice_id"])
+        self.assertEqual(out["provider"], "elevenlabs")
 
 class TestProgressTicker(unittest.TestCase):
     def test_eased_never_reaches_end(self):

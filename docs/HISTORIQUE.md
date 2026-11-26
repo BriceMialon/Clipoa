@@ -161,3 +161,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Édition public : `/api/agent-team/` et `/api/channel-stats/tiktok-handle` coupés, mode Équipe IA masqué.
 - S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
 - `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.
+
+## 26/11/2026 — Voix ElevenLabs en compte gratuit
+- Réglage `elevenlabs.default_voice_id` vide : on prend une voix de base (George) au lieu d'appeler l'API sans voix (404).
+- Compte gratuit : le casting IA ne propose plus les voix de la bibliothèque ni celles déjà ajoutées au compte (catégorie « professional »), que l'API refuse (402). Restent les voix de base et les voix clonées/générées de l'utilisateur.
