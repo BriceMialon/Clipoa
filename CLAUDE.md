@@ -43,6 +43,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/scene_designer.py` + `core/blender_kit/` | Décor sur mesure décrit par l'IA + constructeurs Blender par style ; `assets/blender_kit/` = modèles GLB. |
 | `core/production_method.py` | Méthode Clipoa : plan de production (plans calés sur la voix, twist, SFX ancrés, mots-clés, cartons). |
 | `core/sound_designer.py` | Mixage FFmpeg local : musique par ambiance + ducking + coupure avant twist + SFX du plan + version sans musique. |
+| `core/notifier.py` + `core/menubar.py` | Notifications macOS (vidéo prête, publiée) + icône barre de menus (état, Ouvrir, Quitter). |
 | `core/timing_tracker.py` | Apprentissage des durées réelles par moteur/mode (`storage/timing_history.json`). |
 | `core/pipeline.py` | Orchestration vidéo (`create_direct_short`, voix + mix audio + Blender 3D multi-plans + composition FFmpeg + sous-titres). |
 | `templates/index.html` & `static/css/liquid-glass.css` | UI complète, barre IA en topbar, aperçu script mis en forme, jauges 5h/7j. |

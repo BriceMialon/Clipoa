@@ -96,3 +96,9 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `core/onboarding.py` + `/api/onboarding` (GET état, POST skip/finish/restart/video_started) ; état dans `storage/onboarding.json`.
 - `static/js/clipoa_onboarding.js` : guide Bienvenue → Outils → Claude (clé API, presse-papiers lu au retour) → Première vidéo → Réseau (YouTube puis TikTok, « bientôt » si l'OAuth n'est pas prêt) → Fini. Ouvert seul tant qu'il n'est ni fini ni passé ; « Relancer le guide » dans Connexions.
 - Accueil : ligne « À faire maintenant » (`#home-next-step`) calculée sur l'état réel. Rien sur Gemini, Ciné ni Antigravity (test `tests/test_onboarding.py`).
+
+## 26/11/2026 — Icône barre de menus + notifications macOS
+- `core/notifier.py` : notifications système « Vidéo prête : <titre> », « Échec du rendu », « Publiée sur YouTube, TikTok », « Échec de la publication ». macOS par `osascript` (texte passé en argument, jamais interprété). Actif seulement après `run_app` (`notifier.activate()`), donc rien pendant les tests. Couper : `CLIPOA_NOTIFY=0`. Appelé par `_finish_job` (app.py) et `execute_post` (social_publisher).
+- `core/menubar.py` : icône dans la barre de menus (rumps, processus séparé lancé par `run_app` avec le PID du serveur). Affiche « 42% » pendant un rendu, « Prête : <titre> » ensuite ; menu « Ouvrir Clipoa » / « Quitter » (arrête le serveur, confirmation si rendu en cours). Se ferme quand le serveur s'arrête (une seule icône après un redémarrage de MAJ). Lancé par import (`python -c "from core.menubar import main; main()"`) pour rester compatible Nuitka `--module`. Pas d'icône Dock. Couper : `CLIPOA_MENUBAR=0`.
+- Dépendances macOS seulement (`sys_platform == "darwin"`) : rumps 0.4.0, pyobjc-core / pyobjc-framework-Cocoa 11.1 → entrent dans `requirements.lock` au prochain `build_release.sh`. Sans rumps (Windows), rien ne se lance. Icône « template » : `assets/menubar/clipoa_template.png`.
+- Tests : `tests/test_notifier_menubar.py`.

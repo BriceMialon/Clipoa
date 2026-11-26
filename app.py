@@ -487,6 +487,7 @@ def _update_job(job_id: str, progress: int, step: str):
 
 
 def _finish_job(job_id: str, result=None, error: str = None):
+    ended = None
     with JOBS_LOCK:
         if job_id in JOBS:
             if error:
@@ -508,6 +509,13 @@ def _finish_job(job_id: str, result=None, error: str = None):
                         JOBS[job_id]["session_id"] = first.get("session_id", "")
                         JOBS[job_id]["video_title"] = f"{len(result['clips'])} short(s) extrait(s)"
             _persist_jobs()
+            ended = dict(JOBS[job_id])
+    if ended:
+        try:
+            from core import notifier
+            notifier.video_done(ended.get("video_title") or "", error)
+        except Exception:
+            pass
 
 
 def _tag_render_account(session_id: str, account) -> None:
@@ -2969,6 +2977,12 @@ def run_app(port=8080):
     cleanup_res = cleanup_temp_storage(DOWNLOADS_DIR, AUDIO_DIR, max_age_days=CLIPOA_TEMP_TTL_DAYS)
     FreeSocialPublisher.start_scheduler()
     NightFactory.start_worker()
+    try:  # notifications + icône barre de menus (macOS ; rien ailleurs)
+        from core import notifier, menubar
+        notifier.activate()
+        menubar.launch(port)
+    except Exception as _e:
+        print(f"⚠️ Barre de menus : {_e}")
     bind_host = CLIPOA_HOST
     print(f"\n🚀 Clipoa démarré (sécurisé · Pulse & Gemini/Veo intégrés) !")
     print(f"   💻 Sur ton Mac       : http://localhost:{port}")

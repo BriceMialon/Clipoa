@@ -1207,6 +1207,11 @@ class FreeSocialPublisher:
         else:
             new_status = "failed"
         published_at = time.strftime("%Y-%m-%d %H:%M")
+        try:
+            from core import notifier
+            notifier.published(new_status, [p for p in target.get("platforms", []) if (results.get(p) or {}).get("ok")])
+        except Exception:
+            pass
 
         fresh_queue = cls.load_queue()
         updated_target = None
