@@ -139,3 +139,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
 - `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
 - Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.
+
+## 26/11/2026 : site public cliproll.app (page de vente)
+- `site_public/` refait à partir de la page Gemini : accueil, `/tarifs`, confidentialité et conditions (FR + EN), 404, sitemap, robots, image Open Graph. Abonnement seul 19 €/mois ou 149 €/an, essai 3 jours carte demandée, Claude + ElevenLabs uniquement, aucun concurrent nommé.
+- Worker `clipoa-license` : `GET /checkout?plan=` redirige vers Stripe Checkout (boutons du site sans JS ni CORS), variable `SITE_URL` pour le retour après abandon et la sortie du portail. Reste à remplir : lien du portail client Stripe, mentions éditeur/rétractation/médiateur, vraies vidéos d'exemple (voir `site_public/README.md`).

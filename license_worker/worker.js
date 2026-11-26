@@ -1,5 +1,6 @@
 // Serveur de licence ClipRoll (Cloudflare Worker + D1).
 // - POST /checkout            {plan}            -> URL Stripe Checkout (abonnement, essai 3 j, carte demandée)
+// - GET  /checkout?plan=yearly|monthly          -> redirection 303 vers Stripe Checkout (boutons du site, sans JS ni CORS)
 // - GET  /success?session_id=                    -> page qui affiche la clé de licence
 // - POST /portal              {key}             -> URL du portail client Stripe (carte, factures, résiliation)
 // - POST /stripe/webhook                         -> événements Stripe (signature vérifiée)
@@ -221,11 +222,17 @@ async function handleSuccess(env, url) {
   const sub = await stripe(env, "GET", "subscriptions/" + session.subscription);
   const key = await upsertFromSubscription(env, sub, session.customer_details && session.customer_details.email);
   return page("Votre licence ClipRoll", `<h1>Merci !</h1><p>Votre clé de licence :</p><p><code>${key}</code></p>
-<p>Collez-la dans ClipRoll (Réglages, Licence). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>`);
+<p>Collez-la dans ClipRoll (Réglages, Licence). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>
+<p>Conservez-la : elle vous sera redemandée sur un nouvel ordinateur. <a href="${siteUrl(env)}/">Retour au site</a></p>`);
 }
 
-async function handleCheckout(env, body) {
-  const plan = body.plan === "yearly" ? "yearly" : "monthly";
+// Site public (cliproll.app) : page de retour si l'acheteur abandonne le paiement.
+function siteUrl(env) {
+  return String(env.SITE_URL || env.PUBLIC_URL).replace(/\/+$/, "");
+}
+
+async function createCheckout(env, planParam) {
+  const plan = planParam === "monthly" ? "monthly" : "yearly"; // annuel par défaut (présélectionné sur le site)
   const price = plan === "yearly" ? env.PRICE_YEARLY : env.PRICE_MONTHLY;
   const base = env.PUBLIC_URL;
   const session = await stripe(env, "POST", "checkout/sessions", {
@@ -237,15 +244,24 @@ async function handleCheckout(env, body) {
     allow_promotion_codes: "true",
     billing_address_collection: "auto",
     success_url: base + "/success?session_id={CHECKOUT_SESSION_ID}",
-    cancel_url: base + "/",
+    cancel_url: siteUrl(env) + (env.SITE_URL ? "/tarifs" : "/"),
   });
-  return json({ url: session.url });
+  return session.url;
+}
+
+async function handleCheckout(env, body) {
+  return json({ url: await createCheckout(env, body.plan === "yearly" ? "yearly" : "monthly") });
+}
+
+async function handleCheckoutRedirect(env, url) {
+  const target = await createCheckout(env, url.searchParams.get("plan"));
+  return new Response(null, { status: 303, headers: { location: target, "cache-control": "no-store" } });
 }
 
 async function handlePortal(env, body) {
   const lic = await getLicense(env, normKey(body.key));
   if (!lic) return json({ error: "Clé inconnue." }, 404);
-  const s = await stripe(env, "POST", "billing_portal/sessions", { customer: lic.customer_id, return_url: env.PUBLIC_URL + "/" });
+  const s = await stripe(env, "POST", "billing_portal/sessions", { customer: lic.customer_id, return_url: siteUrl(env) + "/" });
   return json({ url: s.url });
 }
 
@@ -256,6 +272,7 @@ export default {
       assertTestMode(env);
       if (request.method === "GET" && url.pathname === "/") return json({ service: "clipoa-license", ok: true });
       if (request.method === "GET" && url.pathname === "/success") return handleSuccess(env, url);
+      if (request.method === "GET" && url.pathname === "/checkout") return handleCheckoutRedirect(env, url);
       if (request.method !== "POST") return json({ error: "not found" }, 404);
       if (url.pathname === "/stripe/webhook") return handleWebhook(request, env);
       const body = await request.json().catch(() => ({}));

@@ -1,111 +1,325 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <title>ClipRoll — Create, edit and publish 9:16 shorts</title>
-  <meta name="description" content="Desktop studio for creating 9:16 short videos locally and publishing to YouTube Shorts, TikTok, Instagram Reels and Facebook Reels.">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ClipRoll : crée tes Shorts, TikTok et Reels sur ton ordinateur</title>
+  <meta name="description" content="ClipRoll est une application pour Mac qui transforme une idée en vidéo verticale : script avec Claude, voix ElevenLabs, montage et sous-titres en local, avec tes propres clés. Essai gratuit de 3 jours." />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <link rel="canonical" href="https://cliproll.app/" />
+  <meta name="theme-color" content="#0B0B16" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ClipRoll" />
+  <meta property="og:locale" content="fr_FR" />
+  <meta property="og:title" content="ClipRoll : tes Shorts fabriqués sur ton ordinateur" />
+  <meta property="og:description" content="Script, voix, montage et sous-titres en local, avec tes propres clés Claude et ElevenLabs. 19 €/mois ou 149 €/an, essai gratuit de 3 jours." />
+  <meta property="og:url" content="https://cliproll.app/" />
+  <meta property="og:image" content="https://cliproll.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="ClipRoll, de l'idée au Short prêt à poster" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ClipRoll : tes Shorts fabriqués sur ton ordinateur" />
+  <meta name="twitter:description" content="Script, voix, montage et sous-titres en local, avec tes propres clés Claude et ElevenLabs." />
+  <meta name="twitter:image" content="https://cliproll.app/assets/og-image.png" />
+  <link rel="icon" href="/assets/icons/favicon.ico" sizes="any" />
+  <link rel="icon" href="/assets/icons/logo.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/design-system.css" />
+  <link rel="stylesheet" href="/assets/site.css" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://cliproll.app/#org",
+        "name": "ClipRoll",
+        "url": "https://cliproll.app/",
+        "logo": "https://cliproll.app/assets/icons/icon-512.png"
+      },
+      {
+        "@type": "WebSite",
+        "@id": "https://cliproll.app/#site",
+        "name": "ClipRoll",
+        "url": "https://cliproll.app/",
+        "inLanguage": "fr-FR",
+        "publisher": { "@id": "https://cliproll.app/#org" }
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "ClipRoll",
+        "url": "https://cliproll.app/",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "macOS",
+        "description": "Application pour Mac qui transforme une idée en vidéo courte verticale (YouTube Shorts, TikTok, Reels) : script avec Claude, voix ElevenLabs, montage et sous-titres sur l'ordinateur de l'utilisateur, avec ses propres clés.",
+        "publisher": { "@id": "https://cliproll.app/#org" },
+        "offers": [
+          { "@type": "Offer", "name": "ClipRoll annuel", "price": "149", "priceCurrency": "EUR", "url": "https://cliproll.app/tarifs" },
+          { "@type": "Offer", "name": "ClipRoll mensuel", "price": "19", "priceCurrency": "EUR", "url": "https://cliproll.app/tarifs" }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Quelles clés dois-je fournir ?", "acceptedAnswer": { "@type": "Answer", "text": "Une clé API Anthropic (Claude) pour écrire les scripts et une clé ElevenLabs pour la voix. Tu les crées sur console.anthropic.com et elevenlabs.io, puis tu les colles une fois dans ClipRoll." } },
+          { "@type": "Question", "name": "Combien coûtent ces clés en plus de ClipRoll ?", "acceptedAnswer": { "@type": "Answer", "text": "Anthropic et ElevenLabs te facturent directement, à leurs tarifs publics. Le montant dépend du nombre et de la durée de tes vidéos. ClipRoll ne prend aucune commission et ne fixe aucun quota." } },
+          { "@type": "Question", "name": "Qu'est-ce qui s'installe sur mon ordinateur ?", "acceptedAnswer": { "@type": "Answer", "text": "Au premier lancement, ClipRoll installe Blender, FFmpeg et Whisper depuis leurs sources officielles. Prévois quelques gigaoctets d'espace libre. Les mises à jour de ClipRoll ne les téléchargent pas à nouveau." } },
+          { "@type": "Question", "name": "ClipRoll fonctionne-t-il sur Windows ?", "acceptedAnswer": { "@type": "Answer", "text": "La version Mac sort en premier. La version Windows est en préparation et sera incluse dans le même abonnement." } },
+          { "@type": "Question", "name": "Que deviennent mes vidéos si j'arrête l'abonnement ?", "acceptedAnswer": { "@type": "Answer", "text": "Elles restent sur ton ordinateur, rien n'est supprimé. Sans abonnement actif, tu ne peux simplement plus fabriquer de nouvelles vidéos." } }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
-  <header>
-    <nav>
-      <a class="brand" href="./"><img class="logo" src="icon.svg" alt="" width="28" height="28">ClipRoll</a>
-      <div class="links">
-        <a href="./">Home</a>
-        <a href="#youtube-api">YouTube API</a>
-        <a href="privacy.html">Privacy</a>
-        <a href="terms.html">Terms</a>
+  <a class="skip" href="#contenu">Aller au contenu</a>
+  <nav class="nav" aria-label="Navigation principale">
+    <div class="container nav-inner">
+      <a class="brand" href="/">
+        <img src="/assets/icons/logo.svg" width="34" height="34" alt="" />
+        <span class="brand-name">Clip<span>Roll</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="/#exemples">Exemples</a>
+        <a href="/#fonctionnement">Fonctionnement</a>
+        <a href="/#couts">Coûts</a>
+        <a href="/tarifs">Tarifs</a>
+        <a href="/#faq">FAQ</a>
       </div>
-    </nav>
-  </header>
+      <a class="cr-btn cr-btn-spark" href="/tarifs">Essai gratuit 3 jours</a>
+    </div>
+  </nav>
 
-  <main>
-    <section class="hero">
-      <div>
-        <h1>Create, edit and publish 9:16 shorts.</h1>
-        <p class="lead">Cut long footage, burn subtitles locally on your Mac and schedule to YouTube Shorts, TikTok and Reels.</p>
-        <div class="hero-actions">
-          <a class="btn-cta" href="#youtube-api">Explore ClipRoll</a>
-          <a class="btn-sec" href="privacy.html">Privacy Policy</a>
-        </div>
-        <div class="hero-meta">macOS · 1080×1920 · Local FFmpeg &amp; Whisper</div>
-      </div>
-
-      <div class="studio-preview" aria-label="ClipRoll 9:16 Studio preview">
-        <div class="sp-bar">
-          <div class="sp-dots"><span></span><span></span><span></span></div>
-          <span>ClipRoll Studio · 9:16</span>
-          <span class="sp-tag">1080×1920</span>
-        </div>
-        <div class="sp-body">
-          <div class="sp-reel">
-            <span class="sp-tag">00:42</span>
-            <div class="sp-play">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2L10 6L3 10Z"/></svg>
-            </div>
-            <div class="sp-caps">READY TO POST</div>
+  <main id="contenu">
+    <header class="hero">
+      <div class="container hero-grid">
+        <div>
+          <h1>Transforme une idée en <span class="grad-text">Short prêt à poster</span>, sur ton ordinateur.</h1>
+          <p class="hero-sub">ClipRoll écrit le script avec Claude, génère la voix avec ElevenLabs, monte les plans et cale les sous-titres directement sur ton Mac. Tu branches tes propres clés : pas de crédits ClipRoll, pas de quota.</p>
+          <div class="ctas">
+            <a class="cr-btn cr-btn-spark" href="/tarifs">
+              <svg class="cr-spark-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4L12 2Z"/></svg>
+              Commencer l'essai gratuit
+            </a>
+            <a class="cr-btn cr-btn-cyan" href="#exemples">Voir des exemples</a>
           </div>
-          <div class="sp-col">
-            <div class="sp-card">
-              <div class="sp-card-title">Episode 03 — Short Cut</div>
-              <div class="sp-card-sub">H.264 · 30 fps · Subtitles synced</div>
-              <div class="sp-track"><div class="sp-fill"></div></div>
+          <p class="hero-meta">
+            <span>macOS · Windows en préparation</span>
+            <span>3 jours gratuits, carte demandée</span>
+            <span>Résiliation en ligne à tout moment</span>
+          </p>
+        </div>
+
+        <div class="studio-window" role="img" aria-label="Illustration de l'interface ClipRoll pendant la fabrication d'un Short">
+          <div class="win-bar" aria-hidden="true"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27C93F"></i></div>
+          <div class="studio-body" aria-hidden="true">
+            <div>
+              <div class="prompt-box">
+                <span class="prompt-label">Ton idée</span>
+                « Pourquoi les pieuvres ont trois cœurs. Ton curieux, 45 secondes. »
+              </div>
+              <div class="step-line"><span>Script</span><strong>fait</strong></div>
+              <div class="step-line"><span>Voix</span><strong>faite</strong></div>
+              <div class="step-line"><span>Plans et sous-titres</span><strong>en cours</strong></div>
+              <div class="cr-progress"><div class="cr-progress-fill" style="width:72%"></div></div>
             </div>
-            <div class="sp-nets">
-              <span class="sp-net"><i></i>YouTube Shorts</span>
-              <span class="sp-net"><i></i>TikTok</span>
-              <span class="sp-net"><i></i>Instagram Reels</span>
-              <span class="sp-net"><i></i>Facebook Reels</span>
+            <div class="mini-phone">
+              <div class="caption-pop">« ET LE <em>TROISIÈME</em> CŒUR… »</div>
             </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="strip">
+      <div class="container">
+        <p><span class="muted">Format vertical 1080×1920 pour</span> <span>YouTube Shorts</span> <span>TikTok</span> <span>Instagram Reels</span> <span>Facebook Reels</span></p>
+      </div>
+    </div>
+
+    <section id="exemples">
+      <div class="container">
+        <div class="sec-head">
+          <h2>Des vidéos fabriquées avec ClipRoll</h2>
+          <p>Plusieurs styles visuels au choix : 3D, stickman, explainer 2D, fête. Chaque exemple ci-dessous sort tel quel de l'application.</p>
+        </div>
+        <div class="shorts-grid">
+          <!-- EXEMPLE : déposer assets/exemples/exemple-1.mp4 + exemple-1.jpg, puis remplacer le texte du bloc .short-screen par :
+               <video src="/assets/exemples/exemple-1.mp4" poster="/assets/exemples/exemple-1.jpg" width="1080" height="1920" controls playsinline preload="none"></video> -->
+          <article class="short-card">
+            <div class="short-screen">Vidéo d'exemple bientôt disponible</div>
+            <h3>Style 3D</h3>
+            <p>Décor et personnages en 3D, plans calés sur la voix.</p>
+          </article>
+          <article class="short-card">
+            <div class="short-screen">Vidéo d'exemple bientôt disponible</div>
+            <h3>Style stickman</h3>
+            <p>Bonhommes dessinés, idéal pour raconter une histoire vite.</p>
+          </article>
+          <article class="short-card">
+            <div class="short-screen">Vidéo d'exemple bientôt disponible</div>
+            <h3>Style explainer 2D</h3>
+            <p>Schémas et mots-clés à l'écran pour expliquer une idée.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="pourquoi" style="padding-top:16px">
+      <div class="container">
+        <div class="sec-head">
+          <h2>Pourquoi fabriquer en local</h2>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Pas de crédits qui fondent</h3>
+            <p>ClipRoll ne vend pas de crédits et ne limite pas le nombre de vidéos. Tu paies Claude et ElevenLabs directement, à leurs tarifs, sans commission.</p>
+          </div>
+          <div class="card">
+            <h3>Tes fichiers restent chez toi</h3>
+            <p>Scripts, voix et vidéos sont enregistrés sur ton ordinateur. Aucune vidéo n'est stockée sur un serveur ClipRoll, et rien n'est supprimé si tu arrêtes.</p>
+          </div>
+          <div class="card">
+            <h3>Tu gardes la main</h3>
+            <p>Tu relis et modifies le script avant le rendu, puis tu vérifies la vidéo avant de la publier. Rien ne part sans ton accord.</p>
+          </div>
+          <div class="card">
+            <h3>Mises à jour incluses</h3>
+            <p>Nouveaux styles, nouvelles voix, compatibilité avec les nouveaux modèles : tout est inclus tant que ton abonnement est actif.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="section">
-      <h2>Local rendering. Direct publishing.</h2>
-      <p class="section-sub">Your footage stays on your computer. Connect your official accounts to publish or schedule from one place.</p>
-      <div class="grid">
-        <div class="card">
-          <h3>Create &amp; cut</h3>
-          <p>Turn a script or long recording into vertical 9:16 shorts with local Whisper subtitles and FFmpeg rendering.</p>
+    <section id="fonctionnement" style="padding-top:16px">
+      <div class="container">
+        <div class="sec-head">
+          <h2>De l'idée au MP4 en 3 étapes</h2>
         </div>
-        <div class="card">
-          <h3>Publish &amp; schedule</h3>
-          <p>Sign in with each platform's official OAuth screen, then upload now or schedule to the exact minute.</p>
-        </div>
-        <div class="card">
-          <h3>Multiple accounts</h3>
-          <p>Connect several channels per platform and switch in one click. Every scheduled post stays bound to its channel.</p>
+        <div class="grid-3">
+          <div class="cr-card">
+            <span class="step-num">1</span>
+            <h3>Installe et branche tes clés</h3>
+            <p class="muted small">L'assistant installe les outils vidéo et te guide pour coller tes clés Claude et ElevenLabs. À faire une seule fois.</p>
+          </div>
+          <div class="cr-card">
+            <span class="step-num">2</span>
+            <h3>Donne ton idée</h3>
+            <p class="muted small">ClipRoll écrit l'accroche et le script, génère la voix, construit les plans et place les sous-titres mot à mot.</p>
+          </div>
+          <div class="cr-card">
+            <span class="step-num">3</span>
+            <h3>Vérifie et exporte</h3>
+            <p class="muted small">Tu récupères un MP4 vertical 1080×1920 sans filigrane, prêt pour Shorts, TikTok et Reels.</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="youtube-api">
-      <h2>How ClipRoll uses your YouTube account</h2>
-      <div class="prose">
-        <p>When you connect YouTube, Google requests only two permissions:</p>
-        <ul>
-          <li><strong>Upload videos</strong> (<code>youtube.upload</code>) — uploads only the short videos you select, with your title and caption, at the time you choose.</li>
-          <li><strong>Read channel name</strong> (<code>youtube.readonly</code>) — displays the connected channel name and ID so you know where each short will publish.</li>
-        </ul>
-        <p>ClipRoll never deletes or edits existing videos, never reads comments or analytics, and never publishes without your action. Disconnect anytime in ClipRoll or revoke access in <a href="https://myaccount.google.com/permissions">Google Account permissions</a>.</p>
+    <section id="couts" style="padding-top:16px">
+      <div class="container">
+        <div class="cost-box">
+          <h2>Ce que tu paies vraiment</h2>
+          <p class="muted">Trois lignes, sans surprise. ClipRoll ne revend pas l'IA : chaque fournisseur te facture directement.</p>
+          <ul class="cost-list">
+            <li><strong>ClipRoll</strong><strong>149 €/an ou 19 €/mois</strong><span>Toute l'application, sans limite de vidéos. Essai gratuit de 3 jours.</span></li>
+            <li><strong>Claude (Anthropic)</strong><strong>à l'usage</strong><span>Facturé par Anthropic selon les textes générés. Voir les <a href="https://www.anthropic.com/pricing" rel="noopener">tarifs de l'API Claude</a>.</span></li>
+            <li><strong>ElevenLabs</strong><strong>selon ton forfait</strong><span>Facturé par ElevenLabs selon la durée de voix générée. Voir les <a href="https://elevenlabs.io/pricing" rel="noopener">forfaits ElevenLabs</a>.</span></li>
+          </ul>
+        </div>
       </div>
-      <div class="note">ClipRoll uses YouTube API Services. By connecting YouTube you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. Review the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="privacy.html">Privacy Policy</a>.</div>
+    </section>
+
+    <section id="tarifs">
+      <div class="container">
+        <div class="sec-head">
+          <h2>Un seul abonnement, toute l'application</h2>
+          <p>Commence par 3 jours gratuits. Carte demandée, aucun débit avant la fin de l'essai.</p>
+        </div>
+        <div class="pricing-grid">
+          <div class="price-card is-reco">
+            <span class="tag">Recommandé · −35 % par rapport au mensuel</span>
+            <div class="big-price">149 € <small>/ an</small></div>
+            <p class="muted small">Soit 12,42 €/mois, 79 € de moins que 12 mois au tarif mensuel.</p>
+            <ul class="check-list">
+              <li>Vidéos illimitées sur ton ordinateur</li>
+              <li>Tous les styles et toutes les mises à jour</li>
+              <li>Utilisable sur 2 ordinateurs</li>
+            </ul>
+            <a class="cr-btn cr-btn-spark" href="https://clipoa-license.clipoa-studio.workers.dev/checkout?plan=yearly" rel="nofollow">Essayer 3 jours, puis 149 €/an</a>
+          </div>
+          <div class="price-card">
+            <span class="tag"></span>
+            <div class="big-price">19 € <small>/ mois</small></div>
+            <p class="muted small">Sans engagement, résiliable chaque mois.</p>
+            <ul class="check-list">
+              <li>Vidéos illimitées sur ton ordinateur</li>
+              <li>Tous les styles et toutes les mises à jour</li>
+              <li>Utilisable sur 2 ordinateurs</li>
+            </ul>
+            <a class="cr-btn cr-btn-cyan" href="https://clipoa-license.clipoa-studio.workers.dev/checkout?plan=monthly" rel="nofollow">Essayer 3 jours, puis 19 €/mois</a>
+          </div>
+        </div>
+        <p class="trial-note">Sans résiliation avant la fin des 3 jours, l'abonnement choisi démarre et se renouvelle automatiquement. Paiement sécurisé par Stripe. <a href="/tarifs">Détails des tarifs</a>.</p>
+      </div>
+    </section>
+
+    <section id="faq" style="padding-top:16px">
+      <div class="container">
+        <div class="sec-head">
+          <h2>Questions fréquentes</h2>
+        </div>
+        <div class="faq-list">
+          <details open>
+            <summary>Quelles clés dois-je fournir ?</summary>
+            <p>Une clé API Anthropic (Claude) pour écrire les scripts et une clé ElevenLabs pour la voix. Tu les crées sur <a href="https://console.anthropic.com/" rel="noopener">console.anthropic.com</a> et <a href="https://elevenlabs.io/" rel="noopener">elevenlabs.io</a>, puis tu les colles une fois dans ClipRoll.</p>
+          </details>
+          <details>
+            <summary>Combien coûtent ces clés en plus de ClipRoll ?</summary>
+            <p>Anthropic et ElevenLabs te facturent directement, à leurs tarifs publics. Le montant dépend du nombre et de la durée de tes vidéos. ClipRoll ne prend aucune commission et ne fixe aucun quota.</p>
+          </details>
+          <details>
+            <summary>Qu'est-ce qui s'installe sur mon ordinateur ?</summary>
+            <p>Au premier lancement, ClipRoll installe Blender, FFmpeg et Whisper depuis leurs sources officielles. Prévois quelques gigaoctets d'espace libre. Les mises à jour de ClipRoll ne les téléchargent pas à nouveau.</p>
+          </details>
+          <details>
+            <summary>ClipRoll fonctionne-t-il sur Windows ?</summary>
+            <p>La version Mac sort en premier. La version Windows est en préparation et sera incluse dans le même abonnement.</p>
+          </details>
+          <details>
+            <summary>Que deviennent mes vidéos si j'arrête l'abonnement ?</summary>
+            <p>Elles restent sur ton ordinateur, rien n'est supprimé. Sans abonnement actif, tu ne peux simplement plus fabriquer de nouvelles vidéos.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <section style="padding-top:16px">
+      <div class="container">
+        <div class="final-cta">
+          <h2>Prêt à publier plus souvent ?</h2>
+          <p>Teste ClipRoll gratuitement pendant 3 jours sur ton Mac.</p>
+          <a class="cr-btn cr-btn-spark" href="/tarifs">Commencer l'essai gratuit</a>
+        </div>
+      </div>
     </section>
   </main>
 
   <footer>
-    <div>
-      <span>© 2026 ClipRoll</span>
-      <a href="privacy.html">Privacy Policy</a>
-      <a href="terms.html">Terms of Service</a>
-      <a href="mailto:brice.mialon01800@gmail.com">Contact</a>
+    <div class="container footer-inner">
+      <span>© 2026 ClipRoll · cliproll.app</span>
+      <nav aria-label="Liens légaux">
+        <a href="/tarifs">Tarifs</a>
+        <a href="/terms">Conditions</a>
+        <a href="/privacy">Confidentialité</a>
+        <a href="https://billing.stripe.com/p/login/A_REMPLIR" rel="nofollow">Gérer mon abonnement</a>
+        <a href="mailto:brice.mialon01800@gmail.com">Contact</a>
+      </nav>
     </div>
   </footer>
 </body>
