@@ -102,9 +102,9 @@ try {
     & $PyExe -m nuitka --standalone --windows-console-mode=disable `
         --output-dir=$Stage --output-filename="ClipRoll.exe" `
         --assume-yes-for-downloads `
-        (Join-Path $Root "packaging\windows\clipoa_stub.py")
+        (Join-Path $Root "packaging\windows\cliproll_stub.py")
 
-    $DistDir = Join-Path $Stage "clipoa_stub.dist"
+    $DistDir = Join-Path $Stage "cliproll_stub.dist"
     if (-not (Test-Path (Join-Path $DistDir "ClipRoll.exe"))) {
         throw "ClipRoll.exe introuvable dans $DistDir"
     }

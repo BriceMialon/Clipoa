@@ -1816,6 +1816,19 @@ def api_channel_stats_sync():
     return jsonify({"started": started, **channel_stats.load()})
 
 
+@app.route("/api/channel-stats/tiktok-handle", methods=["POST"])
+def api_channel_stats_tiktok_handle():
+    """Enregistre le @handle TikTok public du compte actif et lance la synchronisation."""
+    from core import channel_stats
+    data = request.get_json(silent=True) or {}
+    try:
+        clean = channel_stats.set_tiktok_handle(data.get("handle") or "")
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    started = channel_stats.start_sync()
+    return jsonify({"ok": True, "handle": clean, "started": started, **channel_stats.load()})
+
+
 @app.route("/api/channel-stats/<video_id>/remake", methods=["POST"])
 def api_channel_stats_remake(video_id):
     """Refait la vidéo en mieux avec l'IA (points à améliorer de Statistiques)."""
@@ -1831,6 +1844,137 @@ def api_channel_stats_remake(video_id):
     with app.test_client() as c:
         r = c.post(req["route"], json=payload, headers={k: v for k, v in request.headers.items() if k.lower() in ("x-clipoa-token", "authorization", "cookie")})
     return (r.get_data(), r.status_code, {"Content-Type": "application/json"})
+
+
+@app.route("/api/channel-stats/audit", methods=["POST"])
+def api_channel_stats_audit():
+    """Audit global de rétention sur les 12 derniers Shorts du compte actif (Prompt #1 @jeffar_ai)."""
+    from core import channel_stats, retention_audit
+    try:
+        report = retention_audit.audit_channel(channel_stats.load())
+        return jsonify({"ok": True, "audit": report})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/script/optimize-retention", methods=["POST"])
+def api_script_optimize_retention():
+    """Optimise un script selon les règles de rétention Shorts/TikTok (Prompts #2 à #7 @jeffar_ai)."""
+    from core import retention_audit
+    data = request.get_json(silent=True) or {}
+    script = (data.get("script") or "").strip()
+    topic = (data.get("topic") or "").strip()
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 30)))
+    except (TypeError, ValueError):
+        dur = 30
+    try:
+        res = retention_audit.optimize_script_retention(script, topic=topic, duration_sec=dur)
+        return jsonify({"ok": True, **res})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/script/swipe-audit", methods=["POST"])
+def api_script_swipe_audit():
+    """Audit anti-swipe avant export + checklist 5 points (Prompt #8 @jeffar_ai)."""
+    from core import retention_audit
+    data = request.get_json(silent=True) or {}
+    script = (data.get("script") or "").strip()
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 30)))
+    except (TypeError, ValueError):
+        dur = 30
+    try:
+        res = retention_audit.swipe_away_audit(script, duration_sec=dur)
+        return jsonify({"ok": True, **res})
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/agent-team/roster", methods=["GET"])
+def api_agent_team_roster():
+    from core import agent_team
+    return jsonify({"ok": True, "roster": agent_team.TEAM_ROSTER})
+
+
+@app.route("/api/agent-team/run", methods=["POST"])
+def api_agent_team_run():
+    """Exécute une mission autonome via l'Équipe d'agents IA de la barre du haut."""
+    from core import agent_team
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Indique une mission pour l'équipe d'agents."}), 400
+    engine = (data.get("engine") or "claude").strip().lower()
+    plugin_id = (data.get("plugin_id") or "").strip()
+    voice = data.get("voice") or None
+    try:
+        dur = max(15, min(180, int(data.get("duration_sec") or 60)))
+    except (TypeError, ValueError):
+        dur = 60
+
+    fwd_headers = {k: v for k, v in request.headers.items() if k.lower() in ("x-clipoa-token", "authorization", "cookie")}
+
+    def _enqueue_week(topics, plugin_id="", duration_sec=60, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post("/api/night/enqueue", json={
+                "topics": topics,
+                "plugin_id": plugin_id,
+                "target_duration_sec": duration_sec,
+                "engine": engine,
+                "voice": voice,
+                "keep_awake": True,
+            }, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de programmer la semaine.")
+            return int(d.get("created") or len(topics))
+
+    def _make_video(topic, plugin_id="", duration_sec=60, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post("/api/make", json={
+                "topic": topic,
+                "plugin_id": plugin_id or None,
+                "target_duration_sec": duration_sec,
+                "engine": engine,
+                "voice": voice,
+                "enable_music": True,
+                "enable_sfx": True,
+            }, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de lancer la fabrication.")
+            return d
+
+    def _remake_video(vid, engine="claude", voice=None):
+        with app.test_client() as c:
+            r = c.post(f"/api/channel-stats/{vid}/remake", json={"engine": engine, "voice": voice}, headers=fwd_headers)
+            d = r.get_json(silent=True) or {}
+            if r.status_code >= 400:
+                raise RuntimeError(d.get("error") or "Impossible de refaire cette vidéo.")
+            return d
+
+    try:
+        out = agent_team.run_mission(
+            message=message,
+            engine=engine,
+            plugin_id=plugin_id,
+            duration_sec=dur,
+            voice=voice,
+            enqueue_week_fn=_enqueue_week,
+            make_video_fn=_make_video,
+            remake_video_fn=_remake_video,
+        )
+        return jsonify(out)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------- S'inspirer : radar des vidéos IA récentes qui cartonnent ----------

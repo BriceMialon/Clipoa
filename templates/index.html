@@ -16,13 +16,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
   <title>ClipRoll — Studio 9:16</title>
   <link rel="stylesheet" href="/static/css/liquid-glass.css?v=7">
-  <link rel="stylesheet" href="/static/css/clipoa-ui.css?v=2">
-  <link rel="stylesheet" href="/static/css/cliproll.css?v=1">
+  <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=2">
+  <link rel="stylesheet" href="/static/css/cliproll.css?v=4">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
-{%- set dark_logo = key in ('tiktok', 'anthropic', 'apple') -%}
+{%- set dark_logo = key in ('tiktok', 'anthropic', 'apple', 'elevenlabs') -%}
 <span class="brand-logo{% if dark_logo %} has-white{% endif %}" style="width:{{ size }}px; height:{{ size }}px;"><img src="/static/logos/{{ key }}.svg" alt="{{ label }}" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='/static/logos/{{ key }}.png';}else{this.parentNode.classList.add('nologo');this.remove();}">{% if dark_logo %}<img class="logo-white" src="/static/logos/{{ key }}-white.svg" alt="" aria-hidden="true">{% endif %}<b style="background:{{ color }};">{{ label[:1] }}</b></span>
 {%- endmacro %}
 
@@ -76,6 +76,19 @@
           <span class="side-link-left">
             <svg class="ico" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><path d="M12 7.5l1.4 3.1 3.1 1.4-3.1 1.4L12 16.5l-1.4-3.1L7.5 12l3.1-1.4z"/></svg>
             <span>Créer</span>
+          </span>
+        </button>
+        <button type="button" class="side-link" data-view="fabrique" onclick="showView('fabrique')">
+          <span class="side-link-left">
+            <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg>
+            <span>Fabrique</span>
+          </span>
+          <span class="nav-count" id="sidebar-fab-count" style="display:none;">0</span>
+        </button>
+        <button type="button" class="side-link" data-view="montage" onclick="showView('montage')">
+          <span class="side-link-left">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.2 7.8L20 18M8.2 16.2L20 6"/></svg>
+            <span>Montage</span>
           </span>
         </button>
         <button type="button" class="side-link" data-view="videos" onclick="showView('videos')">
@@ -158,15 +171,21 @@
 
       <!-- TOP BAR (Barre IA pour les questions + Crédits ElevenLabs) -->
       <header class="workspace-topbar">
-        <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre IA pour les questions">
+        <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre IA et Équipe d'agents">
           <form class="ai-taskbar-bar" style="width:100%;" onsubmit="event.preventDefault(); askAiHelp();">
+
+            <!-- Mode : Aide ou Équipe d'agents IA -->
+            <div class="ai-mode-seg" role="group" aria-label="Mode barre IA">
+              <button type="button" class="ai-mode-btn actif" id="ai-mode-team" onclick="setAiBarMode('team')">Équipe IA</button>
+              <button type="button" class="ai-mode-btn" id="ai-mode-help" onclick="setAiBarMode('help')">Aide</button>
+            </div>
 
             <!-- Modèle : Claude -->
             <select id="ai-tb-model" class="ai-tb-model" title="Modèle IA qui répond" onchange="saveAiTaskbarModel()">
               <option value="claude:opus" selected>Claude Opus 5.5</option>
             </select>
 
-            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur ClipRoll ?' if claude_status.connected else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
+            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Demande à ton équipe (ex : génère mes 5 vidéos de la semaine…)' if claude_status.connected else 'Connecte Claude pour activer ton équipe IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
 
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
           </form>
@@ -175,9 +194,9 @@
             <div class="ai-drawer-head">
               <div class="ai-drawer-title">
                 <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="ai-drawer-dot"></span>
-                <span>Aide IA ClipRoll</span>
+                <span id="ai-drawer-heading">Équipe d'agents IA ClipRoll</span>
                 <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
-                  {{ 'Réponses courtes, avec le nom exact des onglets et boutons' if claude_status.connected else 'Connecte Claude pour activer l’aide' }}
+                  {{ 'Exécute tes missions (semaine, audit, hooks, vidéos) · validation humaine avant publication' if claude_status.connected else 'Connecte Claude pour activer ton équipe' }}
                 </span>
               </div>
               <div style="display:flex; gap:6px; align-items:center;">
@@ -189,26 +208,44 @@
               </div>
             </div>
 
+            <div class="ai-roster-strip" id="ai-roster-strip">
+              <span class="ai-roster-pill">Orchestrateur</span>
+              <span class="ai-roster-pill">Stratège Rétention</span>
+              <span class="ai-roster-pill">Scénariste</span>
+              <span class="ai-roster-pill">Producteur</span>
+              <span class="ai-roster-pill">Vérificateur</span>
+            </div>
+
             <div class="ai-drawer-body" id="ai-tb-messages">
               <div class="ai-msg assistant">
-                <div class="ai-msg-meta"><span>✦ Assistant ClipRoll</span></div>
+                <div class="ai-msg-meta"><span>✦ Équipe ClipRoll</span></div>
                 {% if claude_status.connected %}
-                Salut ! Pose-moi ta question sur ClipRoll : créer une vidéo, copier le style d'une vidéo, publier, comprendre tes statistiques…
+                Demande-nous d'agir pour toi : « Génère mes 5 vidéos de la semaine », « Audite ma chaîne », « Refais ma pire vidéo » ou « Donne-moi 5 hooks 1.5s sur… ». Rien n'est publié sans ton accord.
                 {% else %}
-                Pour activer l'aide IA en direct, connecte Claude dans « Connexions ».
+                Pour activer l'équipe d'agents IA, connecte Claude dans « Connexions ».
                 {% endif %}
               </div>
             </div>
 
-            <div class="ai-quick-row">
+            <div class="ai-quick-row" id="ai-quick-team">
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Génère mes 5 vidéos pour la semaine')">Générer ma semaine (5 vidéos)</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Audite ma chaîne sur mes 12 derniers Shorts')">Auditer ma chaîne (12 Shorts)</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Refais ma pire vidéo avec un hook 1.5s')">Refaire ma pire vidéo</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Donne-moi 5 hooks 1.5s sur une histoire courte virale')">5 hooks 1.5s</button>
+            </div>
+            <div class="ai-quick-row" id="ai-quick-help" style="display:none;">
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer une vidéo de A à Z ?')">Créer une vidéo</button>
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment copier le style d’une vidéo que j’aime ?')">Copier le style d’une vidéo</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment voir et modifier le script avant de fabriquer la vidéo ?')">Modifier mon script</button>
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment publier ma vidéo sur YouTube, TikTok et Instagram ?')">Publier ma vidéo</button>
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Pourquoi certaines de mes vidéos marchent moins bien ?')">Comprendre mes stats</button>
             </div>
           </div>
         </div>
+
+        <button type="button" class="topbar-fab-pill" id="topbar-fab-pill" onclick="showView('fabrique')" title="Voir les vidéos en cours de fabrication">
+          <span class="topbar-fab-pill-label" id="topbar-fab-label">0 vidéo en fabrication</span>
+          <span class="topbar-fab-bar" aria-hidden="true"></span>
+        </button>
 
         <div class="topbar-right">
           <!-- Compte actif (chaîne YouTube, Instagram, TikTok…) : change les vidéos affichées et le compte de publication -->
@@ -258,7 +295,7 @@
         <section id="view-accueil" class="view actif">
 
           <div class="home-hero">
-            <h1 class="home-title"><span id="home-hello-text">Bonjour</span>{% if workspace_name %}, <span class="grad-text" id="home-hello-name">{{ workspace_name }}</span>{% endif %}</h1>
+            <h1 class="home-title"><span id="home-hello-text">Bonjour</span>{% if workspace_name %}, <span class="grad-text" id="home-hello-name">{{ workspace_name }}</span>{% endif %}</h1><script>(function(){var el=document.getElementById("home-hello-name");if(!el)return;var t=el.textContent||"";var r=/([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]+)/gu;if(r.test(t)){el.innerHTML=t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(r,"<span class=\"cr-emoji-native\">$1</span>");}})();</script>
 
             <div class="quick-studio-box home-prompt">
               <div class="quick-mode-tabs" id="home-quick-tabs">
@@ -374,7 +411,7 @@
           {% if not claude_status.connected %}
           <!-- Écran simplifié tant qu'aucune IA n'est connectée -->
           <div class="composer lg-sheen" style="text-align:center; padding:42px 24px;">
-            <div style="font-size:32px; margin-bottom:10px;">🔌</div>
+            <div class="cr-ico-badge" aria-hidden="true"><svg class="cr-ico cr-ico-lg" viewBox="0 0 24 24"><path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg></div>
             <h2 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--ink);">Connecte Claude pour commencer</h2>
             <p style="font-size:13.5px; color:var(--muted); max-width:420px; margin:8px auto 18px; line-height:1.5;">
               Claude écrit tes vidéos. Ça prend une minute.
@@ -411,7 +448,7 @@
 
             <!-- Un seul bouton : l'IA écrit le script (en direct) ; une fois écrit, on peut le modifier -->
             <div id="fab-script-actions" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;">
-              <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">✨ Générer le script avec l'IA</button>
+              <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/></svg> Générer le script avec l'IA</button>
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
             </div>
 
@@ -434,16 +471,19 @@
               <!-- Simple : le script (affiché proprement), 1 bouton pour le retoucher à la main, 1 champ pour le faire changer par l'IA.
                    Le script affiché est celui utilisé par « Fabriquer » (pas de bouton Valider). -->
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
-                <span style="font-size:13px; font-weight:700; color:var(--ink);">📝 Ton script</span>
-                <button type="button" class="btn btn-ghost btn-xs" id="fab-edit-toggle" onclick="toggleFabScriptEdit()">✏️ Modifier à la main</button>
+                <span style="font-size:13px; font-weight:700; color:var(--ink);">Ton script</span>
+                <button type="button" class="btn btn-ghost btn-xs" id="fab-edit-toggle" onclick="toggleFabScriptEdit()">Modifier à la main</button>
               </div>
               <input type="hidden" id="fab-review-title">
               <div id="fab-review-formatted" class="script-formatted-view"></div>
               <textarea id="fab-review-text" class="code-editor" rows="14" style="display:none; width:100%; font-size:12.5px; line-height:1.5; resize:vertical;" oninput="onFabReviewEdited()"></textarea>
               <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
                 <input type="text" id="fab-refine-input" class="input-sm" autocomplete="off" style="flex:1; min-width:200px;" placeholder="Que veux-tu changer ? (ex : une fin plus triste, un perso en plus…)" onkeydown="if(event.key==='Enter'){ event.preventDefault(); refineFabriqueScript(); }">
-                <button type="button" class="btn btn-primary btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">✨ Changer avec l’IA</button>
+                <button type="button" class="btn btn-primary btn-sm" id="fab-refine-btn" onclick="refineFabriqueScript()">Changer avec l’IA</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="fab-ret-opt-btn" onclick="optimizeFabRetention()" title="Applique hook 1.5s Evidence+Betrayal, élagage, rythme voix et boucle >100 %">Optimiser rétention</button>
+                <button type="button" class="btn btn-ghost btn-sm" id="fab-swipe-btn" onclick="auditFabSwipeAway()" title="Repère la seconde de risque de swipe avant export + checklist 5 points">Audit anti-swipe</button>
               </div>
+              <div id="fab-retention-box" style="display:none; margin-top:10px; padding:12px; border-radius:14px; background:var(--glass); border:1px solid var(--stroke-subtle); font-size:12.5px; line-height:1.5;"></div>
             </div>
 
             <!-- ===== STYLE DA ===== -->
@@ -453,7 +493,7 @@
             </div>
 
             <div id="cine-warning" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:rgba(255,190,60,0.12); border:1px solid rgba(255,190,60,0.45); font-size:12.5px; line-height:1.45; color:var(--ink);">
-              <b>🎬 Mode Ciné haute qualité</b> : l'IA écrit chaque plan en 3D, ClipRoll vérifie puis calcule la vidéo en 1080p 30 i/s.
+              <b>Mode Ciné haute qualité</b> : l'IA écrit chaque plan en 3D, ClipRoll vérifie puis calcule la vidéo en 1080p 30 i/s.
               <b>Compte 20 à 60 min de rendu</b> et environ <b>4× plus de tokens</b> qu'un style classique. Tu peux continuer à utiliser ClipRoll pendant ce temps.
               <div id="cine-install-row" style="display:none; margin-top:7px; gap:8px; align-items:center; flex-wrap:wrap;">
                 <span id="cine-install-text" style="color:var(--muted);">Première fois : installe le moteur Ciné (≈ 200 Mo, une seule fois).</span>
@@ -461,22 +501,22 @@
               </div>
             </div>
             <div id="render-quality-row" style="display:none; margin:0 0 10px; padding:9px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; line-height:1.45; color:var(--ink);">
-              <b>🎞️ Qualité du rendu 3D</b>
+              <b>Qualité du rendu 3D</b>
               <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
-                <button type="button" class="btn btn-primary btn-xs" id="rq-hq" onclick="setRenderQuality('hq')">✨ Haute qualité (recommandé)</button>
-                <button type="button" class="btn btn-xs" id="rq-fast" onclick="setRenderQuality('fast')">⚡ Rapide</button>
+                <button type="button" class="btn btn-primary btn-xs" id="rq-hq" onclick="setRenderQuality('hq')">Haute qualité (recommandé)</button>
+                <button type="button" class="btn btn-xs" id="rq-fast" onclick="setRenderQuality('fast')">Rapide</button>
               </div>
               <div id="rq-hint" style="margin-top:6px; color:var(--muted);">Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus).</div>
             </div>
             <div id="style-ref-lock" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; color:var(--ink);">
-              🎞️ <b>Style copié depuis ta vidéo</b> : ClipRoll regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
+              <b>Style copié depuis ta vidéo</b> : ClipRoll regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
             </div>
             <div class="style-plaques-strip" id="style-plaques-strip">
               {% for pl in style_plugins %}
               <button type="button" class="style-plaque" data-splaque="plugin:{{ pl.id }}" data-plugin-id="{{ pl.id }}" onclick="selectStylePlaque('plugin:{{ pl.id }}', this)">
                 <div class="sp-art {{ pl.gradient_css }} {{ 'has-cover' if pl.cover_url else '' }}" {% if pl.cover_url %}style="background-image:url('{{ pl.cover_url }}');"{% endif %}>
                   {% if not pl.cover_url %}<div style="font-size:26px; margin:auto 0;">{{ pl.icon }}</div>{% endif %}
-                  <div class="sp-meta-strip">⏱ {{ pl.est_time_label }}</div>
+                  <div class="sp-meta-strip">{{ pl.est_time_label }}</div>
                 </div>
                 <span class="sp-name">{{ pl.name }}</span>
               </button>
@@ -495,7 +535,7 @@
             <!-- Bandeau DA active quand un style est sélectionné -->
             <div class="active-plugin-bar" id="active-plugin-bar">
               <div class="active-plugin-left">
-                <div class="active-plugin-thumb" id="ap-thumb">🧩</div>
+                <div class="active-plugin-thumb" id="ap-thumb"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
                 <div style="min-width:0; flex:1;">
                   <div style="font-weight:700; font-size:14px; color:var(--ink);" id="ap-title">Style actif</div>
                   <div class="plugin-metric-row" id="ap-metrics"></div>
@@ -588,7 +628,7 @@
               </div>
               <div id="voice-hd-box" style="margin-top:8px; padding:9px 11px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12px; color:var(--muted); display:{{ 'none' if local_voices.ready else 'block' }};">
                 <div style="display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap;">
-                  <span id="voice-hd-text">{% if local_voices.installing %}⏳ {{ local_voices.step }}{% elif local_voices.error %}⚠️ {{ local_voices.error }}{% else %}✨ <b style="color:var(--ink);">Voix HD gratuite</b> : plus naturelle (≈ 4 Go à installer).{% endif %}</span>
+                  <span id="voice-hd-text">{% if local_voices.installing %}{{ local_voices.step }}{% elif local_voices.error %}{{ local_voices.error }}{% else %}<b style="color:var(--ink);">Voix HD gratuite</b> : plus naturelle (≈ 4 Go à installer).{% endif %}</span>
                   <button type="button" class="btn btn-primary btn-xs" id="voice-hd-btn" onclick="installLocalVoice()" {{ 'disabled' if local_voices.installing else '' }}>{{ 'Installation…' if local_voices.installing else 'Installer la voix HD' }}</button>
                 </div>
               </div>
@@ -624,11 +664,11 @@
               <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border);">
                 <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
                   <input type="checkbox" id="fab-enable-music" checked style="accent-color:var(--accent); width:14px; height:14px;">
-                  <span>🎵 Musique</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Musique</span>
                 </label>
                 <label style="display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer;">
                   <input type="checkbox" id="fab-enable-sfx" checked style="accent-color:var(--accent); width:14px; height:14px;">
-                  <span>🔊 Effets sonores</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px;"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg> Effets sonores</span>
                 </label>
               </div>
             </div>
@@ -755,41 +795,81 @@
         <!-- ================================================================
              VUE 4 : MONTAGE (Vidéo longue en Shorts · Le Monteur Whisper)
              ================================================================ -->
-        <section id="view-montage" class="view">
-          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="montage" onclick="showView('montage')">Découper une vidéo</button><button type="button" class="subnav-btn" data-sub="analyse" onclick="showView('analyse')">S’inspirer</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
+        <!-- ================================================================
+             VUE 4a : FABRIQUE (Suivi en direct 9:16 des vidéos en cours)
+             ================================================================ -->
+        <section id="view-fabrique" class="view">
           <div class="page-head">
             <div>
-              <h1 class="page-title">Découper une vidéo</h1>
-              <p class="page-sub">Importe une vidéo longue ou colle un lien YouTube : l'équipe en tire les meilleurs moments en 9:16.</p>
+              <h1 class="page-title" id="fabrique-heading">Fabrique</h1>
+              <p class="page-sub">Suivi en direct de toutes tes vidéos en cours de création et dans la file.</p>
+            </div>
+            <button type="button" class="btn btn-coral btn-sm" onclick="showView('creer')">+ Nouvelle vidéo</button>
+          </div>
+          <div id="fabrique-grid" class="cr-fab-grid"></div>
+          <div id="fabrique-empty" class="card lg-sheen" style="text-align:center; padding:42px 24px; max-width:560px;">
+            <div class="cr-ico-badge" aria-hidden="true"><svg class="cr-ico cr-ico-lg" viewBox="0 0 24 24"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M10 9.5l5 2.5-5 2.5z"/></svg></div>
+            <div style="font-weight:700; font-size:16px; color:var(--ink);">Aucune vidéo en fabrication pour le moment</div>
+            <p style="font-size:13px; color:var(--muted); margin:6px 0 16px;">Lance une création ou demande à ton Équipe IA en haut de générer ta semaine.</p>
+            <button type="button" class="btn btn-coral btn-sm" onclick="showView('creer')">Créer une vidéo →</button>
+          </div>
+        </section>
+
+        <!-- ================================================================
+             VUE 4b : MONTAGE (Strictement 2 options : Vidéo courte · Longue vidéo en shorts)
+             ================================================================ -->
+        <section id="view-montage" class="view">
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Montage</h1>
+              <p class="page-sub">Tes vidéos filmées. Dépose une vidéo où tu parles : l'équipe coupe les blancs, ajoute sous-titres, zooms et accroche. Rien n'est publié sans toi.</p>
             </div>
           </div>
 
-          <div class="composer lg-sheen" style="max-width:780px;">
-            <label class="dropzone" for="cut-file">
-              <input type="file" id="cut-file" accept="video/*" onchange="updateFileLabel('cut-file','cut-file-label')">
-              <div style="font-size:26px; margin-bottom:8px;">🎞️</div>
-              <div style="color:var(--ink); font-weight:700; font-size:15.5px;" id="cut-file-label">Glisse ou choisis une vidéo longue (MP4, MOV, MKV)</div>
-              <div style="color:var(--muted); font-size:12.5px; margin-top:4px;">Transcription locale Whisper + sous-titres dynamiques Submagic</div>
-            </label>
-
-            <input type="text" id="cut-source" class="input-sm" placeholder="Ou colle directement un lien YouTube longue durée…">
-
-            <div class="fabrique-footer">
-              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <select id="cut-clips" class="input-sm" style="width:auto;">
-                  <option value="1">Extraire 1 short</option>
-                  <option value="3" selected>Extraire 3 shorts</option>
-                  <option value="5">Extraire 5 shorts</option>
-                </select>
-                <select id="cut-crop" class="input-sm" style="width:auto;">
-                  <option value="center">Recadrage 9:16 plein</option>
-                  <option value="blurred_bg">Cinéma fond flou</option>
-                </select>
-                <label style="font-size:13px; color:var(--ink-2); display:flex; align-items:center; gap:6px; cursor:pointer;">
-                  <input type="checkbox" id="cut-jumpcuts" checked style="accent-color:var(--accent);"> Jump-cuts auto (couper les blancs)
-                </label>
+          <div class="cr-montage-grid">
+            <!-- Option 1 : Vidéo courte -->
+            <div class="cr-montage-card">
+              <div>
+                <h2>Vidéo courte</h2>
+                <p>Jusqu'à 3 min 30, horizontale ou verticale. Coupe les blancs, ajoute sous-titres dynamiques, zooms et accroche.</p>
               </div>
-              <button type="button" class="btn btn-coral" onclick="runCut()">Découper en Shorts →</button>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="file" id="montage-short-file" accept="video/*" style="display:none;" onchange="runMontageShort(this)">
+                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-coral btn-sm" onclick="document.getElementById('montage-short-file').click()">
+                    <svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+                    Choisir une vidéo
+                  </button>
+                  <span id="montage-short-status" style="font-size:12.5px; color:var(--muted);">MP4, MOV ou MKV</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Option 2 : Longue vidéo en shorts -->
+            <div class="cr-montage-card">
+              <div>
+                <h2>Longue vidéo en shorts</h2>
+                <p>Podcast, live ou conférence, jusqu'à 3 heures. L'équipe en tire les meilleurs moments en Shorts 9:16.</p>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="file" id="cut-file" accept="video/*" style="display:none;" onchange="updateFileLabel('cut-file','cut-file-label')">
+                <input type="text" id="cut-source" class="input-sm" placeholder="Ou colle un lien YouTube longue durée…">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('cut-file').click()">
+                    <svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+                    Choisir une vidéo
+                  </button>
+                  <select id="cut-clips" class="input-sm" style="width:auto;">
+                    <option value="3" selected>3 shorts</option>
+                    <option value="5">5 shorts</option>
+                    <option value="1">1 short</option>
+                  </select>
+                  <input type="hidden" id="cut-crop" value="center">
+                  <input type="checkbox" id="cut-jumpcuts" checked style="display:none;">
+                  <button type="button" class="btn btn-coral btn-sm" onclick="runCut()">Extraire les Shorts →</button>
+                </div>
+                <span id="cut-file-label" style="font-size:12px; color:var(--muted);">Aucun fichier choisi</span>
+              </div>
             </div>
           </div>
         </section>
@@ -923,7 +1003,7 @@
                         {% elif rinfo.ok %}
                         <div style="font-size:11.5px; color:var(--ok); margin-top:3px;">✓ {{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% elif rinfo.pending %}
-                        <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">⏳ {{ rplat|capitalize }} : {{ rinfo.message }}</div>
+                        <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% else %}
                         <div style="font-size:11.5px; color:{{ 'var(--muted)' if rinfo.manual else 'var(--danger)' }}; margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% endif %}
@@ -953,8 +1033,13 @@
             <div>
               <h1 class="page-title">Statistiques</h1>
             </div>
-            <button type="button" class="btn btn-coral btn-sm" id="cs-sync-btn" onclick="syncChannelStats()">↻ Mettre à jour</button>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-ghost btn-sm" id="cs-audit-btn" onclick="runChannelRetentionAudit()">Audit rétention (12 Shorts)</button>
+              <button type="button" class="btn btn-coral btn-sm" id="cs-sync-btn" onclick="syncChannelStats()">↻ Mettre à jour</button>
+            </div>
           </div>
+
+          <div class="card lg-sheen" id="cs-audit-panel" style="display:none; margin-bottom:16px;"></div>
 
           <div class="card lg-sheen" style="margin-bottom:16px;">
             <div id="cs-head" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
@@ -1078,7 +1163,7 @@
           <div class="crew-plaque lg-sheen" style="max-width:560px;">
             <div>
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <span class="conn-mini-ico" style="width:40px; height:40px; font-size:18px;">📅</span>
+                <span class="conn-mini-ico" style="width:40px; height:40px; color:var(--cr-cyan);"><svg class="cr-ico" style="width:19px;height:19px;" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
                 <span class="pick-badge">Actif</span>
               </div>
               <div class="section-title">Générer ma semaine</div>
@@ -1393,7 +1478,7 @@
           <button type="button" class="btn btn-coral" id="theater-val-btn" onclick="validateAndNextTheater()">✓ Valider cette vidéo</button>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button type="button" class="btn btn-ghost btn-sm" style="flex:1;" onclick="reviseFromTheater()">✎ Corriger avec mes mots</button>
-            <button type="button" class="btn btn-ghost btn-sm" style="flex:1;" onclick="publishFromTheater()">🚀 Publier</button>
+            <button type="button" class="btn btn-ghost btn-sm" style="flex:1;" onclick="publishFromTheater()">Publier</button>
             <a id="theater-dl" class="btn btn-ghost btn-sm" href="#" download>⬇ MP4</a>
           </div>
         </div>
@@ -1692,7 +1777,7 @@
         <div class="grid-2" style="gap:10px;">
           <div class="field">
             <label>Icône / Emoji</label>
-            <input type="text" id="pe-icon" class="input-sm" maxlength="8" placeholder="🧱, 🎨, ✨, 🎬…">
+            <input type="text" id="pe-icon" class="input-sm" maxlength="8" placeholder="Ex: 3D, PRO, CINE…">
           </div>
           <div class="field">
             <label>Moteur de rendu par défaut</label>
@@ -1764,7 +1849,7 @@
 
         <label class="dropzone" id="pe-sheets-dropzone" for="pe-sheets-input" style="margin-bottom:0; padding:22px 16px;">
           <input type="file" id="pe-sheets-input" multiple accept=".png,.jpg,.jpeg,.webp,.gif,.svg,.glb,.blend,.pdf" onchange="handlePluginSheetsSelected(this.files)">
-          <div style="font-size:24px; margin-bottom:6px;">🖼️</div>
+          <div class="cr-ico-badge" style="width:38px;height:38px;margin-bottom:8px;" aria-hidden="true"><svg class="cr-ico" style="width:20px;height:20px;" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></div>
           <div style="font-weight:700; color:var(--ink); font-size:14px;">Glisse ou choisis tes planches de modèles</div>
           <div style="font-size:12px; color:var(--muted); margin-top:4px;">PNG, JPG, WEBP, SVG, GLB, BLEND ou PDF · Multi-fichiers acceptés</div>
         </label>
@@ -1927,7 +2012,7 @@
       claudeKeySaving = true;
       const d = await apiJson('/api/claude/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
       claudeKeySaving = false;
-      if (d.error) return toast('❌ ' + d.error);
+      if (d.error) return toast('' + d.error);
       claudeKeyFlowOn = false;
       toast('✓ Clé API Anthropic enregistrée');
       location.reload();
@@ -1935,7 +2020,7 @@
     async function removeClaudeApiKey() {
       if (!confirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
       const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
-      if (d.error) return toast('❌ ' + d.error);
+      if (d.error) return toast('' + d.error);
       location.reload();
     }
 
@@ -2184,7 +2269,7 @@
       const editing = typeof forceEdit === 'boolean' ? forceEdit : fabScriptViewMode !== 'raw';
       setFabScriptViewMode(editing ? 'raw' : 'pretty');
       const btn = document.getElementById('fab-edit-toggle');
-      if (btn) btn.textContent = editing ? '✓ Terminé' : '✏️ Modifier à la main';
+      if (btn) btn.textContent = editing ? '✓ Terminé' : 'Modifier à la main';
       if (editing) document.getElementById('fab-review-text')?.focus();
     }
 
@@ -2195,7 +2280,7 @@
       document.getElementById('fab-view-pretty-btn')?.classList.toggle('actif', fabScriptViewMode === 'pretty');
       document.getElementById('fab-view-raw-btn')?.classList.toggle('actif', fabScriptViewMode === 'raw');
       const editBtn = document.getElementById('fab-edit-toggle');
-      if (editBtn) editBtn.textContent = fabScriptViewMode === 'raw' ? '✓ Terminé' : '✏️ Modifier à la main';
+      if (editBtn) editBtn.textContent = fabScriptViewMode === 'raw' ? '✓ Terminé' : 'Modifier à la main';
       if (fabScriptViewMode === 'pretty') {
         renderFormattedScript(rawEl ? rawEl.value : '');
         if (prettyEl) prettyEl.style.display = 'block';
@@ -2463,7 +2548,7 @@
         if (st) st.textContent = `✓ Modifié (${res.engine_label || eng})`;
         toast('Script mis à jour par l’IA !');
       } finally {
-        if (btn) { btn.disabled = false; btn.textContent = '✨ Changer avec l’IA'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Changer avec l’IA'; }
       }
     }
 
@@ -2602,7 +2687,7 @@
         toast(e.message || 'Erreur pendant la génération du script.');
       } finally {
         clearInterval(pulseTimer);
-        if (btn) { btn.disabled = false; btn.textContent = '✨ Régénérer le script avec l’IA'; }
+        if (btn) { btn.disabled = false; btn.textContent = 'Régénérer le script avec l’IA'; }
       }
     }
 
@@ -2671,7 +2756,7 @@
       if (thumb) {
         thumb.innerHTML = pl.cover_url
           ? `<img src="${escHtml(pl.cover_url)}" alt="">`
-          : escHtml(pl.icon || '🧩');
+          : escHtml(pl.icon || 'S');
       }
       const title = document.getElementById('ap-title');
       if (title) title.textContent = pl.name;
@@ -2681,9 +2766,9 @@
         const durTag = formatDurShort(targetDurationSec);
         const engLbl = 'Claude';
         metricsEl.innerHTML = `
-          <span class="plugin-metric-pill">⏱ ${escHtml(m.timeLbl)} (${escHtml(durTag)})</span>
-          <span class="plugin-metric-pill cost">⚡ ~${m.quotaPct}% quota (${engLbl})</span>
-          <span class="plugin-metric-pill" title="Calculé à partir des vraies fabrications de ce style">${m.measured ? `📏 mesuré sur ${m.samples} vidéo${m.samples > 1 ? 's' : ''}` : '📏 estimation (se précise à chaque vidéo)'}</span>
+          <span class="plugin-metric-pill">${escHtml(m.timeLbl)} (${escHtml(durTag)})</span>
+          <span class="plugin-metric-pill cost">~${m.quotaPct}% quota (${engLbl})</span>
+          <span class="plugin-metric-pill" title="Calculé à partir des vraies fabrications de ce style">${m.measured ? `mesuré sur ${m.samples} vidéo${m.samples > 1 ? 's' : ''}` : 'estimation (se précise à chaque vidéo)'}</span>
         `;
       }
     }
@@ -2699,7 +2784,7 @@
       const hint = document.getElementById('rq-hint');
       if (hint) hint.textContent = renderQuality === 'hq'
         ? "Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus)."
-        : '⚠️ Mode Rapide : vidéo prête plus vite, mais de moins bonne qualité.';
+        : 'Mode Rapide : vidéo prête plus vite, mais de moins bonne qualité.';
     }
     function showRenderQuality(on) {
       const row = document.getElementById('render-quality-row');
@@ -2720,8 +2805,8 @@
       if (!row || !st) return;
       row.style.display = st.ready ? 'none' : 'flex';
       if (st.ready) { if (cinePoll) { clearInterval(cinePoll); cinePoll = null; toast('✓ Moteur Ciné installé'); } return; }
-      if (st.installing) { txt.textContent = '⏳ ' + (st.step || 'Installation…'); btn.disabled = true; btn.textContent = 'Installation…'; }
-      else if (st.error) { txt.textContent = '⚠️ ' + st.error; btn.disabled = false; btn.textContent = 'Réessayer'; }
+      if (st.installing) { txt.textContent = '' + (st.step || 'Installation…'); btn.disabled = true; btn.textContent = 'Installation…'; }
+      else if (st.error) { txt.textContent = '' + st.error; btn.disabled = false; btn.textContent = 'Réessayer'; }
     }
     async function installCineEngine() {
       renderCineInstall(await apiJson('/api/cine/install', { method: 'POST' }));
@@ -2759,7 +2844,7 @@
           selectRenderType(adapted, true);
           syncRenderLocksForStyle(pl, adapted);
           const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
-          hintTxt = `${pl.name} · ⏱ ${mHint.timeLbl}`;
+          hintTxt = `${pl.name} · ${mHint.timeLbl}`;
           showCineWarning(!!pl.heavy);
           // qualité Blender au choix pour les styles rendus par Blender (pas le mode Ciné, ni un style copié sur mesure)
           const vs = (pl.production && pl.production.visual_style) || '';
@@ -2812,7 +2897,7 @@
         const name = inputEl.files[0].name;
         if (chip) {
           chip.style.display = 'inline-flex';
-          chip.textContent = '🎞️ ' + (name.length > 22 ? name.slice(0, 20) + '…' : name);
+          chip.textContent = '' + (name.length > 22 ? name.slice(0, 20) + '…' : name);
         }
         selectStylePlaque('broll');
         toast('Vidéo B-roll chargée en fond !');
@@ -2841,7 +2926,7 @@
         if (data.error) return toast(data.error);
         const audio = new Audio(data.audio_url);
         audio.play();
-        toast('🎙️ Lecture de ta voix Studio');
+        toast('Lecture de ta voix Studio');
       } finally {
         btn.disabled = false; btn.textContent = prev;
       }
@@ -3064,8 +3149,16 @@
         <span class="kpi-pill"><b>${fmtCount(ch.subscribers)}</b> abonnés</span>
         <span class="kpi-pill"><b>${fmtCount(ch.total_views)}</b> vues au total</span>
         <span class="kpi-pill"><b>${fmtCount(d.median_views)}</b> vues par vidéo (médiane)</span>` : '';
-      if (st) st.innerHTML = d.syncing ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Mise à jour…')}`
-        : (d.error ? `⚠️ ${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · score /100 comparé aux autres vidéos de ta chaîne (vues) et à l’engagement.` : 'Clique sur « Mettre à jour » pour récupérer toutes les vidéos de ta chaîne YouTube connectée.'));
+      if (st) {
+        const isTikTok = ((d.workspace || {}).platform === 'tiktok');
+        const handleForm = (isTikTok && (d.error || !(d.videos || []).length))
+          ? `<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+               <input type="text" id="cs-tiktok-handle" class="input-sm" style="max-width:240px;" value="${escHtml(d.tiktok_handle || '')}" placeholder="Ton @handle TikTok (ex: docteurshark)">
+               <button type="button" class="btn btn-coral btn-xs" onclick="saveTikTokHandleAndSync()">Enregistrer @handle & analyser</button>
+             </div>` : '';
+        st.innerHTML = (d.syncing ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Mise à jour…')}`
+          : (d.error ? `${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · score /100 comparé aux autres vidéos de ta chaîne (vues) et à l’engagement.` : 'Clique sur « Mettre à jour » pour récupérer les vidéos du compte actif.'))) + handleForm;
+      }
       let vids = (d.videos || []).slice();
       if (CS.sort === 'best') vids.sort((a, b) => b.score - a.score);
       if (CS.sort === 'worst') vids.sort((a, b) => a.score - b.score);
@@ -3089,7 +3182,7 @@
             </div>
             ${v.why ? `<div style="font-size:12.5px; color:var(--ink-2); margin-top:6px;"><b style="color:${col};">${escHtml(v.verdict || 'Pourquoi')} :</b> ${escHtml(v.why)}</div>` : ''}
             ${v.next ? `<div style="font-size:12.5px; color:var(--ink-2); margin-top:3px;"><b style="color:var(--accent);">Prochaine fois :</b> ${escHtml(v.next)}</div>` : ''}
-            <div style="margin-top:8px;"><button type="button" class="btn btn-ghost btn-xs" data-id="${escHtml(v.id)}" onclick="remakeVideo(this.dataset.id, this)">✨ Refaire la vidéo avec l’IA</button></div>
+            <div style="margin-top:8px;"><button type="button" class="btn btn-ghost btn-xs" data-id="${escHtml(v.id)}" onclick="remakeVideo(this.dataset.id, this)">Refaire la vidéo avec l’IA</button></div>
           </div>
         </div>`;
       }).join('');
@@ -3104,7 +3197,7 @@
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ engine, voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null }),
       });
-      if (btn) { btn.disabled = false; btn.textContent = '✨ Refaire la vidéo avec l’IA'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Refaire la vidéo avec l’IA'; }
       if (res.error) return toast(res.error);
       toast('La nouvelle version est en fabrication : elle corrige les points à améliorer.');
       if (typeof trackJob === 'function') trackJob();
@@ -3156,11 +3249,70 @@
       renderInspiration();
       if (!INSP.timer) INSP.timer = setTimeout(() => { INSP.timer = null; loadInspiration(); }, 3000);
     }
+    async function saveTikTokHandleAndSync() {
+      const inp = document.getElementById('cs-tiktok-handle');
+      const handle = (inp?.value || '').trim();
+      if (!handle) return toast('Entre ton @handle TikTok (ex: docteurshark).');
+      const res = await apiJson('/api/channel-stats/tiktok-handle', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ handle }),
+      });
+      if (res.error) return toast(res.error);
+      CS.data = res;
+      renderChannelStats();
+      toast('Handle @' + (res.handle || handle) + ' enregistré — analyse lancée.');
+      if (!CS.timer) CS.timer = setTimeout(() => { CS.timer = null; loadChannelStats(); }, 2500);
+    }
+
     function useInspirationLink(url) {
       showView('creer');
       const inp = document.getElementById('fab-ref-url');
       if (inp) { inp.value = url; syncRefUrlLock(); inp.scrollIntoView({ block: 'center' }); }
       toast('Lien ajouté : écris ton idée ou ton script, ClipRoll copie le style de cette vidéo.');
+    }
+    async function cloneInspirationVideo(url, title) {
+      if (!url) return;
+      toast('Clonage lancé : direction Fabrique…');
+      try {
+        const res = await apiJson('/api/make-like', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            topic: title ? ('Clone en améliorant le hook et la rétention : ' + title) : 'Clone cette vidéo virale avec un hook 1.5s',
+            target_duration_sec: (typeof targetDurationSec !== 'undefined' ? targetDurationSec : 45) || 45,
+            engine: 'claude',
+            voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null,
+          }),
+        });
+        if (res.error) return toast(res.error);
+        showView('fabrique');
+        if (typeof trackJob === 'function') trackJob();
+      } catch (e) {
+        useInspirationLink(url);
+      }
+    }
+    async function runMontageShort(inputEl) {
+      const file = inputEl?.files?.[0];
+      if (!file) return;
+      const st = document.getElementById('montage-short-status');
+      if (st) st.textContent = 'Envoi de ' + file.name + '…';
+      const fd = new FormData();
+      fd.append('video', file);
+      fd.append('num_clips', '1');
+      fd.append('crop_mode', 'center');
+      fd.append('remove_silences', 'true');
+      try {
+        const data = await apiJson('/api/cut', { method: 'POST', body: fd });
+        if (data.error) { if (st) st.textContent = data.error; return toast(data.error); }
+        if (st) st.textContent = 'Montage lancé !';
+        showView('fabrique');
+        if (typeof trackJob === 'function') trackJob();
+      } catch (e) {
+        if (st) st.textContent = 'Erreur lors de l’envoi.';
+        toast('Erreur lors de l’envoi de la vidéo.');
+      } finally {
+        if (inputEl) inputEl.value = '';
+      }
     }
     async function copyInspirationLink(url) {
       try { await navigator.clipboard.writeText(url); toast('Lien copié.'); } catch (e) { prompt('Copie ce lien :', url); }
@@ -3176,7 +3328,7 @@
       if (st) {
         st.innerHTML = d.scanning
           ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Recherche des vidéos IA qui cartonnent…')} (1 à 3 min)`
-          : (d.error ? `⚠️ ${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · ${vids.length} vidéo${vids.length > 1 ? 's' : ''} IA sorties il y a moins de ${d.max_age_days || 30} jours` : 'Clique sur « Actualiser le radar » pour trouver les vidéos IA qui marchent en ce moment.'));
+          : (d.error ? `${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · ${vids.length} vidéo${vids.length > 1 ? 's' : ''} IA sorties il y a moins de ${d.max_age_days || 30} jours` : 'Clique sur « Actualiser le radar » pour trouver les vidéos IA qui marchent en ce moment.'));
       }
       wall.innerHTML = vids.map(v => {
         const plat = v.platform === 'instagram' ? 'instagram' : 'tiktok';
@@ -3188,7 +3340,7 @@
             <span class="wall-plat-badge ${plat}">${plat === 'instagram' ? 'Reels' : 'TikTok'}</span>
             <span style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.72); color:#fff; font-weight:800; font-size:12px; padding:3px 8px; border-radius:99px;">${v.score}/100</span>
             <div class="wall-overlay">
-              <span class="wall-views">${fmtCount(v.views)} vues · ${fmtCount(v.likes)} ❤ · ${escHtml(String(v.engagement || 0))} %</span>
+              <span class="wall-views">${fmtCount(v.views)} vues · ${fmtCount(v.likes)} likes · ${escHtml(String(v.engagement || 0))} %</span>
               <div class="wall-title">${escHtml(v.title || '')}</div>
               <div class="wall-meta">${escHtml(v.channel || '')}${age ? ' · ' + age : ''}${v.style ? ' · ' + escHtml(v.style) : ''}</div>
             </div>
@@ -3196,9 +3348,47 @@
           ${v.why ? `<div style="font-size:12px; line-height:1.4; color:var(--ink); padding:8px 10px 0;"><b style="color:${scoreCol};">Pourquoi ça marche :</b> ${escHtml(v.why)}</div>` : ''}
           <div class="wall-actions">
             <button type="button" class="btn btn-ghost btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="copyInspirationLink(this.dataset.url)">Copier le lien</button>
-            <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="useInspirationLink(this.dataset.url)">Faire pareil →</button>
+            <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" data-title="${escHtml(v.title || '')}" onclick="cloneInspirationVideo(this.dataset.url, this.dataset.title)">Cloner la vidéo</button>
           </div>
           <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:11.5px; color:var(--muted); padding:0 0 8px;">Voir la vidéo ↗</a>
+        </div>`;
+      }).join('');
+    }
+
+    function updateFabriqueUI(jobs) {
+      const running = (jobs || []).filter(j => j.status === 'running' || j.status === 'queued' || j.status === 'pending');
+      const pill = document.getElementById('topbar-fab-pill');
+      const pillLbl = document.getElementById('topbar-fab-label');
+      const sideBadge = document.getElementById('sidebar-fab-count');
+      const head = document.getElementById('fabrique-heading');
+      const grid = document.getElementById('fabrique-grid');
+      const empty = document.getElementById('fabrique-empty');
+      const n = running.length;
+      if (pill) pill.classList.toggle('active', n > 0);
+      if (pillLbl) pillLbl.textContent = `${n} vidéo${n > 1 ? 's' : ''} en fabrication`;
+      if (sideBadge) { sideBadge.style.display = n > 0 ? '' : 'none'; sideBadge.textContent = String(n); }
+      if (head) head.textContent = n > 0 ? `${n} vidéo${n > 1 ? 's' : ''} en fabrication` : 'Fabrique';
+      if (!grid) return;
+      const shown = (jobs || []).slice(0, 12);
+      if (empty) empty.style.display = shown.length ? 'none' : 'block';
+      const nowSec = Date.now() / 1000;
+      let qIdx = 0;
+      grid.innerHTML = shown.map(job => {
+        const isDone = job.status === 'done';
+        const isQueued = job.status === 'queued' || job.status === 'pending';
+        if (isQueued) qIdx++;
+        const mins = Math.max(0, Math.floor((nowSec - (job.created_at || nowSec)) / 60));
+        const pct = Math.max(6, Math.min(100, Number(job.progress || (isDone ? 100 : (isQueued ? 8 : 15)))));
+        const title = isQueued ? `Attend son tour : ${qIdx === 1 ? '1re' : qIdx + 'e'} dans la file` : stripEmoji(job.step || job.label || 'Fabrication en cours');
+        const meta = isDone ? 'Prête à valider dans Mes vidéos' : (isQueued ? stripEmoji(job.label || 'En file') : (mins >= 1 ? `En cours depuis ${mins} min` : 'Démarrage en cours…'));
+        const cls = isDone ? 'done' : (isQueued ? 'queued' : '');
+        const actionBtn = isDone && job.session_id
+          ? `<button type="button" class="btn btn-coral btn-xs" style="margin-top:10px; align-self:flex-start;" onclick="openFinishedVideo('${escHtml(job.session_id)}')">Regarder →</button>` : '';
+        return `<div class="cr-fab-card ${cls}">
+          <div class="cr-fab-card-title">${escHtml(title)}</div>
+          <div class="cr-fab-card-meta">${escHtml(meta)}</div>
+          <div class="cr-fab-card-track"><div class="cr-fab-card-fill" style="width:${pct}%;"></div></div>
+          ${actionBtn}
         </div>`;
       }).join('');
     }
@@ -3451,6 +3641,7 @@
       try {
         const data = await (await fetch('/api/jobs')).json();
         const jobs = data.jobs || [];
+        updateFabriqueUI(jobs);
         const stack = document.getElementById('jobs-stack');
         const homeLive = document.getElementById('home-fab-live-box');
         if (!jobs.length) {
@@ -3499,7 +3690,7 @@
 
           const liveIndicator = job.status === 'running'
             ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
-                 <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">⏱ ${remEstTxt}</b>
+                 <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">${remEstTxt}</b>
                  ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
                    ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
                </div>
@@ -3606,8 +3797,8 @@
               ${escHtml(pl.tagline || 'Direction artistique prête pour Claude.')}
             </div>
             <div class="plugin-metric-row" style="margin-top:0;">
-              <span class="plugin-metric-pill">⏱ ${escHtml(pl.est_time_label || '~1 min')} (1 min)</span>
-              <span class="plugin-metric-pill cost">🪙 ${escHtml(pl.est_tokens_label || '~2k tokens')}${pl.est_claude_quota_pct ? ' · ~' + pl.est_claude_quota_pct + '% quota' : ''}</span>
+              <span class="plugin-metric-pill">${escHtml(pl.est_time_label || '~1 min')} (1 min)</span>
+              <span class="plugin-metric-pill cost">${escHtml(pl.est_tokens_label || '~2k tokens')}${pl.est_claude_quota_pct ? ' · ~' + pl.est_claude_quota_pct + '% quota' : ''}</span>
             </div>
             <div class="plugin-card-actions">
               <button type="button" class="btn btn-coral btn-xs" style="flex:1.2;" onclick="usePluginInFabrique('${escHtml(pl.id)}')">Utiliser →</button>
@@ -3633,8 +3824,8 @@
         const mPl = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
         return `<button type="button" class="style-plaque ${selectedStylePlaque === key ? 'actif' : ''}" data-splaque="${escHtml(key)}" data-plugin-id="${escHtml(pl.id)}" onclick="selectStylePlaque('${escHtml(key)}', this)">
           <div class="sp-art ${escHtml(pl.gradient_css || 'sp-plug-custom')} ${pl.cover_url ? 'has-cover' : ''}" ${coverAttr}>
-            ${pl.cover_url ? '' : `<div style="font-size:26px; margin:auto 0;">${escHtml(pl.icon || '🧩')}</div>`}
-            <div class="sp-meta-strip" title="${mPl.measured ? 'Mesuré sur ' + mPl.samples + ' vidéo(s)' : 'Estimation, se précise à chaque vidéo'}">⏱ ${escHtml(mPl.timeLbl)} · ${mPl.quotaPct}%</div>
+            ${pl.cover_url ? '' : `<div style="font-size:26px; margin:auto 0;">${escHtml(pl.icon || 'S')}</div>`}
+            <div class="sp-meta-strip" title="${mPl.measured ? 'Mesuré sur ' + mPl.samples + ' vidéo(s)' : 'Estimation, se précise à chaque vidéo'}">${escHtml(mPl.timeLbl)} · ${mPl.quotaPct}%</div>
           </div>
           <span class="sp-name">${escHtml(pl.name)}</span>
         </button>`;
@@ -3662,7 +3853,7 @@
       if (labSel) {
         const prev = labSel.value;
         labSel.innerHTML = '<option value="">Plugin DA : Aucun (style libre)</option>' +
-          STYLE_PLUGINS.map(pl => `<option value="${escHtml(pl.id)}">${escHtml(pl.icon || '🧩')} ${escHtml(pl.name)} (${escHtml(pl.category)})</option>`).join('');
+          STYLE_PLUGINS.map(pl => `<option value="${escHtml(pl.id)}">${escHtml(pl.icon || 'S')} ${escHtml(pl.name)} (${escHtml(pl.category)})</option>`).join('');
         if (prev && STYLE_PLUGINS.some(p => p.id === prev)) labSel.value = prev;
       }
       if (activePluginId && !STYLE_PLUGINS.some(p => p.id === activePluginId)) {
@@ -3714,7 +3905,7 @@
           <div class="sheet-thumb-media">
             ${s.is_image
               ? `<img src="${escHtml(s.url)}" alt="${escHtml(s.original_name)}">`
-              : `<div style="text-align:center; padding:8px;"><div style="font-size:24px;">🧊</div><div style="font-size:10.5px; color:var(--muted); margin-top:3px;">${escHtml((s.ext || '').toUpperCase())}</div></div>`}
+              : `<div style="text-align:center; padding:8px;"><div style="color:var(--cr-cyan);margin-bottom:4px;"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div style="font-size:10.5px; color:var(--muted); margin-top:3px;">${escHtml((s.ext || '').toUpperCase())}</div></div>`}
           </div>
           <div class="sheet-thumb-foot">
             <div style="font-size:11px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(s.original_name)}">${escHtml(s.original_name)}</div>
@@ -3737,7 +3928,7 @@
         document.getElementById('pe-id').value = p.id;
         document.getElementById('pe-name').value = p.name || '';
         document.getElementById('pe-category').value = p.category || 'Personnalisé';
-        document.getElementById('pe-icon').value = p.icon || '🧩';
+        document.getElementById('pe-icon').value = p.icon || '';
         document.getElementById('pe-render-mode').value = p.render_mode || 'motion';
         document.getElementById('pe-tagline').value = p.tagline || '';
         document.getElementById('pe-theme').value = p.theme || 'dark_luxury';
@@ -3758,7 +3949,7 @@
         document.getElementById('pe-id').value = '';
         document.getElementById('pe-name').value = '';
         document.getElementById('pe-category').value = 'Personnalisé';
-        document.getElementById('pe-icon').value = '🧩';
+        document.getElementById('pe-icon').value = '';
         document.getElementById('pe-render-mode').value = 'motion';
         document.getElementById('pe-tagline').value = '';
         document.getElementById('pe-theme').value = 'dark_luxury';
@@ -3787,14 +3978,14 @@
       const outTok = daLen >= 3000 ? 2400 : (daLen >= 800 ? 1600 : 1100);
       const total = inTok + outTok;
       const lbl = total >= 1000 ? `~${(total / 1000).toFixed(1).replace('.', ',')}k tokens / vidéo` : `~${total} tokens / vidéo`;
-      el.textContent = `🪙 Estimation : ${lbl}`;
+      el.textContent = `Estimation : ${lbl}`;
     }
 
     function _collectPluginFormPayload() {
       return {
         name: val('pe-name'),
         category: val('pe-category') || 'Personnalisé',
-        icon: val('pe-icon') || '🧩',
+        icon: val('pe-icon') || '',
         gradient: val('pe-gradient') || 'custom',
         tagline: val('pe-tagline'),
         render_mode: val('pe-render-mode') || 'motion',
@@ -3969,10 +4160,10 @@
       }
       box.style.display = 'block';
       if (st.installing) {
-        txt.textContent = '⏳ ' + (st.step || 'Installation…');
+        txt.textContent = '' + (st.step || 'Installation…');
         btn.disabled = true; btn.textContent = 'Installation…';
       } else if (st.error) {
-        txt.textContent = '⚠️ ' + st.error;
+        txt.textContent = '' + st.error;
         btn.disabled = false; btn.textContent = 'Réessayer';
       }
     }
@@ -4110,7 +4301,7 @@
 
       if (voiceProvider === 'el' && !EL_CONNECTED) return toast('Connecte ElevenLabs ou choisis la voix incluse.');
       if (!refUrl && window.ClipoaUX) await ClipoaUX.autoStyle(mainText || custom_script);
-      if (selectedRenderType === 'blender3d' && !BLENDER_AVAILABLE) return toast('❌ La 3D n’est pas encore installée.');
+      if (selectedRenderType === 'blender3d' && !BLENDER_AVAILABLE) return toast('La 3D n’est pas encore installée.');
       const pluginId = activePluginId || '';
       const voice = getSelectedVoiceValue();
       const theme = val('fab-theme') || 'dark_luxury';
@@ -4785,7 +4976,7 @@
             return `<div style="font-size:11.5px; color:var(--ok); margin-top:3px;">✓ ${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Publié')}</div>`;
           }
           if (rinfo && rinfo.pending) {
-            return `<div style="font-size:11.5px; color:var(--muted); margin-top:3px;">⏳ ${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Envoi…')}</div>`;
+            return `<div style="font-size:11.5px; color:var(--muted); margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Envoi…')}</div>`;
           }
           const col = (rinfo && rinfo.manual) ? 'var(--muted)' : 'var(--danger)';
           return `<div style="font-size:11.5px; color:${col}; margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml((rinfo && rinfo.message) || 'Erreur')}</div>`;
@@ -4835,7 +5026,7 @@
     async function submitPostiz(now) {
       const render_id = val('pub-video');
       const platforms = Array.from(document.querySelectorAll('#pub-platforms .plat-pill.selected')).map(e => e.dataset.plat);
-      if (!render_id) return toast('❌ Pas encore de vidéo à publier.');
+      if (!render_id) return toast('Pas encore de vidéo à publier.');
       if (!platforms.length) return toast('Connecte YouTube ou TikTok pour publier.');
       const scheduled_at = val('pub-schedule');
       if (!now && !scheduled_at) {
@@ -5387,6 +5578,171 @@
       askAiHelp();
     }
 
+    let aiBarMode = localStorage.getItem('cliproll_ai_bar_mode') || 'team';
+    function setAiBarMode(mode) {
+      aiBarMode = (mode === 'help') ? 'help' : 'team';
+      try { localStorage.setItem('cliproll_ai_bar_mode', aiBarMode); } catch(e) {}
+      document.getElementById('ai-mode-team')?.classList.toggle('actif', aiBarMode === 'team');
+      document.getElementById('ai-mode-help')?.classList.toggle('actif', aiBarMode === 'help');
+      const inp = document.getElementById('ai-tb-input');
+      const head = document.getElementById('ai-drawer-heading');
+      const sub = document.getElementById('ai-drawer-sub');
+      const roster = document.getElementById('ai-roster-strip');
+      const qTeam = document.getElementById('ai-quick-team');
+      const qHelp = document.getElementById('ai-quick-help');
+      if (aiBarMode === 'team') {
+        if (inp) inp.placeholder = 'Demande à ton équipe (ex : génère mes 5 vidéos de la semaine…)';
+        if (head) head.textContent = "Équipe d'agents IA ClipRoll";
+        if (sub) sub.textContent = 'Exécute tes missions (semaine, audit, hooks, vidéos) · validation humaine avant publication';
+        if (roster) roster.style.display = 'flex';
+        if (qTeam) qTeam.style.display = 'flex';
+        if (qHelp) qHelp.style.display = 'none';
+      } else {
+        if (inp) inp.placeholder = 'Une question sur ClipRoll ?';
+        if (head) head.textContent = 'Aide IA ClipRoll';
+        if (sub) sub.textContent = 'Réponses courtes, avec le nom exact des onglets et boutons';
+        if (roster) roster.style.display = 'none';
+        if (qTeam) qTeam.style.display = 'none';
+        if (qHelp) qHelp.style.display = 'flex';
+      }
+    }
+
+    function appendTeamTrace(steps, actions) {
+      const body = document.getElementById('ai-tb-messages');
+      if (!body) return;
+      if (Array.isArray(steps) && steps.length) {
+        const box = document.createElement('div');
+        box.className = 'ai-team-steps';
+        box.innerHTML = steps.map(s => `<div class="ai-team-step"><b>${escHtml(s.agent || 'Agent')}</b><span>${escHtml(s.detail || '')}</span></div>`).join('');
+        body.appendChild(box);
+      }
+      if (Array.isArray(actions) && actions.length) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 8px;';
+        actions.forEach(a => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn btn-coral btn-xs';
+          b.textContent = a.label || 'Ouvrir';
+          b.onclick = () => {
+            toggleAiTaskbarDrawer(false);
+            if (a.view) showView(a.view);
+            else if (a.open_modal) openModal(a.open_modal);
+          };
+          row.appendChild(b);
+        });
+        body.appendChild(row);
+      }
+      body.scrollTop = body.scrollHeight;
+    }
+
+    async function runChannelRetentionAudit() {
+      const btn = document.getElementById('cs-audit-btn');
+      const panel = document.getElementById('cs-audit-panel');
+      if (btn) { btn.disabled = true; btn.textContent = 'Audit en cours…'; }
+      try {
+        const res = await apiJson('/api/channel-stats/audit', { method: 'POST' });
+        if (res.error) return toast(res.error);
+        renderChannelAudit(res.audit);
+      } catch (e) {
+        toast('Erreur lors de l’audit rétention.');
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Audit rétention (12 Shorts)'; }
+      }
+    }
+
+    function renderChannelAudit(a) {
+      const panel = document.getElementById('cs-audit-panel');
+      if (!panel || !a) return;
+      const sc = a.scorecard || {};
+      const leaks = Array.isArray(a.retention_leaks) ? a.retention_leaks : [];
+      const plan = Array.isArray(a.repair_plan) ? a.repair_plan : [];
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+          <div>
+            <div style="font-weight:800; font-size:15px; color:var(--ink);">Audit Rétention — ${escHtml(a.channel_name || 'Ta chaîne')} (${escHtml(String(a.videos_analyzed || 0))} Shorts)</div>
+            <div style="font-size:12px; color:var(--muted);">Scorecard par pilier, 3 fuites prioritaires & formule d'accroche 1.5s</div>
+          </div>
+          <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('cs-audit-panel').style.display='none'">Fermer</button>
+        </div>
+        <div class="cr-audit-grid">
+          <div class="cr-audit-kpi"><strong>${escHtml(String(sc.overall ?? '-'))}/100</strong><span>Score global</span></div>
+          <div class="cr-audit-kpi"><strong>${escHtml(String(sc.hook_1_5s ?? '-'))}/100</strong><span>Hook 1.5s</span></div>
+          <div class="cr-audit-kpi"><strong>${escHtml(String(sc.pacing_rhythm ?? '-'))}/100</strong><span>Rythme & cuts</span></div>
+          <div class="cr-audit-kpi"><strong>${escHtml(String(sc.engagement_comments ?? '-'))}/100</strong><span>Engagement</span></div>
+          <div class="cr-audit-kpi"><strong>${escHtml(String(sc.consistency ?? '-'))}/100</strong><span>Régularité</span></div>
+        </div>
+        ${leaks.length ? `<div style="margin-top:12px;"><div style="font-weight:700; font-size:13px; color:var(--danger); margin-bottom:6px;">3 fuites de rétention prioritaires</div>
+          <div style="display:flex; flex-direction:column; gap:6px;">${leaks.map(l => `<div style="padding:9px 11px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--stroke-subtle); font-size:12.5px;">
+            <b style="color:var(--ink);">${escHtml(l.title || '')}</b> <span class="pick-badge">${escHtml(l.impact || '')}</span>
+            <div style="color:var(--muted); margin-top:2px;">${escHtml(l.detail || '')}</div>
+            <div style="color:var(--ok); margin-top:3px;"><b>Action :</b> ${escHtml(l.fix || '')}</div>
+          </div>`).join('')}</div></div>` : ''}
+        ${a.hook_formula ? `<div style="margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(0,229,255,0.08); border:1px solid rgba(0,229,255,0.22); font-size:12.5px;">
+          <b style="color:var(--cr-cyan);">Formule d'accroche 1.5s recommandée :</b> ${escHtml(a.hook_formula)}</div>` : ''}
+        ${plan.length ? `<div style="margin-top:10px; font-size:12.5px;"><b style="color:var(--ink);">Plan de réparation (7 jours) :</b>
+          <div style="display:flex; flex-direction:column; gap:4px; margin-top:5px;">${plan.map(p => `<div style="color:var(--ink-2);"><b>${escHtml(p.day || '')} :</b> ${escHtml(p.task || '')}</div>`).join('')}</div></div>` : ''}
+      `;
+    }
+
+    async function optimizeFabRetention() {
+      const btn = document.getElementById('fab-ret-opt-btn');
+      const box = document.getElementById('fab-retention-box');
+      const ta = document.getElementById('fab-review-text');
+      const script = (ta?.value || document.getElementById('main-topic')?.value || '').trim();
+      const topic = (document.getElementById('main-topic')?.value || '').trim();
+      if (!script) return toast('Génère ou colle d’abord un script.');
+      if (btn) { btn.disabled = true; btn.textContent = 'Optimisation…'; }
+      try {
+        const res = await apiJson('/api/script/optimize-retention', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script, topic, duration_sec: targetDurationSec || 30 }),
+        });
+        if (res.error) return toast(res.error);
+        if (ta && res.optimized_script) {
+          ta.value = res.optimized_script;
+          if (typeof onFabReviewEdited === 'function') onFabReviewEdited();
+        }
+        if (box) {
+          const hooks = Array.isArray(res.hooks) ? res.hooks : [];
+          const pis = Array.isArray(res.pattern_interrupts) ? res.pattern_interrupts : [];
+          box.style.display = 'block';
+          box.innerHTML = `<div style="font-weight:700; color:var(--ok); margin-bottom:6px;">✓ Script optimisé (hook 1.5s, élagage, rythme voix & boucle >100 %)</div>
+            ${res.loop_bridge ? `<div style="margin-bottom:6px; color:var(--ink-2);"><b>Boucle & question binaire :</b> ${escHtml(res.loop_bridge)}</div>` : ''}
+            ${hooks.length ? `<div style="margin-bottom:6px;"><b>5 variantes de hook 1.5s :</b>${hooks.slice(0,5).map((h,i) => `<div style="margin-top:3px; color:var(--ink-2);">${i+1}. [${escHtml(h.caption_4w||'')}] « ${escHtml(h.spoken_7w||'')} » — <i>${escHtml(h.frame1_proof||'')}</i></div>`).join('')}</div>` : ''}
+            ${pis.length ? `<div style="color:var(--muted);"><b>Pattern interrupts (6s) :</b> ${pis.map(p => `${p.sec}s (${escHtml(p.visual||'')} + ${escHtml(p.sfx||'')})`).join(' · ')}</div>` : ''}`;
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Optimiser rétention'; }
+      }
+    }
+
+    async function auditFabSwipeAway() {
+      const btn = document.getElementById('fab-swipe-btn');
+      const box = document.getElementById('fab-retention-box');
+      const script = (document.getElementById('fab-review-text')?.value || document.getElementById('main-topic')?.value || '').trim();
+      if (!script) return toast('Aucun script à auditer.');
+      if (btn) { btn.disabled = true; btn.textContent = 'Audit…'; }
+      try {
+        const res = await apiJson('/api/script/swipe-audit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script, duration_sec: targetDurationSec || 30 }),
+        });
+        if (res.error) return toast(res.error);
+        if (box) {
+          const chk = Array.isArray(res.checklist_5) ? res.checklist_5 : [];
+          box.style.display = 'block';
+          box.innerHTML = `<div style="font-weight:700; color:var(--ink); margin-bottom:5px;">Audit anti-swipe avant export — Score : ${escHtml(String(res.retention_score ?? '-'))}/100</div>
+            <div style="color:var(--danger); margin-bottom:4px;"><b>Risque maximal à ${escHtml(String(res.swipe_risk_second ?? '?'))}s :</b> ${escHtml(res.why_momentum_drops || '')}</div>
+            <div style="color:var(--ok); margin-bottom:6px;"><b>Correction :</b> ${escHtml(res.exact_fix || '')}</div>
+            ${chk.length ? `<div><b>Checklist 5 points :</b>${chk.map(c => `<div style="margin-top:2px; color:var(--ink-2);">${c.ok ? '✓' : '✕'} <b>${escHtml(c.item||'')}</b> — ${escHtml(c.note||'')}</div>`).join('')}</div>` : ''}`;
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Audit anti-swipe'; }
+      }
+    }
+
     async function askAiHelp() {
       const inp = document.getElementById('ai-tb-input');
       const btn = document.getElementById('ai-tb-send');
@@ -5406,10 +5762,38 @@
       const provider = rawChoice[0] || 'auto';
       const model = rawChoice[1] || '';
 
-      const thinkingEl = appendAiHelpMessage('assistant', 'Je regarde ça…', sel?.selectedOptions?.[0]?.textContent || 'Aide IA');
+      const thinkingLabel = aiBarMode === 'team' ? 'Équipe IA ClipRoll' : (sel?.selectedOptions?.[0]?.textContent || 'Aide IA');
+      const thinkingEl = appendAiHelpMessage('assistant', aiBarMode === 'team' ? 'L’équipe mobilise les agents…' : 'Je regarde ça…', thinkingLabel);
       if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
       try {
+        if (aiBarMode === 'team') {
+          const res = await apiJson('/api/agent-team/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: msg,
+              engine: provider === 'gemini' ? 'gemini' : 'claude',
+              plugin_id: (typeof activePluginId !== 'undefined' ? activePluginId : '') || '',
+              duration_sec: (typeof targetDurationSec !== 'undefined' ? targetDurationSec : 60) || 60,
+              voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null,
+            }),
+          });
+          if (thinkingEl) thinkingEl.remove();
+          if (res.error) {
+            appendAiHelpMessage('assistant', res.error, 'Équipe IA');
+            return;
+          }
+          appendTeamTrace(res.steps, []);
+          appendAiHelpMessage('assistant', res.reply || 'Mission terminée.', 'Équipe IA ClipRoll');
+          appendTeamTrace([], res.actions);
+          if (res.data && res.data.audit) renderChannelAudit(res.data.audit);
+          if (res.action === 'make_video' || res.action === 'remake_worst') {
+            if (typeof trackJob === 'function') trackJob();
+          }
+          return;
+        }
+
         const res = await apiJson('/api/assistant/help', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5445,6 +5829,7 @@
 
     window.addEventListener('load', () => {
       initAiTaskbarModel();
+      setAiBarMode(aiBarMode);
       restoreAiHelp();
       renderPluginsGallery();
       renderActivePluginBar();
@@ -5519,11 +5904,11 @@
     div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn { display: none !important; }
 </style>
 {% endif %}
-<script src="/static/js/clipoa_update.js" defer></script>
-<script src="/static/js/clipoa_ux.js" defer></script>
-<script src="/static/js/clipoa_elevenlabs.js" defer></script>
-<script src="/static/js/clipoa_onboarding.js" defer></script>
+<script src="/static/js/cliproll_update.js" defer></script>
+<script src="/static/js/cliproll_ux.js" defer></script>
+<script src="/static/js/cliproll_elevenlabs.js" defer></script>
+<script src="/static/js/cliproll_onboarding.js" defer></script>
 
-<script src="/static/js/clipoa_support.js" defer></script>
+<script src="/static/js/cliproll_support.js" defer></script>
 </body>
 </html>

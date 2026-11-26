@@ -33,7 +33,7 @@
     busy = true; say("Test de la clé…");
     json("/api/elevenlabs/connect", { api_key: key, enabled: true }).then(function (d) {
       busy = false;
-      if (d.error) return say("❌ " + d.error);
+      if (d.error) return say(d.error);
       waiting = false; say("✓ ElevenLabs est connecté");
       if (onDone) onDone(d); else location.reload();
     });
@@ -83,7 +83,7 @@
       b.onclick = function () {
         b.disabled = true; say("Changement de compte…");
         json("/api/elevenlabs/switch", { id: b.dataset.id }).then(function (d) {
-          if (d.error) { b.disabled = false; return say("❌ " + d.error); }
+          if (d.error) { b.disabled = false; return say(d.error); }
           say("✓ Compte changé"); location.reload();
         });
       };

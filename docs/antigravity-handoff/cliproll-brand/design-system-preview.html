@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipRoll — Direction Artistique & Kit UI</title>
+  <link rel="icon" href="icons/web/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="design-system.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 12% 0%, rgba(0, 229, 255, 0.12), transparent 36%),
+                  radial-gradient(circle at 88% 12%, rgba(255, 59, 92, 0.14), transparent 40%),
+                  var(--cr-bg);
+      color: var(--cr-text);
+      font-family: var(--cr-font-ui);
+      line-height: 1.5;
+      padding: 40px 24px 80px;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; display: grid; gap: 28px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;
+      padding-bottom: 24px; border-bottom: 1px solid var(--cr-border);
+    }
+    .brand-lockup { display: flex; align-items: center; gap: 16px; }
+    .brand-lockup img { width: 64px; height: 64px; }
+    .wordmark {
+      font-family: var(--cr-font-display); font-size: 32px; font-weight: 800; letter-spacing: -0.03em;
+    }
+    .wordmark span { color: var(--cr-coral); }
+    .sub { color: var(--cr-text-muted); font-size: 14px; margin-top: 2px; }
+    h2 {
+      font-family: var(--cr-font-display); font-size: 18px; margin: 0 0 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+    .swatch {
+      border-radius: 12px; overflow: hidden; border: 1px solid var(--cr-border); background: var(--cr-surface);
+    }
+    .swatch-color { height: 64px; }
+    .swatch-meta { padding: 10px; font-size: 12px; }
+    .swatch-meta code { font-family: var(--cr-font-mono); color: var(--cr-text-muted); display: block; margin-top: 2px; }
+    .icon-box {
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      padding: 16px; border-radius: 14px; background: var(--cr-bg-brand); border: 1px solid var(--cr-border);
+      min-width: 112px; text-align: center; font-size: 12px; color: var(--cr-text-muted);
+    }
+    .logo-tile {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      border-radius: 10px; background: var(--cr-bg-brand); border: 1px solid var(--cr-border);
+      font-size: 13px; font-weight: 600;
+    }
+    .logo-tile img { width: 20px; height: 20px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand-lockup">
+        <img src="icons/macos/ClipRoll-macOS-1024.png" alt="ClipRoll macOS Icon" />
+        <div>
+          <div class="wordmark">Clip<span>Roll</span></div>
+          <div class="sub">Direction Artistique, Boutons Spéciaux &amp; Vrais Logos Officiels · cliproll.app</div>
+        </div>
+      </div>
+      <div class="row">
+        <span class="cr-badge cr-badge-ai"><span class="cr-badge-dot"></span>IA Ready</span>
+        <span class="cr-badge cr-badge-live"><span class="cr-badge-dot"></span>9:16 Shorts · Reels · TikTok</span>
+      </div>
+    </header>
+
+    <!-- 1. Icônes App -->
+    <section class="cr-card">
+      <h2>1. Icônes finales — macOS (.icns) · Windows (.ico) · Web</h2>
+      <div class="row">
+        <div class="icon-box">
+          <img src="icons/macos/ClipRoll-macOS-1024.png" width="84" height="84" alt="macOS" />
+          <strong>macOS HIG</strong>
+          <span>ClipRoll.icns</span>
+        </div>
+        <div class="icon-box">
+          <img src="icons/windows/ClipRoll-Store-1024.png" width="76" height="76" style="border-radius:10px" alt="Windows" />
+          <strong>Windows / Store</strong>
+          <span>ClipRoll.ico</span>
+        </div>
+        <div class="icon-box">
+          <img src="icons/windows/icon-32.png" width="32" height="32" style="border-radius:6px" alt="32px" />
+          <strong>32 px</strong>
+          <span>Barre des tâches</span>
+        </div>
+        <div class="icon-box">
+          <img src="icons/windows/icon-16.png" width="16" height="16" style="border-radius:3px" alt="16px" />
+          <strong>16 px</strong>
+          <span>Favicon / Onglet</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Palette -->
+    <section class="cr-card">
+      <h2>2. Palette signature (extraite du Logo 4)</h2>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch-color" style="background:#0B0B16"></div><div class="swatch-meta"><strong>Obsidian BG</strong><code>#0B0B16</code></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#101022"></div><div class="swatch-meta"><strong>Midnight Indigo</strong><code>#101022</code></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#15152B"></div><div class="swatch-meta"><strong>Card Surface</strong><code>#15152B</code></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#00E5FF"></div><div class="swatch-meta"><strong>Electric Cyan</strong><code>#00E5FF</code></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:#FF3B5C"></div><div class="swatch-meta"><strong>Shorts Coral</strong><code>#FF3B5C</code></div></div>
+        <div class="swatch"><div class="swatch-color" style="background:linear-gradient(135deg,#00E5FF,#FF3B5C)"></div><div class="swatch-meta"><strong>Brand Gradient</strong><code>Cyan → Coral</code></div></div>
+      </div>
+    </section>
+
+    <!-- 3. Boutons spéciaux -->
+    <section class="cr-card">
+      <h2>3. Boutons spéciaux (Site &amp; App)</h2>
+      <div class="row" style="margin-bottom:18px">
+        <button class="cr-btn cr-btn-spark">
+          <svg class="cr-spark-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L14.6 9.4L22 12L14.6 14.6L12 22L9.4 14.6L2 12L9.4 9.4L12 2Z"/></svg>
+          Générer mon Short IA
+        </button>
+        <button class="cr-btn cr-btn-cyan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5L12 3l4.5 4.5"/><path d="M4 15v3.5A2.5 2.5 0 006.5 21h11a2.5 2.5 0 002.5-2.5V15"/></svg>
+          Exporter en 60 fps
+        </button>
+        <button class="cr-btn cr-btn-pro">
+          Passer à ClipRoll Pro
+        </button>
+      </div>
+      <div class="row">
+        <a class="cr-btn cr-btn-platform" href="#download-mac">
+          <img src="logos-plateformes/apple.svg" alt="macOS" /> Télécharger pour macOS
+        </a>
+        <a class="cr-btn cr-btn-platform" href="#download-win">
+          <img src="logos-plateformes/windows.svg" alt="Windows" /> Télécharger pour Windows
+        </a>
+      </div>
+    </section>
+
+    <!-- 4. Vrais logos officiels -->
+    <section class="cr-card">
+      <h2>4. Vrais logos vectoriels officiels (SVG prêts pour l'app &amp; le site)</h2>
+      <div class="row" style="margin-bottom:16px">
+        <button class="cr-btn cr-btn-platform is-youtube"><img src="logos-plateformes/youtube.svg" alt="YouTube" /> YouTube</button>
+        <button class="cr-btn cr-btn-platform is-youtube"><img src="logos-plateformes/youtubeshorts.svg" alt="YouTube Shorts" /> YouTube Shorts</button>
+        <button class="cr-btn cr-btn-platform is-tiktok"><img src="logos-plateformes/tiktok-white.svg" alt="TikTok" /> TikTok</button>
+        <button class="cr-btn cr-btn-platform is-insta"><img src="logos-plateformes/instagram.svg" alt="Instagram" /> Instagram Reels</button>
+        <button class="cr-btn cr-btn-platform"><img src="logos-plateformes/facebook.svg" alt="Facebook" /> Facebook Reels</button>
+      </div>
+      <div class="row">
+        <div class="logo-tile"><img src="logos-plateformes/claude.svg" alt="Claude" /> Claude</div>
+        <div class="logo-tile"><img src="logos-plateformes/elevenlabs-white.svg" alt="ElevenLabs" /> ElevenLabs</div>
+        <div class="logo-tile"><img src="logos-plateformes/anthropic-white.svg" alt="Anthropic" /> Anthropic</div>
+        <div class="logo-tile"><img src="logos-plateformes/googlegemini.svg" alt="Gemini" /> Gemini</div>
+        <div class="logo-tile"><img src="logos-plateformes/stripe.svg" alt="Stripe" /> Stripe</div>
+      </div>
+    </section>
+
+    <!-- 5. Aperçu studio + mini-icônes -->
+    <div class="grid-2">
+      <section class="cr-card">
+        <h2>5. Mini-icônes UI maison (cliproll-ui-icons.svg)</h2>
+        <div class="row">
+          <div class="icon-box"><svg width="24" height="24" style="color:var(--cr-cyan)"><use href="icons-ui/cliproll-ui-icons.svg#cr-mark"/></svg><span>Logo mini</span></div>
+          <div class="icon-box"><svg width="24" height="24" style="color:var(--cr-spark)"><use href="icons-ui/cliproll-ui-icons.svg#cr-spark"/></svg><span>IA Spark</span></div>
+          <div class="icon-box"><svg width="24" height="24" style="color:var(--cr-coral)"><use href="icons-ui/cliproll-ui-icons.svg#cr-vertical"/></svg><span>Format 9:16</span></div>
+          <div class="icon-box"><svg width="24" height="24" style="color:var(--cr-cyan)"><use href="icons-ui/cliproll-ui-icons.svg#cr-voice"/></svg><span>Voix / TTS</span></div>
+          <div class="icon-box"><svg width="24" height="24" style="color:#fff"><use href="icons-ui/cliproll-ui-icons.svg#cr-captions"/></svg><span>Sous-titres</span></div>
+          <div class="icon-box"><svg width="24" height="24" style="color:var(--cr-coral)"><use href="icons-ui/cliproll-ui-icons.svg#cr-cut"/></svg><span>Montage</span></div>
+        </div>
+      </section>
+
+      <section class="cr-card">
+        <h2>6. État génération IA</h2>
+        <div style="display:grid; gap:14px">
+          <div class="row" style="justify-content:space-between">
+            <span style="font-size:13px;font-weight:600">Rendu du Short #04 · 1080×1920</span>
+            <span class="cr-badge cr-badge-ai">78%</span>
+          </div>
+          <div class="cr-progress"><div class="cr-progress-fill" style="width:78%"></div></div>
+          <div class="row">
+            <span class="cr-badge">Script ✓</span>
+            <span class="cr-badge">Voix ✓</span>
+            <span class="cr-badge cr-badge-live">Sous-titres…</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>

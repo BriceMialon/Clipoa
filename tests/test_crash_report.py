@@ -128,7 +128,7 @@ class CrashReportTests(unittest.TestCase):
         node = shutil.which("node") or str(BASE_DIR / "runtime" / "node" / "bin" / "node")
         if not Path(node).exists():
             self.skipTest("node absent")
-        res = subprocess.run([node, "--check", str(BASE_DIR / "static" / "js" / "clipoa_support.js")],
+        res = subprocess.run([node, "--check", str(BASE_DIR / "static" / "js" / "cliproll_support.js")],
                              capture_output=True, text=True)
         self.assertEqual(res.returncode, 0, msg=res.stderr)
 
