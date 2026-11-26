@@ -75,6 +75,13 @@ def build_prompt(script: Dict[str, Any], panels: List[Dict[str, Any]], da_hint: 
     title = script.get("title") or ""
     hook = script.get("hook_screen_text") or ""
     da = (da_hint or "")[:1800]
+    sb = []
+    for sh in (script.get("visual_storyboard") or [])[:14]:
+        if isinstance(sh, dict):
+            d = str(sh.get("visual") or sh.get("description") or sh.get("desc") or "").strip()
+            if d:
+                sb.append("- " + d[:160])
+    board = ("Storyboard du script (respecte les tenues et les personnages décrits) :\n" + "\n".join(sb)) if sb else ""
     return f"""Tu es le dessinateur d'un short vertical en DESSIN VECTORIEL façon « brainrot » : persos chibi (grosse tête ronde,
 grands yeux, joues roses, souvent casquette et lunettes rondes), contours épais, aplats, UNE image fixe par temps fort
 (~0,8 s), une nouvelle expression ou un nouveau cadrage à CHAQUE image. Un en-tête fixe en haut résume la règle de la vidéo
@@ -84,6 +91,7 @@ Tu ne dessines rien toi-même : tu DÉCRIS chaque image en JSON, un programme la
 Titre : {title}
 Accroche : {hook}
 {('Direction artistique du style :' + chr(10) + da) if da else ''}
+{board}
 
 Voici les {len(panels)} images, une par ligne : numéro|durée|texte dit pendant l'image.
 {lines}
@@ -115,6 +123,10 @@ Règles :
   "n" = valeur du compteur sur SA casquette (nombre) ; "say" = bulle de 1 à 3 mots (rare, max 1 image sur 5) ;
   "g" = transparence 0 à 0.8 (ex. un perso qui « disparaît »).
   "k" = valeur de la pastille compteur de l'en-tête à cette image (nombre, elle évolue avec l'histoire).
+- Cohérence : le héros (premier perso de "cast") est celui dont parle la voix ; quand la phrase parle de lui, IL est à l'image.
+  Son apparence ne change jamais. "n" sur une casquette = l'état de CE perso (le héros porte la valeur de "k") ; un perso
+  secondaire a sa propre valeur, jamais celle du héros. Quand "k" change, montre le héros au même moment.
+  Quand le compteur change beaucoup, passe par des valeurs intermédiaires sur plusieurs images.
 - Rythme « brainrot » : alterne gros plans et plans larges, change d'expression à chaque image, réactions exagérées,
   l'image montre ce que dit la voix (un nom = un objet ou un perso visible). 1 carton tous les ~15 s maximum.
 - Textes en français, sans emoji."""
