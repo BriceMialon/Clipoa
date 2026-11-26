@@ -3753,6 +3753,7 @@
     }
 
     function trackJob() {
+      if (typeof showView === 'function') showView('fabrique');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       refreshJobs();
       if (!jobsPollTimer) jobsPollTimer = setInterval(refreshJobs, 2000);
