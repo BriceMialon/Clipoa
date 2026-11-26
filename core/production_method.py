@@ -552,11 +552,13 @@ def build_plan(
             "note_look": ov.get("note_look") if ov.get("note_look") in ("text", "card") else "text",
             "keyword_colors": bool(ov.get("keyword_colors", True)),
             # « cine » : sous-titres des vidéos de référence (Montserrat Black géant, mots-clés Luckiest Guy colorés)
-            "look": "cine" if (ov.get("caption_look") == "cine" or ov.get("visual_style") == "cine3d") else "",
+            # « toon » : sous-titres Fredoka blancs, mot prononcé rose, sans bandeau d'accroche (en-tête dessiné)
+            "look": "cine" if (ov.get("caption_look") == "cine" or ov.get("visual_style") == "cine3d")
+            else ("toon" if (ov.get("caption_look") == "toon" or ov.get("visual_style") == "toon_svg") else ""),
         },
         "character_style": ov.get("character_style") or "r6",
         # le moteur Ciné étalonne déjà l'image (vignettage, grain) : pas de second assombrissement au montage
-        "grade": "clean" if ov.get("visual_style") in ("explainer2d", "flat_vector", "cine3d") else ("glow" if ov.get("visual_style") == "paper2d" else "cinema"),
+        "grade": "clean" if ov.get("visual_style") in ("explainer2d", "flat_vector", "cine3d", "toon_svg") else ("glow" if ov.get("visual_style") == "paper2d" else "cinema"),
         "stats": {
             "shots": len(segs),
             "avg_shot_s": round(sum(lens) / len(lens), 2),

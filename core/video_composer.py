@@ -48,6 +48,14 @@ SUBTITLE_STYLES: Dict[str, Dict[str, str]] = {
         "hook_bg": "&H00DCF4FF",
         "bar_color": "#FFE08A",
     },
+    "toon_pink": {
+        "label": "Dessin à compteur (blanc, mot prononcé rose)",
+        "active_color": "&H008C50F0",   # #F0508C
+        "base_color": "&H00FFFFFF",
+        "outline_color": "&H002B2125",  # encre #25212B
+        "hook_bg": "&H002B2125",
+        "bar_color": "#F0508C",
+    },
     "cyber_cyan": {
         "label": "Cyber Cyan",
         "active_color": "&H00FFE500",   # #00E5FF
@@ -290,11 +298,16 @@ Style: Hud,Arial Black,50,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,1
 Style: NoteCard,Arial Black,70,&H00202A3B,&H00202A3B,&H00DCF4FF,&H00202A3B,-1,0,0,0,100,100,1,0,3,24,0,5,60,60,0,1
 Style: Cine,Montserrat Black,104,&H00FFFFFF,&H00FFFFFF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,9,2,5,60,60,0,1
 Style: CineKey,Luckiest Guy,118,&H0000E6FF,&H0000E6FF,&H00000000,&H64000000,0,0,0,0,100,100,1,0,1,9,2,5,60,60,0,1
+Style: Toon,Fredoka,90,&H00FFFFFF,&H00FFFFFF,&H002B2125,&H802B2125,-1,0,0,0,100,100,1,0,1,8,3,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
         events: List[str] = []
+        toon = look == "toon"
+        if toon:
+            # « Dessin à compteur » : l'en-tête fixe (titre, règle, compteur) est déjà dessiné dans l'image
+            hook_text, notes, hud = "", None, None
 
         # 1. Animated Hook Overlay (Layer 1, top safe zone)
         if hook_text and hook_text.strip():
@@ -410,12 +423,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
                 line_text = " ".join(rendered_parts)
                 # Center-lower vertical safe zone (above TikTok/Shorts UI controls)
-                pos_tag = r"{\an5\pos(540,1120)}"
+                cy = 1500 if toon else 1120
+                pos_tag = rf"{{\an5\pos(540,{cy})}}"
                 if w_idx == 0:
-                    pos_tag = r"{\an5\pos(540,1120)\fscx94\fscy94\t(0,70,\fscx100\fscy100)}"
+                    pos_tag = rf"{{\an5\pos(540,{cy})\fscx94\fscy94\t(0,70,\fscx100\fscy100)}}"
+                if toon:
+                    line_text = line_text.replace("{\\rDefault}", "{\\rToon}")
 
                 events.append(
-                    f"Dialogue: 0,{cls._format_ass_time(start_t)},{cls._format_ass_time(end_t)},Default,,0,0,0,,{pos_tag}{line_text}"
+                    f"Dialogue: 0,{cls._format_ass_time(start_t)},{cls._format_ass_time(end_t)},{'Toon' if toon else 'Default'},,0,0,0,,{pos_tag}{line_text}"
                 )
 
         with open(output_ass_path, "w", encoding="utf-8") as f:
@@ -585,6 +601,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     "[vfg]scale=1080:-2:force_original_aspect_ratio=decrease[fg_sharp];"
                     "[bg_blur][fg_sharp]overlay=(W-w)/2:(H-h)/2,fps=30,vignette=PI/5[base]"
                 )
+            elif ((plan or {}).get("captions") or {}).get("look") == "toon":
+                # Dessin à compteur : le zoom de chaque image est déjà fait, pas de flottement en plus
+                bg_chain = f"[0:v]scale=1080:1920:flags=lanczos,fps=30{grade}[base]"
             elif retention_boost:
                 # Subtle dynamic micro-zoom (1.0 -> 1.05 oscillation) to keep visual motion alive
                 bg_chain = (
@@ -613,12 +632,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     fontsdir_opt = f":fontsdir='{fd}'"
             except Exception:
                 pass
-        # Animated progress bar overlaid at the very top (clean 10px bar)
-        bar_chain = (
-            f"color=c={bar_color}:s=1080x10:d={duration:.2f}:r=30[bar];"
-            f"[base][bar]overlay=x='-W+W*(t/{duration:.2f})':y=0:shortest=1,"
-            f"ass='{ass_escaped}'{fontsdir_opt},format=yuv420p[vout]"
-        )
+        if ((plan or {}).get("captions") or {}).get("look") == "toon":
+            # police Fredoka livrée dans assets/fonts ; pas de barre de progression (l'en-tête occupe le haut)
+            fd = str(Path(__file__).resolve().parent.parent / "assets" / "fonts").replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+            bar_chain = f"[base]ass='{ass_escaped}':fontsdir='{fd}',format=yuv420p[vout]"
+        else:
+            # Animated progress bar overlaid at the very top (clean 10px bar)
+            bar_chain = (
+                f"color=c={bar_color}:s=1080x10:d={duration:.2f}:r=30[bar];"
+                f"[base][bar]overlay=x='-W+W*(t/{duration:.2f})':y=0:shortest=1,"
+                f"ass='{ass_escaped}'{fontsdir_opt},format=yuv420p[vout]"
+            )
 
         if audio_premixed:
             # Mix déjà fait par le SoundDesigner : on normalise seulement le volume (-14 LUFS)

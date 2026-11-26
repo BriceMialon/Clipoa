@@ -303,6 +303,41 @@ Les personnages sont VIVANTS : ils clignent des yeux, respirent, bougent la bouc
 """
 
 
+STYLE_BIBLE_COMPTEUR_TOON = r"""# STYLE BIBLE — « Dessin à compteur » (dessin vectoriel « brainrot », Shorts / Reels / TikTok 9:16)
+
+> **À l'IA qui lit ce fichier :** reprends ce FORMAT avec le sujet de l'utilisateur. Ne copie jamais les personnages, noms ou textes des vidéos de référence.
+
+## 1. L'ADN
+Une règle absurde mais simple, posée dès la première seconde (« Ici, ton silence se voit »), et un COMPTEUR qui monte ou
+descend pendant toute l'histoire (minutes de silence, excuses, pourquoi, vérités…). La vidéo raconte ce qui arrive aux
+personnages à cause de cette règle, avec des réactions exagérées. Pensé en SÉRIE : même univers, même mécanique, une nouvelle règle par épisode.
+
+## 2. FORMAT
+- 9:16, 1080×1920, 45 à 80 s. UNE image fixe dessinée toutes les ~0,8 s, léger zoom, coupes franches.
+- En-tête fixe en haut : titre (la règle) en blanc à contour noir, sous-titre rose (la règle en chiffres), pastille noire
+  avec le compteur (« TON SILENCE : 11 MIN ») qui change pendant la vidéo. Le compteur est aussi écrit sur la casquette des persos.
+- Sous-titres de 2-3 mots en majuscules, blancs à contour noir, le mot prononcé en rose, sous le centre.
+- Un carton « règlement » plein écran de temps en temps (articles numérotés, l'article en cours net, les autres pâles).
+
+## 3. DESSIN
+- Dessin vectoriel plat, contours noirs épais, aucune texture. Persos chibi : grosse tête ronde, grands yeux, lunettes rondes
+  possibles, joues roses, casquette colorée, sweat ou gilet fluo. Décors simples et lisibles (colo, dortoir, feu de camp, école, rue, cuisine).
+- Une expression différente à chaque image (choqué, rire, inquiet, fier, triste, en colère), gestes francs (bras en l'air, mains sur les joues).
+- Gros plans fréquents sur le héros, plans de groupe pour les réactions, bulles de 1 à 3 mots.
+
+## 4. VOIX & SON
+- Narration au « tu », rapide (~3 mots/s), phrases très courtes, ton complice et moqueur. Musique entraînante basse, petits bruitages « pop ».
+"""
+
+NARRATIVE_RULES_COMPTEUR_TOON = r"""Structure « règle + compteur » (tutoiement, phrases de 3 à 8 mots, ~3 mots/s) :
+1. Accroche (0-2 s) : la règle en une phrase (« Ici, ton silence se voit. »).
+2. La règle en chiffres (2-6 s) : « Dix minutes sans parler… tu deviens transparent. » Le compteur démarre.
+3. L'escalade (6-35 s) : le compteur monte, le héros change (il pâlit, disparaît, grandit…), les autres réagissent. Chaque phrase = une étape chiffrée.
+4. Le rappel du règlement (vers le milieu) : « Article 3 : … » qui complique tout.
+5. Le retournement (35-55 s) : un autre perso, un moniteur, un piège : la règle se retourne contre quelqu'un.
+6. La chute (dernières secondes) : une phrase courte et absurde, le compteur à une valeur marquante."""
+
+
 STARTER_PLUGINS: List[Dict[str, Any]] = [
     {
         "id": "roblox_3d",
@@ -413,6 +448,33 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "starter": True,
     },
     {
+        "id": "compteur_toon",
+        "name": "Dessin à compteur",
+        "category": "2D",
+        "icon": "🧢",
+        "gradient": "cartoon",
+        "tagline": "Dessin vectoriel « brainrot » : une règle, un compteur, une image toutes les 0,8 s.",
+        "da_prompt": STYLE_BIBLE_COMPTEUR_TOON,
+        "narrative_rules": NARRATIVE_RULES_COMPTEUR_TOON,
+        "render_mode": "motion",
+        "theme": "pop_flat",
+        "subtitle_style": "toon_pink",
+        "est_time_sec": 150,
+        "est_time_label": "~2 à 3 min",
+        "script_language": "python",
+        "script_filename": "",
+        "script_content": "",
+        "model_sheets": [
+            {
+                "filename": "compteur_toon.jpg",
+                "original_name": "compteur_toon.jpg",
+                "role": "reference",
+                "uploaded_at": "2026-11-26 14:00",
+            }
+        ],
+        "starter": True,
+    },
+    {
         "id": "roblox_cine",
         "name": "Roblox 3D Ciné (haute qualité)",
         "category": "3D",
@@ -456,6 +518,10 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     "fete_en_folie": {"shot_min_s": 1.2, "shot_max_s": 3.0, "caption_mode": "one_word", "music_db": -22.0, "mood": "upbeat", "visual_style": "flat_vector"},
     # DA : plans plus longs (l'image s'anime pendant la phrase), PAS de sous-titres, grandes étiquettes, musique douce
     "explainer_2d": {"shot_min_s": 2.0, "shot_max_s": 5.0, "caption_mode": "chunk", "keyword_colors": False, "note_look": "card", "music_db": -18.0, "mood": "calm", "visual_style": "explainer2d", "note_color": "#3B2A20"},
+    # Dessin à compteur (réf. vidéos « brainrot » vectorielles) : une image dessinée toutes les ~0,8 s (découpe faite par
+    # le moteur), plans « temps forts » 1-3 s pour les bruitages, sous-titres 3 mots blancs + mot prononcé rose
+    "compteur_toon": {"shot_min_s": 1.0, "shot_max_s": 3.0, "caption_mode": "chunk", "keyword_colors": False, "music_db": -20.0,
+                      "mood": "upbeat", "visual_style": "toon_svg", "sfx_max": 30, "whoosh_min_gap_s": 3.0, "sfx_repeat_gap_s": 1.5},
     # Qualité cinéma : moteur three.js ciné (rendu long, plus de tokens), un mot à la fois, mots-clés colorés
     "roblox_cine": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "one_word", "music_db": -17.0, "character_style": "r6", "visual_style": "cine3d"},
 }
@@ -472,7 +538,7 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "caption_mode": ("enum", ("chunk", "one_word", "two_words", "none")),
     "keyword_colors": ("bool", None),
     "character_style": ("enum", ("r6", "flat2d")),
-    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d", "custom")),
+    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d", "custom", "toon_svg")),
     "fallback_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d")),
     "note_color": ("hex", None),
     "note_look": ("enum", ("text", "card")),
@@ -481,7 +547,7 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "time_of_day": ("enum", ("day", "sunset", "night")),
     "hud": ("bool", None),
     "hud_color": ("hex", None),
-    "caption_look": ("enum", ("", "cine")),
+    "caption_look": ("enum", ("", "cine", "toon")),
     # narration dense : voix accélérée (sans changer la hauteur) et silences raccourcis avant le calage des mots
     "voice_tempo": ("float", (0.8, 1.4)),
     "trim_silence": ("bool", None),

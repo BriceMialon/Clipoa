@@ -140,6 +140,20 @@ class ShortCrewPipeline:
             except Exception as e:
                 style = ((plugin or {}).get("production") or {}).get("fallback_style") or "explainer2d"
                 _p(56, f"⚠️ Moteur sur mesure indisponible ({str(e)[:90]}) — style intégré le plus proche ({style})")
+        if style == "toon_svg":
+            # Dessin à compteur : images vectorielles dessinées (SVG), aucun Blender ; repli sur l'Explainer 2D si besoin
+            try:
+                from core import toon_engine
+                if not toon_engine.is_available():
+                    raise RuntimeError("navigateur de rendu (Playwright) absent")
+                return toon_engine.render_story(session_id, script, plan, words or [], audio_dur_sec, out_dir,
+                                                model=engine_model, da_hint=da_ctx, progress=progress)
+            except Exception as e:
+                print(f"⚠️ Dessin à compteur indisponible ({e}) : rendu Explainer 2D à la place.")
+                _p(56, f"⚠️ Dessin à compteur indisponible ({str(e)[:90]}) — rendu Explainer 2D à la place")
+                if not BlenderEngine.is_available():
+                    return None
+                style = "explainer2d"
         if style == "cine3d":
             # Qualité Docteur Shark : moteur three.js ciné ; repli automatique sur Blender Roblox si besoin
             try:
@@ -443,7 +457,7 @@ class ShortCrewPipeline:
             final_audio_wav = mixres["audio"]
             blender_bg_path = ""
 
-            if not effective_bg and use_blender_3d and BlenderEngine.is_available():
+            if not effective_bg and use_blender_3d and (BlenderEngine.is_available() or cls.visual_style_for(plugin) == "toon_svg"):
                 bg = cls.render_blender_story(
                     session_id=session_id, script=script, plan=plan, words=mixres.get("words"), plugin=plugin,
                     audio_dur_sec=audio_dur_sec, out_dir=Path(voice_res["audio_wav"]).parent,

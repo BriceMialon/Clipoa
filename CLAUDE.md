@@ -19,7 +19,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 ## 2. État et règles (résumé — le détail est dans `docs/HISTORIQUE.md`)
 
-- **Produit** : app Flask locale qui fabrique des shorts (script IA → voix → plan de production → décor Blender → montage FFmpeg → publication). Styles livrés : Roblox 3D, Stickman, Explainer 2D, Fête en folie, Ciné (three.js).
+- **Produit** : app Flask locale qui fabrique des shorts (script IA → voix → plan de production → décor Blender → montage FFmpeg → publication). Styles livrés : Roblox 3D, Stickman, Explainer 2D, Fête en folie, Dessin à compteur (SVG), Ciné (three.js).
 - **Mise en ligne décidée (26/11/2026)** : rendu en LOCAL chez chaque utilisateur (app installable Mac puis Windows), chaque utilisateur branche SA propre IA (clé API Anthropic par défaut, `core/anthropic_api.py`), abonnement vérifié par licence signée + relais OAuth réservé aux abonnés. Plan complet : https://claude.ai/artifact/5yjk1RkhEWqRjMJRFogR3E
 - **Version publique** : `CLIPOA_EDITION=public` (`core/edition.py`) coupe côté serveur Gemini, Mode Nuit/Pilote auto, Ciné, moteurs sur mesure, radar, copie de vidéo, connexion par cookies. Défaut `perso` = tout actif. Toute nouvelle fonction risquée (CGU, code exécuté, données de tiers) doit y être rattachée.
 - **Code IA exécuté** : le code bpy écrit par l'IA passe par `core/code_guard.py` avant Blender. Ne jamais exécuter du code IA sans ce contrôle.
@@ -40,6 +40,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `core/code_guard.py` | Contrôle du code Blender écrit par l'IA avant exécution. |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
 | `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
+| `core/toon_engine.py` + `core/toon_kit.py` | Style « Dessin à compteur » : Claude décrit chaque image en JSON, dessin SVG → PNG (Playwright) → FFmpeg, sans Blender. |
 | `core/scene_designer.py` + `core/blender_kit/` | Décor sur mesure décrit par l'IA + constructeurs Blender par style ; `assets/blender_kit/` = modèles GLB. |
 | `core/production_method.py` | Méthode Clipoa : plan de production (plans calés sur la voix, twist, SFX ancrés, mots-clés, cartons). |
 | `core/sound_designer.py` | Mixage FFmpeg local : musique par ambiance + ducking + coupure avant twist + SFX du plan + version sans musique. |
