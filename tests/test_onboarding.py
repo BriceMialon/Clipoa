@@ -56,7 +56,7 @@ class OnboardingTest(unittest.TestCase):
             onboarding.apply_action("restart", p)
             self.assertTrue(calc(state=onboarding.load_state(p))["auto_open"])
             onboarding.apply_action("video_started", p)
-            self.assertTrue(calc(renders_count=0, state=onboarding.load_state(p))["steps"][2]["done"])
+            self.assertTrue(calc(renders_count=0, state=onboarding.load_state(p))["steps"][3]["done"])
             with self.assertRaises(ValueError):
                 onboarding.apply_action("rm -rf", p)
 

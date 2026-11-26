@@ -98,14 +98,16 @@ def _social_step(social_accounts: Dict[str, Any], oauth_apps: Dict[str, Any]) ->
 
 def compute(tools_status: Dict[str, Any], claude_connected: bool, renders_count: int,
             unvalidated_count: int, social_accounts: Dict[str, Any], oauth_apps: Dict[str, Any],
-            state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            state: Optional[Dict[str, Any]] = None, voice_pro_connected: bool = False) -> Dict[str, Any]:
     """Étapes du guide + la prochaine chose à faire (une phrase, un bouton)."""
     state = state or {"status": "new"}
     tools = _tools_step(tools_status)
     claude = {"id": "claude", "done": bool(claude_connected)}
+    # facultatif : la voix gratuite suffit, ElevenLabs donne une voix plus naturelle
+    voice = {"id": "voice", "done": bool(voice_pro_connected), "optional": True}
     video = {"id": "video", "done": renders_count > 0 or bool(state.get("video_started"))}
     social = _social_step(social_accounts, oauth_apps)
-    steps = [tools, claude, video, social]
+    steps = [tools, claude, voice, video, social]
 
     if not tools["done"]:
         nxt = {"text": "Installe les outils de fabrication.", "button": "Vérifier", "action": "guide:tools"}

@@ -1,9 +1,9 @@
 // Assistant de premier lancement + ligne « À faire maintenant » de l'accueil (API : /api/onboarding).
-// Écrans : Bienvenue → Outils → Claude → Première vidéo → Réseau → Fini. Passable, relançable depuis Connexions.
+// Écrans : Bienvenue → Outils → Claude → Voix pro (facultatif) → Première vidéo → Réseau → Fini. Passable, relançable depuis Connexions.
 (function () {
   "use strict";
   var KEY_RE = /sk-ant-[A-Za-z0-9_\-]{20,}/;
-  var ORDER = ["welcome", "tools", "claude", "video", "social", "end"];
+  var ORDER = ["welcome", "tools", "claude", "voice", "video", "social", "end"];
   var data = null, screen = "welcome", bg = null, keyFlow = false, keyBusy = false, toolsTimer = null;
 
   var CSS = ".ob-bg{z-index:120}.ob-modal{max-width:440px;gap:12px}.ob-title{margin:0;font-size:22px;color:var(--ink)}" +
@@ -90,7 +90,7 @@
 
   function dots() {
     var idx = ORDER.indexOf(screen), out = "";
-    for (var i = 1; i <= 4; i++) out += '<span class="ob-dot' + (i <= idx ? " on" : "") + '"></span>';
+    for (var i = 1; i <= 5; i++) out += '<span class="ob-dot' + (i <= idx ? " on" : "") + '"></span>';
     return '<div class="ob-dots">' + out + "</div>";
   }
 
@@ -111,10 +111,11 @@
   function draw() {
     clearTimeout(toolsTimer);
     if (screen === "welcome") {
-      frame("Bienvenue sur Clipoa", "<p>On prépare tout en 4 étapes. Ça prend 3 minutes.</p>", "Commencer", "Passer");
+      frame("Bienvenue sur Clipoa", "<p>On prépare tout en 5 étapes. Ça prend 3 minutes.</p>", "Commencer", "Passer");
       $("ob-pri").onclick = function () { screen = firstTodo(); if (screen === "end") screen = "tools"; draw(); };
     } else if (screen === "tools") drawTools();
     else if (screen === "claude") drawClaude();
+    else if (screen === "voice") drawVoice();
     else if (screen === "video") drawVideo();
     else if (screen === "social") drawSocial();
     else {
@@ -189,6 +190,20 @@
       if (m) { var inp = $("ob-key"); if (inp) inp.value = m[0]; saveKey(m[0]); }
     }).catch(function () { /* lecture refusée : l'utilisateur colle à la main */ });
   });
+
+  function drawVoice() {
+    var el = window.ClipoaEleven;
+    if (step("voice").done || !el) {
+      frame("La voix", okLine(step("voice").done ? "ElevenLabs est connecté." : "La voix gratuite est prête.", true), "Suivant", " ");
+      $("ob-pri").onclick = next;
+      $("ob-sec").style.visibility = "hidden";
+      return;
+    }
+    frame("Une voix plus naturelle ?", "<p>La voix gratuite est déjà prête. ElevenLabs (payant) donne une voix plus humaine.</p>" + el.portalHtml(),
+      "Ouvrir ElevenLabs", "Garder la voix gratuite");
+    $("ob-pri").onclick = el.openPortal;
+    el.bindPortal(function () { api("GET").then(function () { if (screen === "voice") next(); }); });
+  }
 
   function drawVideo() {
     frame("Ta première vidéo", '<p>Écris ton idée en une phrase. Clipoa fait le reste.</p>' +

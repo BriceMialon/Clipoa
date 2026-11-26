@@ -1037,6 +1037,25 @@ def api_el_connect():
     )
     if not res.get("connected"):
         return jsonify({"error": res.get("message", "Connexion échouée")}), 400
+    from core import elevenlabs_accounts
+    elevenlabs_accounts.remember(api_key, res)
+    return jsonify(res)
+
+
+@app.route("/api/elevenlabs/accounts", methods=["GET"])
+def api_el_accounts():
+    from core import elevenlabs_accounts
+    return jsonify({"accounts": elevenlabs_accounts.list_accounts()})
+
+
+@app.route("/api/elevenlabs/switch", methods=["POST"])
+def api_el_switch():
+    """Changer de compte ElevenLabs en un clic (comptes déjà branchés une fois)."""
+    from core import elevenlabs_accounts
+    try:
+        res = elevenlabs_accounts.switch(str((request.get_json(silent=True) or {}).get("id") or ""))
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
     return jsonify(res)
 
 
@@ -1705,6 +1724,7 @@ def _onboarding_payload():
     return onboarding.compute(
         tools_status=tools_setup.status(),
         claude_connected=bool(ClaudeBridge.check_status(live_probe=False).get("connected")),
+        voice_pro_connected=bool(VoiceEngine.get_elevenlabs_key()),
         renders_count=len(renders),
         unvalidated_count=unvalidated,
         social_accounts=FreeSocialPublisher.get_public_accounts_status(),
