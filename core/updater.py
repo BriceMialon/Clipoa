@@ -18,6 +18,7 @@ import os
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -172,6 +173,33 @@ def _install_requirements(home: Path, req: Path) -> None:
         raise RuntimeError("installation des dépendances impossible : " + (res.stderr or res.stdout)[-300:])
 
 
+def _install_blender(home: Path, latest: Dict[str, Any]) -> None:
+    """Installe la version de Blender demandée par le paquet, seulement si elle change (data/runtime partagé)."""
+    version = str(latest.get("blender_version") or "")
+    runtime = home / "data" / "runtime"
+    marker = runtime / "blender_version"
+    if not version or (marker.exists() and marker.read_text().strip() == version):
+        return
+    url = str(latest.get("blender_url") or "")
+    if not url.startswith("https://download.blender.org/"):
+        raise RuntimeError("adresse de Blender inattendue")
+    dmg = home / "data" / "updates" / "blender.dmg"
+    _STATE.update(step=f"Téléchargement de Blender {version} (une seule fois)…", progress=78)
+    _download(url, dmg, str(latest.get("blender_sha256") or ""))
+    mnt = Path(tempfile.mkdtemp(prefix="clipoa_blender_"))
+    new_app = runtime / "Blender.app.new"
+    try:
+        subprocess.run(["hdiutil", "attach", str(dmg), "-nobrowse", "-quiet", "-mountpoint", str(mnt)], check=True, timeout=300)
+        shutil.rmtree(new_app, ignore_errors=True)
+        subprocess.run(["cp", "-R", str(mnt / "Blender.app"), str(new_app)], check=True, timeout=900)
+    finally:
+        subprocess.run(["hdiutil", "detach", str(mnt), "-quiet", "-force"], timeout=120)
+        dmg.unlink(missing_ok=True)
+    shutil.rmtree(runtime / "Blender.app", ignore_errors=True)
+    new_app.rename(runtime / "Blender.app")
+    marker.write_text(version + "\n")
+
+
 def _apply(info: Dict[str, Any]) -> None:
     home = install_home()
     rel = release_info()
@@ -206,6 +234,8 @@ def _apply(info: Dict[str, Any]) -> None:
     if new_req.exists() and (not old_req.exists() or old_req.read_bytes() != new_req.read_bytes()):
         _STATE.update(step="Mise à jour des outils…", progress=75)
         _install_requirements(home, new_req)
+
+    _install_blender(home, latest)
 
     final_dir = versions / version
     if final_dir.exists():

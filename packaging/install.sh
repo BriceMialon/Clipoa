@@ -87,6 +87,24 @@ main() {
     "$UV" pip install -q --python "$H/venv/bin/python" -r "$D/requirements.txt"
     rm -rf "$H/versions/$VERSION"; mv "$D" "$H/versions/$VERSION"
   fi
+  # 3b. Blender (version fixée par Clipoa, téléchargé sur blender.org, gardé dans data/runtime : jamais re-téléchargé aux mises à jour)
+  BL_VER="$(read_json blender_version 2>/dev/null || true)"
+  if [ -n "$BL_VER" ] && [ "$(cat "$H/data/runtime/blender_version" 2>/dev/null)" != "$BL_VER" ]; then
+    BL_URL="$(read_json blender_url)"; BL_SHA="$(read_json blender_sha256)"
+    case "$BL_URL" in https://download.blender.org/*) ;; *) die "Adresse de Blender inattendue." ;; esac
+    say "Téléchargement de Blender $BL_VER (environ 400 Mo, une seule fois)…"
+    curl -fL --progress-bar "$BL_URL" -o "$TMP/blender.dmg"
+    [ "$(shasum -a 256 "$TMP/blender.dmg" | cut -d' ' -f1)" = "$BL_SHA" ] || die "Blender téléchargé est corrompu."
+    say "Installation de Blender…"
+    MNT="$TMP/blender_mnt"; mkdir -p "$MNT"
+    hdiutil attach "$TMP/blender.dmg" -nobrowse -quiet -mountpoint "$MNT"
+    rm -rf "$H/data/runtime/Blender.app.new"
+    cp -R "$MNT/Blender.app" "$H/data/runtime/Blender.app.new"
+    hdiutil detach "$MNT" -quiet -force || true
+    rm -rf "$H/data/runtime/Blender.app"; mv "$H/data/runtime/Blender.app.new" "$H/data/runtime/Blender.app"
+    printf '%s\n' "$BL_VER" > "$H/data/runtime/blender_version"
+    rm -f "$TMP/blender.dmg"
+  fi
   ln -sfn "versions/$VERSION" "$H/app.new" && mv -fh "$H/app.new" "$H/app"
 
   # 4. Lanceurs
@@ -139,7 +157,7 @@ EOS
 EOS
   fi
 
-  say "Clipoa $VERSION est installé. Ouverture… (Blender se télécharge tout seul au premier lancement)"
+  say "Clipoa $VERSION est installé. Ouverture…"
   say "Pour le rouvrir plus tard : application « Clipoa » dans le dossier Applications de ton compte."
   if pgrep -f "$H/bin/clipoa-server" >/dev/null 2>&1; then
     pkill -f "$H/bin/clipoa-server" || true; pkill -f "$H/venv/bin/python app.py" || true; sleep 1

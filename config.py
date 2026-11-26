@@ -33,7 +33,7 @@ YT_DLP_PATH = str(VENV_BIN / "yt-dlp") if (VENV_BIN / "yt-dlp").exists() else (s
 _DEFAULT_CLAUDE_CLI = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
 CLAUDE_CLI_PATH = os.getenv("CLAUDE_CLI_PATH", _DEFAULT_CLAUDE_CLI)
 _RUNTIME_BLENDER = RUNTIME_DIR / "Blender.app" / "Contents" / "MacOS" / "Blender"
-BLENDER_PATH = os.getenv("BLENDER_PATH") or shutil.which("blender") or (
+BLENDER_PATH = os.getenv("BLENDER_PATH") or (str(_RUNTIME_BLENDER) if _RUNTIME_BLENDER.exists() else None) or shutil.which("blender") or (
     "/Applications/Blender.app/Contents/MacOS/Blender" if Path("/Applications/Blender.app/Contents/MacOS/Blender").exists()
     else str(_RUNTIME_BLENDER)  # Blender installé automatiquement par Clipoa (core/tools_setup.py)
 )

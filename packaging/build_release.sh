@@ -27,6 +27,7 @@ DIST="$ROOT/dist"
 B="$(mktemp -d /tmp/clipoa_build.XXXX)"
 SRC="$B/src"
 PY_VERSION="3.9"
+BLENDER_VERSION="${CLIPOA_BLENDER_VERSION:-5.3.0}"   # version testée avec Clipoa (voir CLAUDE.md)
 UV="$(command -v uv || echo "$ROOT/venv/bin/uv")"
 [ -x "$UV" ] || { echo "uv introuvable (pip install uv)" >&2; exit 2; }
 command -v clang >/dev/null || { echo "clang manquant : xcode-select --install" >&2; exit 2; }
@@ -91,6 +92,12 @@ rm -f venv storage
 leftover="$(find core agents -maxdepth 1 -name '*.py' | head -3)"
 [ -z "$leftover" ] || { echo "sources restantes : $leftover" >&2; exit 1; }
 
+echo "▸ Blender $BLENDER_VERSION (empreinte officielle blender.org)"
+BL_DIR="https://download.blender.org/release/Blender${BLENDER_VERSION%.*}"
+BL_FILE="blender-$BLENDER_VERSION-macos-arm64.dmg"
+BL_SHA="$(curl -fsSL "$BL_DIR/blender-$BLENDER_VERSION.sha256" | awk -v f="$BL_FILE" '$2==f {print $1}')"
+[ -n "$BL_SHA" ] || { echo "empreinte de $BL_FILE introuvable sur blender.org" >&2; exit 1; }
+
 mkdir -p "$DIST"
 PKG="clipoa-$VERSION-macos-arm64.tar.gz"
 tar -czf "$DIST/$PKG" -C "$SRC" .
@@ -98,7 +105,8 @@ SHA="$(shasum -a 256 "$DIST/$PKG" | cut -d' ' -f1)"
 NOTES_JSON="$("$B/venv/bin/python" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$NOTES")"
 cat > "$DIST/latest.json" <<EOS
 {"version": "$VERSION", "platform": "macos-arm64", "url": "$PKG", "sha256": "$SHA",
- "size": $(stat -f%z "$DIST/$PKG"), "notes": $NOTES_JSON}
+ "size": $(stat -f%z "$DIST/$PKG"), "notes": $NOTES_JSON,
+ "blender_version": "$BLENDER_VERSION", "blender_url": "$BL_DIR/$BL_FILE", "blender_sha256": "$BL_SHA"}
 EOS
 sed "s#__CLIPOA_UPDATE_URL__#$UPDATE_URL#" "$ROOT/packaging/install.sh" > "$DIST/install.sh"
 rm -rf "$B"
