@@ -21,32 +21,21 @@
 
   function plain(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 
-  var timer = null;
-  function show(msg, label, run, ms) {
-    var el = document.getElementById("toast");
-    if (!el) return;
-    el.textContent = msg;
-    if (label && run) {
-      var b = document.createElement("button");
-      b.type = "button"; b.textContent = label; b.className = "toast-fix";
-      b.onclick = function () { el.classList.remove("show"); run(); };
-      el.appendChild(b);
-    }
-    el.classList.toggle("has-fix", !!(label && run));
-    el.classList.add("show");
-    clearTimeout(timer);
-    timer = setTimeout(function () { el.classList.remove("show", "has-fix"); }, ms || (label ? 7000 : 2800));
+  // Affichage confié aux notifications empilées (static/js/cliproll_toast.js).
+  function show(msg, label, run, ms, type) {
+    if (typeof window.__crToast !== "function") return;
+    return window.__crToast(msg, type || null, { action: (label && run) ? { label: label, run: run } : null, ms: ms });
   }
 
   // Remplace toast() : même usage, mais une erreur connue reçoit son bouton.
-  window.toast = function (msg) {
+  window.toast = function (msg, type) {
     var t = plain(msg);
     if (!/^\s*(✓|✅|🎉)/.test(String(msg)) && PROBLEM.test(t)) {
       for (var i = 0; i < FIXES.length; i++) {
-        if (FIXES[i].re.test(t)) return show(msg, FIXES[i].label, FIXES[i].run);
+        if (FIXES[i].re.test(t)) return show(msg, FIXES[i].label, FIXES[i].run, null, type || "error");
       }
     }
-    show(msg);
+    return show(msg, null, null, null, type);
   };
   window.toastAction = function (msg, label, run) { show(msg, label, run); };
 
@@ -67,8 +56,4 @@
     }
   };
 
-  var st = document.createElement("style");
-  st.textContent = "#toast.has-fix{pointer-events:auto;display:flex;align-items:center;gap:12px;padding:8px 8px 8px 20px}" +
-    ".toast-fix{border:0;border-radius:999px;padding:6px 14px;font-weight:700;font-size:13px;cursor:pointer;background:var(--accent);color:#fff}";
-  document.head.appendChild(st);
 })();

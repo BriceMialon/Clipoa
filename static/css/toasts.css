@@ -35,3 +35,10 @@
 .cr-toast.error .cr-toast-ico { color: var(--cr-coral, #FF3B5C); }
 .cr-toast.info .cr-toast-ico { color: var(--cr-cyan, #00E5FF); }
 html[data-theme="light"] .cr-toast-x:hover { background: rgba(16,16,34,.06); }
+.cr-toast-action {
+  flex-shrink: 0; align-self: center; border: 0; border-radius: 999px; padding: 5px 12px;
+  font: 700 12px var(--font-body, inherit); cursor: pointer; color: #fff;
+  background: var(--accent-fill, #D92648);
+  transition: opacity .15s ease-out;
+}
+.cr-toast-action:hover { opacity: .88; }

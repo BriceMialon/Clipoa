@@ -143,6 +143,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 ## 26/11/2026 — Notifications empilées (idée Sonner, sans React)
 - `static/js/cliproll_toast.js` + `static/css/toasts.css` : `toast(msg, type?)` empile jusqu'à 3 notifications (succès/erreur/info deviné si absent : « ✓ » = succès, mots « Erreur/Échec/impossible… » = erreur), durée selon la longueur (erreurs ≥ 6 s), pause au survol/focus, bouton Fermer, `role="alert"` pour les erreurs, doublons fusionnés.
 - `templates/index.html` : l'ancien `toast()` délègue au module ; `#toast` → `#toast-stack`. Les 190 appels existants ne changent pas.
+- `static/js/cliproll_ux.js` (bouton qui corrige une erreur connue : « Connecter Claude », « Installer »…) affiche désormais via le module : `__crToast(msg, type, {action:{label, run}, ms})`.
 
 ## 26/11/2026 — Corrections de la revue Impeccable (npx impeccable detect)
 - Contraste AA : `--faint` éclairci (sombre #8A90B4, clair #6A6F8B) ; nouveau `--accent-fill` (#D92648) pour les fonds corail sous texte blanc ; dégradé CTA assombri (≥ 4.8:1).

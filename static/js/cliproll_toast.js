@@ -1,5 +1,6 @@
 /* Notifications empilées ClipRoll : toast(message, type?)
    type = 'success' | 'error' | 'info' ; deviné si absent.
+   opts = { action: { label, run }, ms } : bouton qui corrige (utilisé par cliproll_ux.js).
    3 visibles au maximum, pause au survol, bouton Fermer, erreurs lues
    immédiatement par les lecteurs d'écran. Aucune dépendance. */
 (function () {
@@ -37,7 +38,8 @@
     setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 220);
   }
 
-  function toast(msg, type) {
+  function toast(msg, type, opts) {
+    opts = opts || {};
     msg = msg == null ? "" : String(msg);
     type = type || guessType(msg);
     var text = msg.replace(/^\s*(✓|❌|⚠️?)\s*/, "").trim() || msg;
@@ -46,7 +48,7 @@
     // Même message déjà affiché : on le relance au lieu de l'empiler.
     var kids = s.querySelectorAll(".cr-toast:not(.hide)");
     for (var i = 0; i < kids.length; i++) {
-      if (kids[i]._text === text) { arm(kids[i]); return kids[i]; }
+      if (kids[i]._text === text && !opts.action) { arm(kids[i]); return kids[i]; }
     }
 
     var el = document.createElement("div");
@@ -54,11 +56,18 @@
     el.setAttribute("role", type === "error" ? "alert" : "status");
     el.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     el._text = text;
-    el._ms = Math.min(9000, (type === "error" ? 6000 : 3000) + text.length * 35);
+    el._ms = opts.ms || Math.min(9000, (type === "error" ? 6000 : 3000) + text.length * 35);
+    if (opts.action) el._ms = Math.max(el._ms, 7000);
     el.innerHTML = '<svg class="cr-toast-ico" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[type] + "</svg>" +
       '<div class="cr-toast-msg"></div>' +
       '<button type="button" class="cr-toast-x" aria-label="Fermer la notification">✕</button>';
     el.querySelector(".cr-toast-msg").textContent = text;
+    if (opts.action && opts.action.label && typeof opts.action.run === "function") {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "cr-toast-action"; b.textContent = opts.action.label;
+      b.addEventListener("click", function () { dismiss(el); opts.action.run(); });
+      el.insertBefore(b, el.querySelector(".cr-toast-x"));
+    }
     el.querySelector(".cr-toast-x").addEventListener("click", function () { dismiss(el); });
     el.addEventListener("mouseenter", function () { clearTimeout(el._t); });
     el.addEventListener("mouseleave", function () { arm(el); });
