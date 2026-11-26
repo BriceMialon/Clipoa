@@ -91,3 +91,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `_oauth_base_url` (app.py) garde l'hôte réel (`127.0.0.1` ou `localhost`) : certains navigateurs résolvent `localhost` en ::1 et le retour OAuth se perdait.
 - `_publish_tiktok` : app non auditée + compte public → TikTok refuse la publication directe (`unaudited_client_can_only_post_to_private_accounts`) ; repli automatique en brouillon (`/v2/post/publish/inbox/video/init/`, scope `video.upload`), résultat `privacy: INBOX_DRAFT`. Publication directe publique = audit TikTok requis (domaine vérifié, vidéo de démo, UI de confidentialité exigée par TikTok).
 - Meta : inscription développeur bloquée (Facebook refuse les modifications depuis un « nouvel appareil ») ; à refaire depuis un appareil habituel.
+
+## 26/11/2026 — Assistant de premier lancement
+- `core/onboarding.py` + `/api/onboarding` (GET état, POST skip/finish/restart/video_started) ; état dans `storage/onboarding.json`.
+- `static/js/clipoa_onboarding.js` : guide Bienvenue → Outils → Claude (clé API, presse-papiers lu au retour) → Première vidéo → Réseau (YouTube puis TikTok, « bientôt » si l'OAuth n'est pas prêt) → Fini. Ouvert seul tant qu'il n'est ni fini ni passé ; « Relancer le guide » dans Connexions.
+- Accueil : ligne « À faire maintenant » (`#home-next-step`) calculée sur l'état réel. Rien sur Gemini, Ciné ni Antigravity (test `tests/test_onboarding.py`).

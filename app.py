@@ -1688,6 +1688,39 @@ def api_tools_blender_install():
     return jsonify({"started": started, **tools_setup.status()})
 
 
+# ---------- Assistant de premier lancement + « prochaine chose à faire » (core/onboarding.py) ----------
+
+def _onboarding_payload():
+    from core import onboarding, tools_setup
+    renders = _load_renders()
+    unvalidated = sum(1 for r in renders if not r.get("validated"))
+    return onboarding.compute(
+        tools_status=tools_setup.status(),
+        claude_connected=bool(ClaudeBridge.check_status(live_probe=False).get("connected")),
+        renders_count=len(renders),
+        unvalidated_count=unvalidated,
+        social_accounts=FreeSocialPublisher.get_public_accounts_status(),
+        oauth_apps=FreeSocialPublisher.get_public_oauth_apps(),
+        state=onboarding.load_state(),
+    )
+
+
+@app.route("/api/onboarding", methods=["GET"])
+def api_onboarding():
+    return jsonify(_onboarding_payload())
+
+
+@app.route("/api/onboarding", methods=["POST"])
+def api_onboarding_action():
+    from core import onboarding
+    action = str((request.get_json(silent=True) or {}).get("action") or "")
+    try:
+        onboarding.apply_action(action)
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    return jsonify(_onboarding_payload())
+
+
 # ---------- Statistiques : toutes les vidéos de la chaîne connectée, score et pourquoi ----------
 
 @app.route("/api/channel-stats", methods=["GET"])

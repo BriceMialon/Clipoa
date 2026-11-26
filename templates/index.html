@@ -266,6 +266,7 @@
             </div>
 
             <div class="home-live" id="home-fab-live-box"></div>
+            <div id="home-next-step"></div>
 
             <div class="home-shortcuts">
               <button type="button" class="home-shortcut" onclick="showView('creer'); document.getElementById('main-topic')?.focus();">
@@ -1125,6 +1126,7 @@
             <div>
               <h1 class="page-title">Connexions</h1>
             </div>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="window.ClipoaOnboarding &amp;&amp; ClipoaOnboarding.open()">Relancer le guide</button>
           </div>
 
           <!-- Grille uniforme 2×2 : toutes les cartes ont exactement la même taille -->
@@ -5472,5 +5474,6 @@
 </style>
 {% endif %}
 <script src="/static/js/clipoa_update.js" defer></script>
+<script src="/static/js/clipoa_onboarding.js" defer></script>
 </body>
 </html>
