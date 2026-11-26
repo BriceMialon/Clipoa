@@ -30,7 +30,7 @@ REFERENCE_VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".webm"}
 MAX_REFERENCE_VIDEO_BYTES = 300 * 1024 * 1024
 # Rendus faits AVANT cette date (epoch) n'illustrent plus le style (moteur refait) : jamais montrés comme exemple
 STARTER_LOOK_SINCE: Dict[str, float] = {"2d_monde_3d": 1795627000.0, "explainer_2d": 1795627000.0}
-# Vidéos de référence livrées avec Clipoa (choisies par l'éditeur, pas par les utilisateurs) : assets/style_refs/<id>.mp4
+# Vidéos de référence livrées avec ClipRoll (choisies par l'éditeur, pas par les utilisateurs) : assets/style_refs/<id>.mp4
 STYLE_REFS_DIR = Path(__file__).resolve().parent.parent / "assets" / "style_refs"
 MAX_SCRIPT_BYTES = 2 * 1024 * 1024  # 2 MB per script
 
@@ -443,7 +443,7 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
 ]
 
 
-# Réglages de production par style (méthode Clipoa) — appliqués au montage, au son et à Blender.
+# Réglages de production par style (méthode ClipRoll) — appliqués au montage, au son et à Blender.
 # Valeurs par défaut des styles livrés ; un style peut les surcharger via son champ « production ».
 STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # DA : plans 1-1,5 s (variante pop) à 2-3 s (mélancolie), caméra toujours en mouvement
@@ -826,7 +826,7 @@ def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False)
 
 class StylePluginStore:
     """
-    Stockage & orchestration des Plugins de Style (Direction Artistique) de Clipoa.
+    Stockage & orchestration des Plugins de Style (Direction Artistique) de ClipRoll.
     """
 
     @classmethod
@@ -849,7 +849,7 @@ class StylePluginStore:
             data = data if isinstance(data, list) else []
         except Exception:
             return []
-        # Ajoute les nouveaux styles livrés avec Clipoa (ex. Explainer 2D) sans toucher aux styles existants
+        # Ajoute les nouveaux styles livrés avec ClipRoll (ex. Explainer 2D) sans toucher aux styles existants
         known = {p.get("id") for p in data if isinstance(p, dict)}
         added = False
         for sp in STARTER_PLUGINS:
@@ -1232,7 +1232,7 @@ class StylePluginStore:
             raw = next((p for p in cls._load_raw_unlocked() if p.get("id") == plugin_id), None)
         if not raw:
             return {"kind": "none"}
-        # Seulement une vidéo lue dans Clipoa : jamais de lien vers le site d'origine
+        # Seulement une vidéo lue dans ClipRoll : jamais de lien vers le site d'origine
         if cls.get_reference_video_path(plugin_id):
             return {"kind": "video", "url": f"/api/plugins/{plugin_id}/reference-video", "label": "Vidéo de référence"}
         rd = Path(renders_dir) if renders_dir else STORAGE_DIR / "renders"
@@ -1255,7 +1255,7 @@ class StylePluginStore:
         except Exception:
             best = None
         if best:
-            return {"kind": "video", "url": f"/stream/{best[1]}", "label": "Exemple fait avec Clipoa dans ce style"}
+            return {"kind": "video", "url": f"/stream/{best[1]}", "label": "Exemple fait avec ClipRoll dans ce style"}
         return {"kind": "none"}
 
     @classmethod

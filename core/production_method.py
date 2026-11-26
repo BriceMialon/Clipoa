@@ -1,5 +1,5 @@
 """
-Méthode de production Clipoa — généralisée à partir des séries qui marchent
+Méthode de production ClipRoll — généralisée à partir des séries qui marchent
 (Docteur Shark, Horreur « Terminaison incomplète ») :
 
 1. Les plans sont calés sur la VOIX réelle (pas sur un découpage uniforme), un plan toutes les 2 à 4 s.

@@ -1,4 +1,4 @@
-# Clipoa — État d'Avancement & Passation pour Claude
+# ClipRoll — État d'Avancement & Passation pour Claude
 
 **Date de mise à jour :** 24 novembre 2026  
 **Dossier local sur le Mac :** `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone`  
@@ -53,19 +53,19 @@
 
 ### Étape 2 — Meta for Developers (Instagram Reels + Facebook Reels)
 - Sur `https://developers.facebook.com/apps/` :
-  1. Créer une application type **Business** nommée `Clipoa` (email `brice.mialon01800@gmail.com`).
+  1. Créer une application type **Business** nommée `ClipRoll` (email `brice.mialon01800@gmail.com`).
   2. Ajouter **Facebook Login for Business** → dans *URI de redirection OAuth valides*, ajouter :
      - `http://localhost:8080/oauth/meta/callback`
      - `https://clipoa-oauth.clipoa-studio.workers.dev/oauth/meta/callback`
   3. Récupérer `App ID` + `App Secret` dans *Paramètres → Général*.
-  4. Les enregistrer dans Clipoa (`POST http://localhost:8080/api/social/oauth-app` avec `provider="meta"`, ou dans `storage/oauth_apps.json`) **et** comme secrets `META_APP_ID` / `META_APP_SECRET` sur le Worker Cloudflare `clipoa-oauth`.
+  4. Les enregistrer dans ClipRoll (`POST http://localhost:8080/api/social/oauth-app` avec `provider="meta"`, ou dans `storage/oauth_apps.json`) **et** comme secrets `META_APP_ID` / `META_APP_SECRET` sur le Worker Cloudflare `clipoa-oauth`.
 
 ### Étape 3 — TikTok for Developers (TikTok)
 - Sur `https://developers.tiktok.com/apps/` :
-  1. Créer / connecter une app Web nommée `Clipoa`.
+  1. Créer / connecter une app Web nommée `ClipRoll`.
   2. Activer **Login Kit** (Redirect URI : `https://clipoa-oauth.clipoa-studio.workers.dev/oauth/tiktok/callback`) + **Content Posting API** (`Direct Post`, scopes `user.info.basic`, `video.publish`, `video.upload`).
   3. Récupérer `Client Key` + `Client Secret`.
-  4. Les enregistrer comme secrets `TT_CLIENT_KEY` / `TT_CLIENT_SECRET` sur le Worker Cloudflare `clipoa-oauth` (et/ou localement dans Clipoa).
+  4. Les enregistrer comme secrets `TT_CLIENT_KEY` / `TT_CLIENT_SECRET` sur le Worker Cloudflare `clipoa-oauth` (et/ou localement dans ClipRoll).
 
 ### Étape 4 — Vérification finale
-- Aller sur `http://localhost:8080` → onglet **Diffusion** → vérifier que les 4 boutons **Se connecter** (YouTube, Instagram, Facebook, TikTok) redirigent directement vers les portails officiels respectifs, ramènent sur Clipoa en état `✓ Connecté`, et permettent la publication directe + programmation.
+- Aller sur `http://localhost:8080` → onglet **Diffusion** → vérifier que les 4 boutons **Se connecter** (YouTube, Instagram, Facebook, TikTok) redirigent directement vers les portails officiels respectifs, ramènent sur ClipRoll en état `✓ Connecté`, et permettent la publication directe + programmation.

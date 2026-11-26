@@ -1,4 +1,4 @@
--- Base D1 du serveur de licence Clipoa
+-- Base D1 du serveur de licence ClipRoll
 CREATE TABLE IF NOT EXISTS licenses (
   key TEXT PRIMARY KEY,                -- CLIPOA-XXXX-XXXX-XXXX-XXXX
   customer_id TEXT NOT NULL UNIQUE,    -- Stripe cus_...

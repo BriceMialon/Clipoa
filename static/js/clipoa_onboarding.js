@@ -29,7 +29,7 @@
       headers: body ? { "Content-Type": "application/json" } : {},
       body: body ? JSON.stringify(body) : undefined
     }).then(function (r) { return r.json(); }).then(function (d) { if (!d.error) { data = d; renderNext(); } return d; })
-      .catch(function () { return { error: "Clipoa ne répond pas." }; });
+      .catch(function () { return { error: "ClipRoll ne répond pas." }; });
   }
 
   // ---------- Ligne « À faire maintenant » sur l'accueil ----------
@@ -117,7 +117,7 @@
   function draw() {
     clearTimeout(toolsTimer);
     if (screen === "welcome") {
-      frame("Bienvenue sur Clipoa", "<p>On prépare tout en 5 étapes. Ça prend 3 minutes.</p>", "Commencer", "Passer");
+      frame("Bienvenue sur ClipRoll", "<p>On prépare tout en 5 étapes. Ça prend 3 minutes.</p>", "Commencer", "Passer");
       $("ob-pri").onclick = function () { screen = firstTodo(); if (screen === "end") screen = "tools"; draw(); };
     } else if (screen === "tools") drawTools();
     else if (screen === "claude") drawClaude();
@@ -151,7 +151,7 @@
       ? '<p class="ob-muted" style="margin-top:8px">Téléchargés une seule fois depuis leurs sources officielles (blender.org, FFmpeg, Hugging Face) et vérifiés par empreinte SHA-256.</p>'
       : "";
     var primary = s.done ? "Suivant" : (missingInstallable > 1 ? "Tout installer" : null);
-    frame("Les outils", (s.done ? "<p>Tout est installé.</p>" : "<p>Clipoa vérifie ce qu'il faut pour fabriquer tes vidéos.</p>") + lines + note,
+    frame("Les outils", (s.done ? "<p>Tout est installé.</p>" : "<p>ClipRoll vérifie ce qu'il faut pour fabriquer tes vidéos.</p>") + lines + note,
       primary, s.done ? null : "Continuer quand même");
     if (s.done) {
       $("ob-pri").onclick = next;
@@ -202,7 +202,7 @@
         keyFlow = false; say("✓ Claude est connecté");
         return api("GET").then(function () { if (screen === "claude") next(); });
       })
-      .catch(function () { keyBusy = false; say("❌ Clipoa ne répond pas."); });
+      .catch(function () { keyBusy = false; say("❌ ClipRoll ne répond pas."); });
   }
 
   window.addEventListener("focus", function () {
@@ -228,7 +228,7 @@
   }
 
   function drawVideo() {
-    frame("Ta première vidéo", '<p>Écris ton idée en une phrase. Clipoa fait le reste.</p>' +
+    frame("Ta première vidéo", '<p>Écris ton idée en une phrase. ClipRoll fait le reste.</p>' +
       '<input type="text" class="ob-input" id="ob-idea" maxlength="200" placeholder="Ex : 3 faits fous sur les pieuvres">',
       "Fabriquer", "Plus tard");
     var inp = $("ob-idea");

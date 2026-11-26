@@ -1,4 +1,4 @@
--- Clipoa Cloudflare D1 Schema (Privacy-by-Design — Zero PII / Zero Raw IP / Zero OAuth Tokens)
+-- ClipRoll Cloudflare D1 Schema (Privacy-by-Design — Zero PII / Zero Raw IP / Zero OAuth Tokens)
 -- Database: clipoa-db
 -- UUID: 3e9feaa3-ddd9-4f49-b3b2-110f390bc2d3
 -- Region: WEUR (Western Europe)

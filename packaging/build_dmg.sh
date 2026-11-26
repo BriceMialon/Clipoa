@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# DMG de Clipoa pour la vente publique : app signée Developer ID, notarisée par Apple et « staplée ».
+# DMG de ClipRoll pour la vente publique : app signée Developer ID, notarisée par Apple et « staplée ».
 #   packaging/build_dmg.sh <version>            → signature locale seulement (essai, sans compte Apple)
 #   CLIPOA_SIGN_ID="Developer ID Application: Prénom Nom (TEAMID)" CLIPOA_NOTARY_PROFILE=clipoa packaging/build_dmg.sh <version>
 # Préparer une fois le profil de notarisation (mot de passe d'app sur appleid.apple.com) :
 #   xcrun notarytool store-credentials clipoa --apple-id <email> --team-id <TEAMID> --password <mot-de-passe-app>
 # Prérequis : dist/install.sh fabriqué par build_release.sh (il contient l'adresse des versions).
-# L'app ne contient que le lanceur : au 1er lancement elle installe Clipoa, Blender, etc. dans ~/Library/Clipoa,
+# L'app ne contient que le lanceur : au 1er lancement elle installe ClipRoll, Blender, etc. dans ~/Library/Clipoa,
 # puis les mises à jour passent par le bouton « Mettre à jour » sans re-télécharger le DMG.
 set -euo pipefail
 
@@ -18,23 +18,23 @@ PROFILE="${CLIPOA_NOTARY_PROFILE:-}"
 grep -q "__CLIPOA_UPDATE_URL__" "$DIST/install.sh" && { echo "dist/install.sh sans adresse de versions" >&2; exit 2; }
 
 B="$(mktemp -d /tmp/clipoa_dmg.XXXX)"
-APP="$B/stage/Clipoa.app"
+APP="$B/stage/ClipRoll.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 echo "▸ Lanceur"
-clang -O2 -arch arm64 -mmacosx-version-min=12.0 -o "$APP/Contents/MacOS/Clipoa" "$ROOT/packaging/macos/launcher.c"
+clang -O2 -arch arm64 -mmacosx-version-min=12.0 -o "$APP/Contents/MacOS/ClipRoll" "$ROOT/packaging/macos/launcher.c"
 cp "$ROOT/packaging/macos/bootstrap.sh" "$DIST/install.sh" "$APP/Contents/Resources/"
 chmod +x "$APP/Contents/Resources/"*.sh
-[ -f "$ROOT/assets/clipoa.icns" ] && cp "$ROOT/assets/clipoa.icns" "$APP/Contents/Resources/clipoa.icns"
+cp "$ROOT/assets/cliproll.icns" "$APP/Contents/Resources/cliproll.icns"
 cat > "$APP/Contents/Info.plist" <<EOS
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Clipoa</string>
-  <key>CFBundleDisplayName</key><string>Clipoa</string>
-  <key>CFBundleIdentifier</key><string>app.clipoa.desktop</string>
-  <key>CFBundleExecutable</key><string>Clipoa</string>
-  <key>CFBundleIconFile</key><string>clipoa</string>
+  <key>CFBundleName</key><string>ClipRoll</string>
+  <key>CFBundleDisplayName</key><string>ClipRoll</string>
+  <key>CFBundleIdentifier</key><string>app.cliproll.desktop</string>
+  <key>CFBundleExecutable</key><string>ClipRoll</string>
+  <key>CFBundleIconFile</key><string>cliproll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
@@ -54,9 +54,9 @@ codesign --verify --strict --verbose=2 "$APP"
 
 echo "▸ DMG"
 ln -s /Applications "$B/stage/Applications"
-DMG="$DIST/Clipoa-$VERSION.dmg"
+DMG="$DIST/ClipRoll-$VERSION.dmg"
 rm -f "$DMG"
-hdiutil create -quiet -volname "Clipoa" -srcfolder "$B/stage" -fs HFS+ -format UDZO -ov "$DMG"
+hdiutil create -quiet -volname "ClipRoll" -srcfolder "$B/stage" -fs HFS+ -format UDZO -ov "$DMG"
 [ "$SIGN_ID" = "-" ] || codesign --force --timestamp --sign "$SIGN_ID" "$DMG"
 
 if [ -n "$PROFILE" ] && [ "$SIGN_ID" != "-" ]; then

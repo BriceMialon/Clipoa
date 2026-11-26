@@ -86,7 +86,7 @@ THEMES: Dict[str, Dict[str, str]] = {
 }
 
 
-# Couleurs des mots-clés (méthode Clipoa) : jaune = noms/chiffres, rouge = danger, vert = positif
+# Couleurs des mots-clés (méthode ClipRoll) : jaune = noms/chiffres, rouge = danger, vert = positif
 KEYWORD_COLORS: Dict[str, str] = {
     "yellow": "&H0000E6FF",  # #FFE600
     "red": "&H003C4CE7",     # #E74C3C

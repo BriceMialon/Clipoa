@@ -12,7 +12,7 @@
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>Clipoa</DisplayName>
+    <DisplayName>ClipRoll</DisplayName>
     <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -28,11 +28,11 @@
 
   <Applications>
     <Application
-      Id="Clipoa"
-      Executable="Clipoa.exe"
+      Id="ClipRoll"
+      Executable="ClipRoll.exe"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Clipoa"
+        DisplayName="ClipRoll"
         Description="Création locale de vidéos courtes (script IA, voix, rendu 3D et montage local)"
         BackgroundColor="#14141c"
         Square150x150Logo="Assets\Square150x150Logo.png"

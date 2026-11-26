@@ -11,7 +11,7 @@ from core.style_plugins import duration_to_word_range
 CUSTOM_TEMPLATES_FILE = STORAGE_DIR / "script_templates.json"
 _TPL_LOCK = threading.Lock()
 
-VIDEO_SCRIPT_TEMPLATE = """# FORMAT DE SORTIE (Clipoa lit ces titres et les colonnes du tableau 3 : garde-les tels quels)
+VIDEO_SCRIPT_TEMPLATE = """# FORMAT DE SORTIE (ClipRoll lit ces titres et les colonnes du tableau 3 : garde-les tels quels)
 
 Le contenu, lui, est libre : genre, ton, structure, nombre de personnages et longueur viennent de la demande.
 Remplace tous les crochets `[ ]` par du vrai contenu. Pas de `...`, pas de commentaire avant ou après le document.

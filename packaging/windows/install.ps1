@@ -1,14 +1,14 @@
 ﻿<#
 .SYNOPSIS
-  Installateur Clipoa pour Windows (option secondaire : téléchargement depuis le site web).
+  Installateur ClipRoll pour Windows (option secondaire : téléchargement depuis le site web).
 
 .DESCRIPTION
   Reproduit le comportement de packaging/install.sh sur Mac, sans droits administrateur :
   - Installe tout dans %LOCALAPPDATA%\Clipoa (aucun symlink requis).
-  - Télécharge uv + Python 3.9 + dernière version de Clipoa (vérifiée SHA-256).
+  - Télécharge uv + Python 3.9 + dernière version de ClipRoll (vérifiée SHA-256).
   - Télécharge Blender (.zip officiel blender.org), FFmpeg (build officiel) et le modèle Whisper
     une seule fois dans data\runtime\ : les mises à jour automatiques ne les retéléchargent pas.
-  - Crée un raccourci « Clipoa » dans le menu Démarrer.
+  - Crée un raccourci « ClipRoll » dans le menu Démarrer.
 
 .EXAMPLE
   irm https://dl.clipoa.app/windows/install.ps1 | iex
@@ -26,7 +26,7 @@ $ErrorActionPreference = "Stop"
 
 if (-not $UpdateUrl) { $UpdateUrl = "__CLIPOA_UPDATE_URL__" }
 if (-not $HomeDir) { $HomeDir = Join-Path $env:LOCALAPPDATA "Clipoa" }
-$StartMenuLnk = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Clipoa.lnk"
+$StartMenuLnk = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\ClipRoll.lnk"
 $UvVersion = "0.13.10"
 $PyVersion = "3.9"
 
@@ -42,7 +42,7 @@ function Check-Sha256([string]$File, [string]$Expected) {
 }
 
 if ($Uninstall) {
-    Say "Désinstallation de Clipoa…"
+    Say "Désinstallation de ClipRoll…"
     if (Test-Path $StartMenuLnk) { Remove-Item -Force $StartMenuLnk }
     foreach ($sub in @("versions", "venv", "python", "tools", "bin", "current_version")) {
         $p = Join-Path $HomeDir $sub
@@ -52,13 +52,13 @@ if ($Uninstall) {
         if (Test-Path $HomeDir) { Remove-Item -Recurse -Force $HomeDir }
         Say "Tout est effacé."
     } else {
-        Say "Clipoa est retiré. Tes vidéos et réglages restent dans $HomeDir\data."
+        Say "ClipRoll est retiré. Tes vidéos et réglages restent dans $HomeDir\data."
     }
     exit 0
 }
 
 if ($UpdateUrl -notmatch '^(https://|http://(127\.0\.0\.1|localhost))') {
-    Die "Adresse du serveur Clipoa manquante ou non sécurisée ($UpdateUrl)."
+    Die "Adresse du serveur ClipRoll manquante ou non sécurisée ($UpdateUrl)."
 }
 $UpdateUrl = $UpdateUrl.TrimEnd("/")
 
@@ -94,8 +94,8 @@ try {
         & $UvExe venv --seed --python $PyVersion (Join-Path $HomeDir "venv") | Out-Null
     }
 
-    # 3. Dernière version de Clipoa
-    Say "Recherche de la dernière version de Clipoa…"
+    # 3. Dernière version de ClipRoll
+    Say "Recherche de la dernière version de ClipRoll…"
     $latest = Invoke-RestMethod -Uri "$UpdateUrl/latest.json"
     $Ver = [string]$latest.version
     if ($Ver -notmatch '^[0-9.]+$') { Die "Numéro de version invalide." }
@@ -103,9 +103,9 @@ try {
     $VerDir = Join-Path $HomeDir "versions\$Ver"
 
     if (Test-Path (Join-Path $VerDir "release.json")) {
-        Say "Clipoa $Ver est déjà installé."
+        Say "ClipRoll $Ver est déjà installé."
     } else {
-        Say "Téléchargement de Clipoa $Ver…"
+        Say "Téléchargement de ClipRoll $Ver…"
         $pkgZip = Join-Path $Tmp "clipoa.zip"
         Invoke-WebRequest -Uri $PkgUrl -OutFile $pkgZip
         Check-Sha256 $pkgZip ([string]$latest.sha256)
@@ -183,7 +183,7 @@ while (`$true) {
 }
 "@ | Set-Content -Encoding UTF8 -Path $ServerPs1
 
-    $LauncherVbs = Join-Path $HomeDir "bin\Clipoa.vbs"
+    $LauncherVbs = Join-Path $HomeDir "bin\ClipRoll.vbs"
     @"
 Set sh = CreateObject("WScript.Shell")
 sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File ""$ServerPs1""", 0, False
@@ -194,10 +194,10 @@ sh.Run "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -F
     $sc.TargetPath = "wscript.exe"
     $sc.Arguments = "`"$LauncherVbs`""
     $sc.WorkingDirectory = $HomeDir
-    $sc.Description = "Clipoa"
+    $sc.Description = "ClipRoll"
     $sc.Save()
 
-    Say "Clipoa $Ver est installé (Menu Démarrer → Clipoa)."
+    Say "ClipRoll $Ver est installé (Menu Démarrer → ClipRoll)."
     if (-not $NoOpen) {
         Start-Process "wscript.exe" -ArgumentList "`"$LauncherVbs`""
         Start-Sleep -Seconds 3

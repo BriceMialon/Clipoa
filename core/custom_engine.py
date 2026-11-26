@@ -14,7 +14,7 @@ le plus adapté et écrit le moteur de CE style :
    où c'est dit), vérifie quelques images, corrige les erreurs, puis rend la vidéo. En cas d'échec, la Fabrique se rabat sur le
    style intégré le plus proche (production.fallback_style).
 
-Les sous-titres, compteurs et cartons sont ajoutés ensuite par Clipoa (VideoComposer) : le moteur ne dessine que l'image.
+Les sous-titres, compteurs et cartons sont ajoutés ensuite par ClipRoll (VideoComposer) : le moteur ne dessine que l'image.
 """
 import base64
 import http.server
@@ -37,27 +37,27 @@ BLENDER_FPS = 12
 
 CONTRACT_HTML = """### Outil « html » : une page web COMPLÈTE (un seul fichier HTML, CSS et JS inclus)
 - Image verticale {w}×{h} px. Le décor doit remplir tout l'écran.
-- Avant ton code, Clipoa charge `window.CLIPOA` = {{ duration, fps, title, lines:[{{id,text,start,end,chunks:[{{text,start,end}}],words:[{{w,start,end}}]}}],
+- Avant ton code, ClipRoll charge `window.CLIPOA` = {{ duration, fps, title, lines:[{{id,text,start,end,chunks:[{{text,start,end}}],words:[{{w,start,end}}]}}],
   shots:[{{start,end,text,show,emotion,camera,action}}], palette:{{sky,ground,accent}} }} (temps en secondes, calés sur la voix).
 - Tu DOIS définir `window.renderFrame = function(t) {{ … }}` qui dessine EXACTEMENT l'image de l'instant t (en secondes),
   de façon déterministe (pas de Math.random() non initialisé, pas d'horloge : seul t compte ; utilise un random à graine).
   renderFrame peut renvoyer une Promise. Quand tout est prêt (images générées, polices…), mets `window.__ready = true`.
-- Dessine dans un `<canvas id="stage" width="{w}" height="{h}">` (Canvas 2D ou WebGL) : c'est lui que Clipoa capture.
-  (Si tu dessines en SVG/DOM, mets-les dans un conteneur plein écran de {w}×{h} : Clipoa capturera la page.)
+- Dessine dans un `<canvas id="stage" width="{w}" height="{h}">` (Canvas 2D ou WebGL) : c'est lui que ClipRoll capture.
+  (Si tu dessines en SVG/DOM, mets-les dans un conteneur plein écran de {w}×{h} : ClipRoll capturera la page.)
 - 3D possible avec three.js (WebGL, MeshToonMaterial, contours par coque inversée ou OutlinePass, ombres) :
   `<script type="importmap">{{"imports":{{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}}}</script>` {three_note}
 - Polices disponibles : `/fonts/LuckiestGuy-Regular.ttf`, `/fonts/Montserrat-Black.ttf`, `/fonts/Montserrat-ExtraBold.ttf` (via @font-face) ;
   sinon polices système (Arial Black, Helvetica). AUCUNE ressource Internet (pas de CDN, pas d'image distante) : tout est dessiné en code.
-- NE dessine PAS les sous-titres, ni les compteurs, ni les cartons de texte : Clipoa les ajoute par-dessus."""
+- NE dessine PAS les sous-titres, ni les compteurs, ni les cartons de texte : ClipRoll les ajoute par-dessus."""
 
 CONTRACT_BLENDER = """### Outil « blender » : un script Python Blender 5.x COMPLET (`import bpy`)
 - Le script reçoit déjà défini : `TIMELINE` (même contenu que ci-dessus : duration, lines, shots, palette) et `FPS` = {fps}.
 - Il construit la scène et l'anime pour toute la durée (frame = round(t × FPS) + 1), caméra comprise (scene.camera),
-  avec les coupes de plans aux temps de `TIMELINE['shots']`. Résolution et sortie vidéo sont imposées par Clipoa (540×960).
+  avec les coupes de plans aux temps de `TIMELINE['shots']`. Résolution et sortie vidéo sont imposées par ClipRoll (540×960).
 - Moteur au choix : BLENDER_EEVEE_NEXT (lumière, matériaux toon, Line Art / Freestyle pour les contours) ou BLENDER_WORKBENCH (rapide).
   Pas de Cycles (trop lent). Garde le rendu sous ~1 s par image.
 - Interdit : subprocess, os.system, réseau, lecture/écriture hors de la scène. Tout est modélisé en code (pas de fichier externe).
-- Ne fabrique PAS les sous-titres ni les textes de compteurs : Clipoa les ajoute par-dessus."""
+- Ne fabrique PAS les sous-titres ni les textes de compteurs : ClipRoll les ajoute par-dessus."""
 
 
 # ---------------------------------------------------------------- IA
@@ -183,7 +183,7 @@ class HtmlPage:
             kw["executable_path"] = find_chrome()
         self.browser = self.pw.chromium.launch(**kw)
         self.page = self.browser.new_page(viewport={"width": self.w, "height": self.h}, device_scale_factor=1)
-        # aucune sortie vers Internet : seulement le serveur local de Clipoa
+        # aucune sortie vers Internet : seulement le serveur local de ClipRoll
         self.page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(f"http://127.0.0.1:{port}/") or route.request.url.startswith("data:") else route.abort())
         self.page.on("console", lambda m: self.logs.append(f"[{m.type}] {m.text}") if m.type in ("error", "warning") else None)
         self.page.on("pageerror", lambda e: self.logs.append(f"[pageerror] {e}"))
@@ -347,7 +347,7 @@ def design_style_engine(plugin_id: str, analysis: Dict[str, Any], sheets: List[s
 
     a = analysis or {}
     timeline = build_timeline(words, min(duration or 20.0, 40.0), title=str(a.get("name") or ""), palette=a.get("palette") or {})
-    prompt = f"""Tu es directeur technique d'un studio de vidéos courtes. Clipoa doit pouvoir REFAIRE des vidéos EXACTEMENT dans le style
+    prompt = f"""Tu es directeur technique d'un studio de vidéos courtes. ClipRoll doit pouvoir REFAIRE des vidéos EXACTEMENT dans le style
 de la vidéo de référence (les images jointes : planche de 30 images sur toute la vidéo + 6 images clés), avec d'autres histoires.
 Il n'y a PAS de style tout fait : tu choisis l'outil le plus adapté et tu écris le moteur de CE style, fidèle au rendu de la référence
 (proportions et dessin des personnages, contours, couleurs, lumière, textures, profondeur, cadrages, mouvements de caméra, effets).
@@ -360,7 +360,7 @@ Direction artistique :
 Outils disponibles sur la machine (choisis-en UN) :
 {contracts()}
 
-Pour ce premier jet, illustre la narration de la référence ci-dessous (Clipoa l'utilise pour vérifier le rendu) :
+Pour ce premier jet, illustre la narration de la référence ci-dessous (ClipRoll l'utilise pour vérifier le rendu) :
 {json.dumps({"duration": timeline["duration"], "shots": timeline["shots"][:14]}, ensure_ascii=False)[:3500]}
 
 Écris un moteur RÉUTILISABLE : des fonctions pour dessiner les personnages (avec expressions), les décors, les objets, et la caméra,

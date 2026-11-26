@@ -2,7 +2,7 @@
 
 ## Côté utilisateur
 - Une fabrication échoue : la carte de la tâche affiche **Envoyer le rapport**.
-- Une erreur hors fabrication (serveur, tâche de fond) : petite bulle en bas à gauche « Clipoa a rencontré un problème » (Envoyer / Ignorer).
+- Une erreur hors fabrication (serveur, tâche de fond) : petite bulle en bas à gauche « ClipRoll a rencontré un problème » (Envoyer / Ignorer).
 - Bouton **?** en haut à droite : **Contacter le support** (message obligatoire, e-mail facultatif).
 - Rien ne part sans clic sur « Envoyer ». Le lien « Voir exactement ce qui sera envoyé » affiche le rapport complet.
 - Si l'envoi échoue (hors ligne, relais non configuré), le rapport est gardé dans `storage/support/outbox/` et l'utilisateur peut le télécharger.

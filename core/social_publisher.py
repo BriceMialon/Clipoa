@@ -442,7 +442,7 @@ class FreeSocialPublisher:
         accounts = cls.load_accounts()
         saved = accounts[SAVED_KEY].setdefault(platform, {})
         if account_key not in saved:
-            raise ValueError("Ce compte n'est pas enregistré dans Clipoa.")
+            raise ValueError("Ce compte n'est pas enregistré dans ClipRoll.")
         accounts[platform] = dict(saved[account_key])
         with _LOCK:
             _atomic_write_json(ACCOUNTS_FILE, accounts, mode=0o600)
@@ -1148,7 +1148,7 @@ class FreeSocialPublisher:
             if post_keys.get(plat) and not cfg.get("access_token"):
                 results[plat] = {
                     "ok": False,
-                    "message": f"Le compte {PLATFORMS[plat]['name']} choisi pour cette publication a été déconnecté de Clipoa.",
+                    "message": f"Le compte {PLATFORMS[plat]['name']} choisi pour cette publication a été déconnecté de ClipRoll.",
                 }
                 cls._update_queue_post(post_id, results=dict(results))
                 continue
@@ -1364,7 +1364,7 @@ class FreeSocialPublisher:
     @classmethod
     def _publish_youtube(cls, cfg: Dict[str, Any], video_path: str, title: str, description: str) -> Dict[str, Any]:
         token = cls._ensure_youtube_token(cfg)
-        clean_title = (title or "Clipoa Short").strip()[:100]
+        clean_title = (title or "ClipRoll Short").strip()[:100]
         clean_desc = (description or "").strip()
         if "#short" not in clean_title.lower() and "#short" not in clean_desc.lower():
             clean_desc = (clean_desc + "\n\n#Shorts").strip()
@@ -1465,7 +1465,7 @@ class FreeSocialPublisher:
                 },
                 json={
                     "post_info": {
-                        "title": (caption or title or "Clipoa")[:2200],
+                        "title": (caption or title or "ClipRoll")[:2200],
                         "privacy_level": privacy,
                         "disable_duet": False,
                         "disable_comment": False,
@@ -1564,7 +1564,7 @@ class FreeSocialPublisher:
                 "publish_id": publish_id,
                 "privacy": "INBOX_DRAFT",
                 "message": "Envoyé dans tes brouillons TikTok : ouvre l'app TikTok (notification) pour finir la publication. "
-                "La publication directe arrivera quand l'app Clipoa sera validée par TikTok.",
+                "La publication directe arrivera quand l'app ClipRoll sera validée par TikTok.",
             }
         note = (
             "Publié sur TikTok !"

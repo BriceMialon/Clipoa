@@ -90,7 +90,7 @@ def status() -> Dict[str, Any]:
 
 
 def _download(url: str, timeout: int = 120) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": "Clipoa/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "ClipRoll/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read()
 

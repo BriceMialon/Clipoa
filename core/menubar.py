@@ -1,8 +1,8 @@
 """
-Icône Clipoa dans la barre de menus macOS ou la zone de notification Windows
+Icône ClipRoll dans la barre de menus macOS ou la zone de notification Windows
 (processus séparé, lancé par `run_app`).
 
-Affiche l'état (rendu en cours + %, vidéo prête) et propose « Ouvrir Clipoa » / « Quitter ».
+Affiche l'état (rendu en cours + %, vidéo prête) et propose « Ouvrir ClipRoll » / « Quitter ».
 Lit l'état sur `/api/jobs` du serveur local ; se ferme tout seul quand le serveur s'arrête
 (donc une seule icône, même après le redémarrage d'une mise à jour).
 Optionnel : sans rumps (macOS) ou pystray+Pillow (Windows), rien n'est lancé. Couper : CLIPOA_MENUBAR=0.
@@ -17,7 +17,7 @@ import urllib.request
 from pathlib import Path
 
 ACTIVE_STATUSES = ("running", "queued")
-ICON = Path(__file__).resolve().parent.parent / "assets" / "menubar" / "clipoa_template.png"
+ICON = Path(__file__).resolve().parent.parent / "assets" / "menubar" / "cliproll_template.png"
 
 
 def available() -> bool:
@@ -99,10 +99,10 @@ def main():
     class ClipoaMenu(rumps.App):
         def __init__(self):
             icon = str(ICON) if ICON.exists() else None
-            super().__init__("Clipoa", title=None if icon else "Clipoa", icon=icon, template=True, quit_button=None)
+            super().__init__("ClipRoll", title=None if icon else "ClipRoll", icon=icon, template=True, quit_button=None)
             self.status_item = rumps.MenuItem("Aucun rendu", callback=self.open_app)
             self.busy = False
-            self.menu = [self.status_item, None, rumps.MenuItem("Ouvrir Clipoa", callback=self.open_app),
+            self.menu = [self.status_item, None, rumps.MenuItem("Ouvrir ClipRoll", callback=self.open_app),
                          None, rumps.MenuItem("Quitter", callback=self.quit_all)]
 
         def open_app(self, _=None):

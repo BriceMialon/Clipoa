@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Rendu « Haute qualité » des styles Blender (EEVEE) — ajouté APRÈS le kit par BlenderEngine.create_scene_from_spec.
-# ===== Rendu HAUTE QUALITÉ (EEVEE) : vraie lumière, ombres douces, occlusion ; ajouté par Clipoa si QUALITY == "hq" =====
+# ===== Rendu HAUTE QUALITÉ (EEVEE) : vraie lumière, ombres douces, occlusion ; ajouté par ClipRoll si QUALITY == "hq" =====
 def _clipoa_hq():
     import bpy as _b
     sc = _b.context.scene

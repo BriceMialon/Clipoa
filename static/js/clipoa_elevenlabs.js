@@ -1,6 +1,6 @@
 // Connexion ElevenLabs guidée + changement de compte en un clic.
 // ElevenLabs n'a pas d'OAuth pour les apps tierces : on ouvre la page des clés, puis la clé copiée
-// est lue dans le presse-papiers au retour sur Clipoa (ou collée). Chaque compte branché est mémorisé.
+// est lue dans le presse-papiers au retour sur ClipRoll (ou collée). Chaque compte branché est mémorisé.
 (function () {
   "use strict";
   var KEY_RE = /sk_[A-Za-z0-9]{32,}/;
@@ -12,7 +12,7 @@
   function say(m) { if (typeof window.toast === "function") window.toast(m); }
   function json(url, body) {
     return fetch(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : { cache: "no-store" })
-      .then(function (r) { return r.json(); }).catch(function () { return { error: "Clipoa ne répond pas." }; });
+      .then(function (r) { return r.json(); }).catch(function () { return { error: "ClipRoll ne répond pas." }; });
   }
 
   // Étapes réutilisées par le guide de premier lancement.

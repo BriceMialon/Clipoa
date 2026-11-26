@@ -48,7 +48,7 @@ class ShortCrewPipeline:
         style_overrides: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Méthode Clipoa : plan de production calé sur la voix réelle (plans 2-4 s, twist, SFX ancrés,
+        Méthode ClipRoll : plan de production calé sur la voix réelle (plans 2-4 s, twist, SFX ancrés,
         mots-clés, cartons) puis mix audio (musique d'ambiance + bruitages + version sans musique).
         """
         voice_wav = voice_res["audio_wav"]
@@ -441,7 +441,7 @@ class ShortCrewPipeline:
             audio_dur_sec = get_wav_duration(voice_res["audio_wav"])
             all_shots = template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or [])
 
-            # Méthode Clipoa : plan calé sur la voix + musique d'ambiance & bruitages (SFX) si cochés
+            # Méthode ClipRoll : plan calé sur la voix + musique d'ambiance & bruitages (SFX) si cochés
             with ticking(_mono, 50, 54, 20, "🎵 [2/4] Plan de production, musique d'ambiance & bruitages (SFX)"):
                 mixres = cls._plan_and_mix(
                     session_id, script, voice_res, voice_transcript, all_shots,

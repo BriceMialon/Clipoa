@@ -1,4 +1,4 @@
-// Serveur de licence Clipoa (Cloudflare Worker + D1).
+// Serveur de licence ClipRoll (Cloudflare Worker + D1).
 // - POST /checkout            {plan}            -> URL Stripe Checkout (abonnement, essai 3 j, carte demandée)
 // - GET  /success?session_id=                    -> page qui affiche la clé de licence
 // - POST /portal              {key}             -> URL du portail client Stripe (carte, factures, résiliation)
@@ -177,7 +177,7 @@ async function handleActivate(env, body) {
   if (!known) {
     const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE key = ?").bind(key).first();
     if (n >= Number(env.MAX_DEVICES || 2)) {
-      return json({ error: "Nombre maximal d'appareils atteint. Libérez un appareil depuis Clipoa sur l'autre ordinateur." }, 409);
+      return json({ error: "Nombre maximal d'appareils atteint. Libérez un appareil depuis ClipRoll sur l'autre ordinateur." }, 409);
     }
   }
   await env.DB.prepare(
@@ -214,14 +214,14 @@ function page(title, html) {
 
 async function handleSuccess(env, url) {
   const sid = String(url.searchParams.get("session_id") || "");
-  if (!/^cs_[A-Za-z0-9_]+$/.test(sid)) return page("Clipoa", "<p>Lien invalide.</p>");
+  if (!/^cs_[A-Za-z0-9_]+$/.test(sid)) return page("ClipRoll", "<p>Lien invalide.</p>");
   const session = await stripe(env, "GET", "checkout/sessions/" + sid);
-  if (session.status !== "complete" || !session.subscription) return page("Clipoa", "<p>Paiement non finalisé.</p>");
+  if (session.status !== "complete" || !session.subscription) return page("ClipRoll", "<p>Paiement non finalisé.</p>");
   // Le webhook peut arriver après la redirection : on crée la licence ici aussi (idempotent).
   const sub = await stripe(env, "GET", "subscriptions/" + session.subscription);
   const key = await upsertFromSubscription(env, sub, session.customer_details && session.customer_details.email);
-  return page("Votre licence Clipoa", `<h1>Merci !</h1><p>Votre clé de licence :</p><p><code>${key}</code></p>
-<p>Collez-la dans Clipoa (Réglages, Licence). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>`);
+  return page("Votre licence ClipRoll", `<h1>Merci !</h1><p>Votre clé de licence :</p><p><code>${key}</code></p>
+<p>Collez-la dans ClipRoll (Réglages, Licence). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>`);
 }
 
 async function handleCheckout(env, body) {

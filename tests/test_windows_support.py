@@ -133,7 +133,7 @@ class WindowsPackagingArtifactsTests(unittest.TestCase):
         tree = ET.parse(manifest)
         xml_text = manifest.read_text(encoding="utf-8")
         self.assertIn('Name="runFullTrust"', xml_text)
-        self.assertIn('Executable="Clipoa.exe"', xml_text)
+        self.assertIn('Executable="ClipRoll.exe"', xml_text)
         self.assertIsNotNone(tree.getroot())
 
     def test_windows_packaging_files_and_workflow_exist(self):

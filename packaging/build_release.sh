@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fabrique une version installable de Clipoa (Mac Apple Silicon), code compilé avec Nuitka.
+# Fabrique une version installable de ClipRoll (Mac Apple Silicon), code compilé avec Nuitka.
 #   packaging/build_release.sh 0.1.0 "Notes de version" [--edition public|perso] [--update-url https://…]
 # Résultat dans dist/ : clipoa-<v>-macos-arm64.tar.gz, latest.json, install.sh (à mettre en ligne tels quels).
 # Seuls les fichiers COMMITÉS sont embarqués (git archive HEAD) : storage/, clés et venv n'y vont jamais.
@@ -27,7 +27,7 @@ DIST="$ROOT/dist"
 B="$(mktemp -d /tmp/clipoa_build.XXXX)"
 SRC="$B/src"
 PY_VERSION="3.9"
-BLENDER_VERSION="${CLIPOA_BLENDER_VERSION:-5.3.0}"   # version testée avec Clipoa (voir CLAUDE.md)
+BLENDER_VERSION="${CLIPOA_BLENDER_VERSION:-5.3.0}"   # version testée avec ClipRoll (voir CLAUDE.md)
 UV="$(command -v uv || echo "$ROOT/venv/bin/uv")"
 [ -x "$UV" ] || { echo "uv introuvable (pip install uv)" >&2; exit 2; }
 command -v clang >/dev/null || { echo "clang manquant : xcode-select --install" >&2; exit 2; }
@@ -66,7 +66,7 @@ find . -name '__pycache__' -prune -exec rm -rf {} +
 cp "$B"/out/*.so .
 codesign -s - -f ./*.so >/dev/null 2>&1 || true
 cat > app.py <<'EOS'
-"""Lanceur de Clipoa (le code de l'application est compilé)."""
+"""Lanceur de ClipRoll (le code de l'application est compilé)."""
 import os
 import threading
 
@@ -104,7 +104,7 @@ WH_REV="$(curl -fsSL https://huggingface.co/api/models/Systran/faster-whisper-ba
 [ -n "$WH_REV" ] || { echo "révision Whisper introuvable" >&2; exit 1; }
 
 mkdir -p "$DIST"
-PKG="clipoa-$VERSION-macos-arm64.tar.gz"
+PKG="cliproll-$VERSION-macos-arm64.tar.gz"
 tar -czf "$DIST/$PKG" -C "$SRC" .
 SHA="$(shasum -a 256 "$DIST/$PKG" | cut -d' ' -f1)"
 NOTES_JSON="$("$B/venv/bin/python" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$NOTES")"

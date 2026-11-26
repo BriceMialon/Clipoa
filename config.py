@@ -51,7 +51,7 @@ def _bundled_ffmpeg() -> str:
 
 
 def resolve_ffmpeg_path() -> str:
-    """Chemin de ffmpeg : runtime Clipoa → venv → PATH → imageio-ffmpeg (si présent)."""
+    """Chemin de ffmpeg : runtime ClipRoll → venv → PATH → imageio-ffmpeg (si présent)."""
     exe_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
     runtime_ff = RUNTIME_DIR / "ffmpeg" / exe_name
     if runtime_ff.exists():
@@ -63,7 +63,7 @@ def resolve_ffmpeg_path() -> str:
 
 
 def resolve_blender_path() -> str:
-    """Chemin de Blender : env → runtime Clipoa → système (Mac / Windows)."""
+    """Chemin de Blender : env → runtime ClipRoll → système (Mac / Windows)."""
     env_bl = os.getenv("BLENDER_PATH")
     if env_bl:
         return env_bl
@@ -82,7 +82,7 @@ def resolve_blender_path() -> str:
     mac_app = Path("/Applications/Blender.app/Contents/MacOS/Blender")
     if mac_app.exists():
         return str(mac_app)
-    return str(rt)  # Blender installé automatiquement par Clipoa (core/tools_setup.py)
+    return str(rt)  # Blender installé automatiquement par ClipRoll (core/tools_setup.py)
 
 
 FFMPEG_PATH = resolve_ffmpeg_path()

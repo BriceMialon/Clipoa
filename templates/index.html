@@ -3,24 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0E0E11" id="meta-theme-color">
+  <meta name="theme-color" content="#0B0B16" id="meta-theme-color">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Clipoa">
+  <meta name="apple-mobile-web-app-title" content="ClipRoll">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" href="/static/brand/web/favicon-32x32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/brand/web/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-  <title>Clipoa — Studio 9:16</title>
+  <title>ClipRoll — Studio 9:16</title>
   <link rel="stylesheet" href="/static/css/liquid-glass.css?v=7">
   <link rel="stylesheet" href="/static/css/clipoa-ui.css?v=2">
+  <link rel="stylesheet" href="/static/css/cliproll.css?v=1">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
-<span class="brand-logo" style="width:{{ size }}px; height:{{ size }}px;"><img src="/static/logos/{{ key }}.svg" alt="{{ label }}" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='/static/logos/{{ key }}.png';}else{this.parentNode.classList.add('nologo');this.remove();}"><b style="background:{{ color }};">{{ label[:1] }}</b></span>
+{%- set dark_logo = key in ('tiktok', 'anthropic', 'apple') -%}
+<span class="brand-logo{% if dark_logo %} has-white{% endif %}" style="width:{{ size }}px; height:{{ size }}px;"><img src="/static/logos/{{ key }}.svg" alt="{{ label }}" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='/static/logos/{{ key }}.png';}else{this.parentNode.classList.add('nologo');this.remove();}">{% if dark_logo %}<img class="logo-white" src="/static/logos/{{ key }}-white.svg" alt="" aria-hidden="true">{% endif %}<b style="background:{{ color }};">{{ label[:1] }}</b></span>
 {%- endmacro %}
 
   <!-- Hidden SVG Optical Refraction Filter (Apple Liquid Glass Lensing) -->
@@ -49,12 +52,14 @@
       <div class="sidebar-head">
         <div class="brand" onclick="showView('accueil')">
           <svg class="brand-mark-svg" viewBox="0 0 512 512" fill="none" aria-hidden="true">
-            <defs><linearGradient id="clipoa-g" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse"><stop stop-color="#FF7A45"/><stop offset=".55" stop-color="#FF375F"/><stop offset="1" stop-color="#E8175D"/></linearGradient></defs>
-            <rect width="512" height="512" rx="128" fill="url(#clipoa-g)"/>
-            <rect x="166" y="96" width="180" height="320" rx="44" fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-width="22"/>
-            <path d="M226 206l84 50-84 50z" fill="#FFFFFF"/>
+            <rect width="512" height="512" rx="112" fill="#101022"/>
+            <g transform="translate(60 68) scale(16)">
+              <rect x="3" y="4" width="4.5" height="16" rx="2.25" fill="#00E5FF"/>
+              <path d="M10.5 5.4C10.5 4.2 11.8 3.5 12.8 4.1L21 9.7C21.9 10.3 21.9 11.7 21 12.3L12.8 17.9C11.8 18.5 10.5 17.8 10.5 16.6V5.4Z" fill="#FF3B5C"/>
+              <path d="M9 5.5L9.9 8.1L12.5 9L9.9 9.9L9 12.5L8.1 9.9L5.5 9L8.1 8.1L9 5.5Z" fill="#FFFFFF"/>
+            </g>
           </svg>
-          <span>Clipoa</span>
+          <span>ClipRoll</span>
         </div>
       </div>
 
@@ -161,7 +166,7 @@
               <option value="claude:opus" selected>Claude Opus 5.5</option>
             </select>
 
-            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur Clipoa ?' if claude_status.connected else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
+            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur ClipRoll ?' if claude_status.connected else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
 
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
           </form>
@@ -170,7 +175,7 @@
             <div class="ai-drawer-head">
               <div class="ai-drawer-title">
                 <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="ai-drawer-dot"></span>
-                <span>Aide IA Clipoa</span>
+                <span>Aide IA ClipRoll</span>
                 <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
                   {{ 'Réponses courtes, avec le nom exact des onglets et boutons' if claude_status.connected else 'Connecte Claude pour activer l’aide' }}
                 </span>
@@ -186,9 +191,9 @@
 
             <div class="ai-drawer-body" id="ai-tb-messages">
               <div class="ai-msg assistant">
-                <div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>
+                <div class="ai-msg-meta"><span>✦ Assistant ClipRoll</span></div>
                 {% if claude_status.connected %}
-                Salut ! Pose-moi ta question sur Clipoa : créer une vidéo, copier le style d'une vidéo, publier, comprendre tes statistiques…
+                Salut ! Pose-moi ta question sur ClipRoll : créer une vidéo, copier le style d'une vidéo, publier, comprendre tes statistiques…
                 {% else %}
                 Pour activer l'aide IA en direct, connecte Claude dans « Connexions ».
                 {% endif %}
@@ -448,8 +453,8 @@
             </div>
 
             <div id="cine-warning" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:rgba(255,190,60,0.12); border:1px solid rgba(255,190,60,0.45); font-size:12.5px; line-height:1.45; color:var(--ink);">
-              <b>🎬 Mode Ciné haute qualité</b> : l'IA écrit chaque plan en 3D, Clipoa vérifie puis calcule la vidéo en 1080p 30 i/s.
-              <b>Compte 20 à 60 min de rendu</b> et environ <b>4× plus de tokens</b> qu'un style classique. Tu peux continuer à utiliser Clipoa pendant ce temps.
+              <b>🎬 Mode Ciné haute qualité</b> : l'IA écrit chaque plan en 3D, ClipRoll vérifie puis calcule la vidéo en 1080p 30 i/s.
+              <b>Compte 20 à 60 min de rendu</b> et environ <b>4× plus de tokens</b> qu'un style classique. Tu peux continuer à utiliser ClipRoll pendant ce temps.
               <div id="cine-install-row" style="display:none; margin-top:7px; gap:8px; align-items:center; flex-wrap:wrap;">
                 <span id="cine-install-text" style="color:var(--muted);">Première fois : installe le moteur Ciné (≈ 200 Mo, une seule fois).</span>
                 <button type="button" class="btn btn-primary btn-xs" id="cine-install-btn" onclick="installCineEngine()">Installer le moteur Ciné</button>
@@ -464,7 +469,7 @@
               <div id="rq-hint" style="margin-top:6px; color:var(--muted);">Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus).</div>
             </div>
             <div id="style-ref-lock" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; color:var(--ink);">
-              🎞️ <b>Style copié depuis ta vidéo</b> : Clipoa regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
+              🎞️ <b>Style copié depuis ta vidéo</b> : ClipRoll regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
             </div>
             <div class="style-plaques-strip" id="style-plaques-strip">
               {% for pl in style_plugins %}
@@ -836,7 +841,7 @@
                 {% if acc.auto_api %}
                 <div style="display:flex; gap:5px; flex-shrink:0;">
                   <button type="button" class="btn btn-ghost btn-xs" data-plat="{{ key }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" onclick="connectSocialOAuth(this.dataset.plat, 'auto', this.dataset.ready === '1')" title="Ajouter un autre compte {{ acc.short_name }}">＋</button>
-                  <button type="button" class="btn btn-ghost btn-xs" data-plat="{{ key }}" data-label="{{ acc.label }}" onclick="disconnectSocial(this.dataset.plat, this.dataset.label)" title="Retirer ce compte de Clipoa">✕</button>
+                  <button type="button" class="btn btn-ghost btn-xs" data-plat="{{ key }}" data-label="{{ acc.label }}" onclick="disconnectSocial(this.dataset.plat, this.dataset.label)" title="Retirer ce compte de ClipRoll">✕</button>
                 </div>
                 {% else %}
                 <button type="button" class="btn btn-ghost btn-sm" data-plat="{{ key }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" onclick="connectSocialOAuth(this.dataset.plat, 'auto', this.dataset.ready === '1')">Brancher</button>
@@ -1059,7 +1064,7 @@
         </section>
 
         <!-- ================================================================
-             VUE 8 : ÉQUIPE IA (Les 4 Agents Spécialisés de Clipoa)
+             VUE 8 : ÉQUIPE IA (Les 4 Agents Spécialisés de ClipRoll)
              ================================================================ -->
         <section id="view-equipe" class="view">
           <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="montage" onclick="showView('montage')">Découper une vidéo</button><button type="button" class="subnav-btn" data-sub="analyse" onclick="showView('analyse')">S’inspirer</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
@@ -1171,7 +1176,7 @@
                   </div>
                 </div>
                 <div style="font-size:11px; color:var(--muted); margin-top:5px;" id="reg-quota-sub">
-                  {{ ('Reset 5h : ' ~ claude_status.quota.resets_at ~ ' · ') if claude_status.quota.resets_at else '' }}{{ claude_status.quota.calls_5h }} appels Clipoa
+                  {{ ('Reset 5h : ' ~ claude_status.quota.resets_at ~ ' · ') if claude_status.quota.resets_at else '' }}{{ claude_status.quota.calls_5h }} appels ClipRoll
                 </div>
               </div>
 
@@ -1293,7 +1298,7 @@
 
           </div>
 
-          <!-- Réglages techniques OAuth / relais : jamais montrés aux utilisateurs (configurés par l'éditeur de Clipoa) -->
+          <!-- Réglages techniques OAuth / relais : jamais montrés aux utilisateurs (configurés par l'éditeur de ClipRoll) -->
           <div id="oauth-setup-drawer" class="options-drawer card" style="display:none !important;" hidden aria-hidden="true">
             <div class="field" style="grid-column:1/-1; background:var(--glass-soft); padding:12px 14px; border-radius:14px; border:1px solid var(--border);">
               <label>Relais OAuth 1-Clic SaaS (Cloudflare Workers HTTPS)</label>
@@ -1802,7 +1807,7 @@
 
       <!-- TAB 4 : Direction Artistique (DA) pour Claude -->
       <div class="plugin-tab-pane" id="pe-pane-da">
-        <div style="padding:11px 13px; border-radius:13px; background:var(--indigo-soft); border:1px solid rgba(139,139,255,0.28); font-size:12.5px; color:var(--ink-2); line-height:1.45;">
+        <div style="padding:11px 13px; border-radius:13px; background:var(--indigo-soft); border:1px solid rgba(0,229,255,0.28); font-size:12.5px; color:var(--ink-2); line-height:1.45;">
           <b>Fonctionnement :</b> Quand un utilisateur sélectionne ce plugin dans la Fabrique, Claude applique cette Direction Artistique pour le contenu, les scènes et le rendu — tout en permettant à l'utilisateur de coller son propre script mot pour mot s'il le souhaite.
         </div>
 
@@ -1928,7 +1933,7 @@
       location.reload();
     }
     async function removeClaudeApiKey() {
-      if (!confirm('Retirer ta clé API Claude de Clipoa ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
+      if (!confirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
       const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
       if (d.error) return toast('❌ ' + d.error);
       location.reload();
@@ -1943,7 +1948,7 @@
         if (!res.ok && !data.error) data.error = `Erreur HTTP ${res.status}`;
         return data;
       } catch (e) {
-        return { error: 'Connexion impossible au serveur Clipoa.' };
+        return { error: 'Connexion impossible au serveur ClipRoll.' };
       }
     }
 
@@ -2644,7 +2649,7 @@
       let pv = {};
       try { pv = await apiJson('/api/plugins/' + encodeURIComponent(pluginId) + '/preview'); } catch (e) { pv = {}; }
       if (stylePreviewFor !== pluginId) return;
-      // Seulement la vidéo : pas de lien vers le site d'origine, pas d'ajout ni de changement (c'est l'éditeur de Clipoa qui fournit les références)
+      // Seulement la vidéo : pas de lien vers le site d'origine, pas d'ajout ni de changement (c'est l'éditeur de ClipRoll qui fournit les références)
       if (pv.kind !== 'video' || !pv.url) { box.style.display = 'none'; box.innerHTML = ''; return; }
       box.innerHTML = `<video src="${escHtml(pv.url)}" muted autoplay loop playsinline controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata" style="width:180px; aspect-ratio:9/16; border-radius:14px; background:#000; object-fit:cover;"></video>
         <span style="font-size:12px; font-weight:700; color:var(--ink);">À quoi ressemble ce style</span>`;
@@ -2729,9 +2734,9 @@
 
     function selectStylePlaque(key, btnEl = null) {
       if (key === 'new_plugin') return;
-      if (refUrlLocksStyle()) return toast('Un lien vidéo est collé : Clipoa copie le style de cette vidéo. Efface le lien pour choisir un style.');
+      if (refUrlLocksStyle()) return toast('Un lien vidéo est collé : ClipRoll copie le style de cette vidéo. Efface le lien pour choisir un style.');
       selectedStylePlaque = key;
-      if (btnEl) window.__styleChosenByUser = true; // sinon Clipoa choisit le style d'après l'idée
+      if (btnEl) window.__styleChosenByUser = true; // sinon ClipRoll choisit le style d'après l'idée
       document.querySelectorAll('#style-plaques-strip .style-plaque').forEach(el => {
         el.classList.toggle('actif', el.dataset.splaque === key);
       });
@@ -2982,7 +2987,7 @@
     function applyTheme(t) {
       document.documentElement.setAttribute('data-theme', t);
       localStorage.setItem('sc_theme', t);
-      document.getElementById('meta-theme-color')?.setAttribute('content', t === 'dark' ? '#0A0A0C' : '#F4F4F6');
+      document.getElementById('meta-theme-color')?.setAttribute('content', t === 'dark' ? '#0B0B16' : '#F6F7FB');
       document.querySelectorAll('.theme-seg button').forEach(b => b.classList.toggle('actif', b.dataset.theme === t));
     }
     function toggleTheme() {
@@ -3072,7 +3077,7 @@
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; font-size:15px; color:${col};">${v.score}/100</span>
               <span style="font-weight:700; color:var(--ink); font-size:13.5px;">${escHtml(v.title)}</span>
-              ${v.made_with_clipoa ? '<span class="pick-badge">Clipoa</span>' : ''}
+              ${v.made_with_clipoa ? '<span class="pick-badge">ClipRoll</span>' : ''}
               ${v.is_short ? '<span class="pick-badge">Short</span>' : ''}
             </div>
             <div class="kpi-row" style="margin-top:6px;">
@@ -3155,7 +3160,7 @@
       showView('creer');
       const inp = document.getElementById('fab-ref-url');
       if (inp) { inp.value = url; syncRefUrlLock(); inp.scrollIntoView({ block: 'center' }); }
-      toast('Lien ajouté : écris ton idée ou ton script, Clipoa copie le style de cette vidéo.');
+      toast('Lien ajouté : écris ton idée ou ton script, ClipRoll copie le style de cette vidéo.');
     }
     async function copyInspirationLink(url) {
       try { await navigator.clipboard.writeText(url); toast('Lien copié.'); } catch (e) { prompt('Copie ce lien :', url); }
@@ -3435,7 +3440,7 @@
         const rs = document.getElementById('reg-quota-sub');
         if (rs) {
           const rst = q.resets_at ? `Reset 5h : ${q.resets_at} · ` : '';
-          rs.textContent = `${rst}${q.calls_5h ?? 0} appels Clipoa`;
+          rs.textContent = `${rst}${q.calls_5h ?? 0} appels ClipRoll`;
         }
       } catch (e) {}
     }
@@ -4131,7 +4136,7 @@
           })
         });
         if (likeRes.error) return toast(likeRes.error);
-        toast('Clipoa regarde la vidéo d’exemple, crée son style puis fabrique ta vidéo…');
+        toast('ClipRoll regarde la vidéo d’exemple, crée son style puis fabrique ta vidéo…');
         trackJob();
         return;
       }
@@ -4590,7 +4595,7 @@
         body: JSON.stringify({ platform })
       });
       if (data && data.error) return toast(data.error);
-      toast(`${label || platform.toUpperCase()} retiré de Clipoa`);
+      toast(`${label || platform.toUpperCase()} retiré de ClipRoll`);
       setTimeout(() => location.reload(), 400);
     }
 
@@ -5372,7 +5377,7 @@
       persistAiHelp();
       const body = document.getElementById('ai-tb-messages');
       if (body) {
-        body.innerHTML = `<div class="ai-msg assistant"><div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>Conversation effacée. Pose ta question quand tu veux !</div>`;
+        body.innerHTML = `<div class="ai-msg assistant"><div class="ai-msg-meta"><span>✦ Assistant ClipRoll</span></div>Conversation effacée. Pose ta question quand tu veux !</div>`;
       }
     }
 
@@ -5432,7 +5437,7 @@
         appendAiHelpMessage('assistant', res.reply, res.model_label || 'Aide IA');
       } catch (e) {
         if (thinkingEl) thinkingEl.remove();
-        appendAiHelpMessage('assistant', 'Erreur de connexion locale au serveur Clipoa.', 'Erreur');
+        appendAiHelpMessage('assistant', 'Erreur de connexion locale au serveur ClipRoll.', 'Erreur');
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '→'; }
       }
@@ -5487,7 +5492,7 @@
     });
   </script>
 <div id="stale-build-banner" style="display:none; position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:9999; background:#111; color:#fff; padding:10px 14px; border-radius:12px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.25); align-items:center; gap:10px;">
-  <span>Clipoa a été mis à jour. Recharge la page pour utiliser la nouvelle version.</span>
+  <span>ClipRoll a été mis à jour. Recharge la page pour utiliser la nouvelle version.</span>
   <button type="button" class="btn btn-primary btn-xs" onclick="location.reload()">Recharger</button>
 </div>
 <script>

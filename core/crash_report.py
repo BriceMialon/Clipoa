@@ -10,7 +10,7 @@ Principe :
     masqués. Les valeurs exactes des secrets présents dans storage/*.json sont aussi
     retirées mot pour mot, quel que soit leur format.
   - L'utilisateur peut voir exactement le contenu avant l'envoi (/api/support/preview).
-  - Envoi au relais Cloudflare de Clipoa (route /support/report). En cas d'échec, le rapport
+  - Envoi au relais Cloudflare de ClipRoll (route /support/report). En cas d'échec, le rapport
     reste dans storage/support/outbox/ et l'interface propose de le télécharger.
 """
 
@@ -345,7 +345,7 @@ def send_report(report: Dict[str, Any], incident_id: str = "") -> Dict[str, Any]
     try:
         import requests
         r = requests.post(url, json=report, timeout=SEND_TIMEOUT_S,
-                          headers={"User-Agent": "Clipoa/" + report.get("app", {}).get("version", "?")})
+                          headers={"User-Agent": "ClipRoll/" + report.get("app", {}).get("version", "?")})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
             if incident_id:
@@ -416,8 +416,8 @@ def register(app) -> None:
                                  step=request.method + " " + request.path,
                                  tb=traceback.format_exc())
         if request.path.startswith("/api/"):
-            return jsonify({"ok": False, "error": "Erreur interne de Clipoa.", "incident_id": inc_id}), 500
-        return "Erreur interne de Clipoa. Tu peux envoyer un rapport depuis le bouton Aide.", 500
+            return jsonify({"ok": False, "error": "Erreur interne de ClipRoll.", "incident_id": inc_id}), 500
+        return "Erreur interne de ClipRoll. Tu peux envoyer un rapport depuis le bouton Aide.", 500
 
     def _args():
         data = request.get_json(silent=True) or {}

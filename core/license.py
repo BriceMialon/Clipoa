@@ -1,5 +1,5 @@
 """
-Licence d'abonnement Clipoa (version publique).
+Licence d'abonnement ClipRoll (version publique).
 
 Principe :
 - l'utilisateur colle sa clé `CLIPOA-XXXX-XXXX-XXXX` reçue après le paiement Stripe ;

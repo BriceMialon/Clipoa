@@ -1,12 +1,12 @@
 /**
- * Clipoa 1-Click OAuth Relay (Cloudflare Worker — Hardened Production Edition)
+ * ClipRoll 1-Click OAuth Relay (Cloudflare Worker — Hardened Production Edition)
  *
- * Permet à tous les utilisateurs de Clipoa de cliquer sur :
+ * Permet à tous les utilisateurs de ClipRoll de cliquer sur :
  *   - « Se connecter à YouTube »
  *   - « Se connecter à Instagram »
  *   - « Se connecter à Facebook »
  *   - « Se connecter à TikTok »
- * d'être redirigés vers le portail officiel, puis renvoyés automatiquement dans Clipoa
+ * d'être redirigés vers le portail officiel, puis renvoyés automatiquement dans ClipRoll
  * avec rafraîchissement automatique des tokens (programmation différée 24h/24).
  *
  * Protections intégrées :
@@ -17,7 +17,7 @@
  *   - Timeout réseau 10 s sur tous les appels upstream (Google / TikTok / Meta)
  *   - En-têtes de sécurité complets (CSP avec form-action verrouillé, HSTS, nosniff, DENY)
  *
- * Secrets Cloudflare Worker à configurer (1 seule fois par l'éditeur de Clipoa) :
+ * Secrets Cloudflare Worker à configurer (1 seule fois par l'éditeur de ClipRoll) :
  *   - YT_CLIENT_ID, YT_CLIENT_SECRET
  *   - TT_CLIENT_KEY, TT_CLIENT_SECRET
  *   - META_APP_ID, META_APP_SECRET
@@ -265,7 +265,7 @@ function buildAutoPostPage(returnTo, fields) {
 <head>
   <meta charset="utf-8">
   <meta name="referrer" content="no-referrer">
-  <title>Connexion Clipoa réussie…</title>
+  <title>Connexion ClipRoll réussie…</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background:#0E0E11; color:#F4F4F6; display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
     .box { text-align:center; padding:28px 32px; border-radius:18px; background:#16161B; border:1px solid #26262E; max-width:380px; }
@@ -275,10 +275,10 @@ function buildAutoPostPage(returnTo, fields) {
 <body>
   <div class="box">
     <div style="font-size:16px; font-weight:600;">Connexion validée</div>
-    <div style="font-size:13px; opacity:0.72; margin-top:6px;">Retour automatique vers Clipoa…</div>
+    <div style="font-size:13px; opacity:0.72; margin-top:6px;">Retour automatique vers ClipRoll…</div>
     <form id="f" method="POST" action="${escapeHtml(returnTo)}">
       ${inputs}
-      <noscript><button type="submit">Continuer vers Clipoa</button></noscript>
+      <noscript><button type="submit">Continuer vers ClipRoll</button></noscript>
     </form>
   </div>
   <script>document.getElementById('f').submit();</script>
@@ -309,17 +309,17 @@ function jsonResponse(data, status = 200, extraHeaders = {}) {
 function legalPage(kind) {
   const pages = {
     terms: {
-      title: "Clipoa — Conditions d'utilisation",
-      body: `<p>Clipoa est un outil personnel de création et de publication de vidéos courtes. En connectant un compte YouTube, Instagram, Facebook ou TikTok, vous autorisez Clipoa à publier les vidéos que vous choisissez sur ce compte, uniquement à votre demande ou à l'heure que vous programmez.</p>
+      title: "ClipRoll — Conditions d'utilisation",
+      body: `<p>ClipRoll est un outil personnel de création et de publication de vidéos courtes. En connectant un compte YouTube, Instagram, Facebook ou TikTok, vous autorisez ClipRoll à publier les vidéos que vous choisissez sur ce compte, uniquement à votre demande ou à l'heure que vous programmez.</p>
 <p>Vous restez responsable du contenu publié et du respect des règles de chaque plateforme. Vous pouvez retirer l'accès à tout moment depuis les paramètres de sécurité de la plateforme concernée.</p>
 <p>Le service est fourni tel quel, sans garantie.</p>`,
     },
     privacy: {
-      title: "Clipoa — Politique de confidentialité",
-      body: `<p>Clipoa demande uniquement les autorisations nécessaires pour publier vos vidéos et lire les informations de base de votre profil (identifiant, nom affiché).</p>
-<p>Les jetons d'accès sont transmis à l'application Clipoa installée sur votre ordinateur et y sont stockés localement. Ce relais ne conserve ni jetons ni données personnelles et ne les partage avec aucun tiers.</p>
-<p>Pour supprimer vos données, déconnectez le compte dans Clipoa et révoquez l'accès dans les paramètres de la plateforme.</p>
-<p><b>Rapports d'erreur et support.</b> Un rapport n'est envoyé que lorsque vous cliquez sur « Envoyer ». Il contient la version de Clipoa, votre système, l'étape en erreur, les journaux techniques récents (si vous les joignez), votre message et, si vous la donnez, votre adresse e-mail pour vous répondre. Avant l'envoi, Clipoa retire les clés API, jetons, mots de passe, adresses e-mail des journaux, adresses IP et votre nom d'utilisateur. Le rapport sert uniquement à corriger le problème ou à vous répondre, il n'est partagé avec personne et il est supprimé automatiquement après 90 jours. Pour en demander la suppression plus tôt, écrivez-nous avec le numéro du rapport.</p>`,
+      title: "ClipRoll — Politique de confidentialité",
+      body: `<p>ClipRoll demande uniquement les autorisations nécessaires pour publier vos vidéos et lire les informations de base de votre profil (identifiant, nom affiché).</p>
+<p>Les jetons d'accès sont transmis à l'application ClipRoll installée sur votre ordinateur et y sont stockés localement. Ce relais ne conserve ni jetons ni données personnelles et ne les partage avec aucun tiers.</p>
+<p>Pour supprimer vos données, déconnectez le compte dans ClipRoll et révoquez l'accès dans les paramètres de la plateforme.</p>
+<p><b>Rapports d'erreur et support.</b> Un rapport n'est envoyé que lorsque vous cliquez sur « Envoyer ». Il contient la version de ClipRoll, votre système, l'étape en erreur, les journaux techniques récents (si vous les joignez), votre message et, si vous la donnez, votre adresse e-mail pour vous répondre. Avant l'envoi, ClipRoll retire les clés API, jetons, mots de passe, adresses e-mail des journaux, adresses IP et votre nom d'utilisateur. Le rapport sert uniquement à corriger le problème ou à vous répondre, il n'est partagé avec personne et il est supprimé automatiquement après 90 jours. Pour en demander la suppression plus tôt, écrivez-nous avec le numéro du rapport.</p>`,
     },
   };
   const p = pages[kind];
@@ -421,9 +421,9 @@ async function notifySupport(env, id, report) {
     jobs.push((async () => {
       try {
         const { EmailMessage } = await import("cloudflare:email");
-        const subject = (report.kind === "contact" ? "[Clipoa] Support " : "[Clipoa] Plantage ") + id;
+        const subject = (report.kind === "contact" ? "[ClipRoll] Support " : "[ClipRoll] Plantage ") + id;
         const mime = [
-          `From: Clipoa <${env.SUPPORT_EMAIL_FROM}>`,
+          `From: ClipRoll <${env.SUPPORT_EMAIL_FROM}>`,
           `To: ${env.SUPPORT_EMAIL_TO}`,
           report.contact_email ? `Reply-To: ${report.contact_email}` : "",
           `Subject: ${subject}`,
@@ -480,7 +480,7 @@ async function handleSupport(request, env, url, method, ipHash) {
     return jsonResponse({ ok: true, id });
   }
 
-  // Lecture des rapports (réservée à l'éditeur de Clipoa)
+  // Lecture des rapports (réservée à l'éditeur de ClipRoll)
   if (url.pathname === "/support/reports" || url.pathname.startsWith("/support/reports/")) {
     if (method !== "GET") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
     const auth = request.headers.get("Authorization") || "";
@@ -562,7 +562,7 @@ export default {
       }
       return jsonResponse({
         ok: true,
-        service: "Clipoa 1-Click OAuth Relay",
+        service: "ClipRoll 1-Click OAuth Relay",
         hardened: true,
         callback_examples: {
           youtube: `${origin}/oauth/youtube/callback`,
@@ -577,7 +577,7 @@ export default {
       });
     }
 
-    // 2. Token Refresh Endpoints (called server-to-server by Clipoa Scheduler)
+    // 2. Token Refresh Endpoints (called server-to-server by ClipRoll Scheduler)
     if (url.pathname === "/oauth/youtube/refresh") {
       if (method !== "POST") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
       if (!env.YT_CLIENT_ID || !env.YT_CLIENT_SECRET) {

@@ -28,7 +28,7 @@ _WIN_TOAST_PS = (
     "$xml = New-Object Windows.Data.Xml.Dom.XmlDocument;"
     "$xml.LoadXml(\"<toast><visual><binding template='ToastText02'><text id='1'>$t</text><text id='2'>$m</text></binding></visual></toast>\");"
     "$toast = [Windows.UI.Notifications.ToastNotification]::new($xml);"
-    "$appId = if ($env:CLIPOA_APP_ID) { $env:CLIPOA_APP_ID } else { 'Clipoa' };"
+    "$appId = if ($env:CLIPOA_APP_ID) { $env:CLIPOA_APP_ID } else { 'ClipRoll' };"
     "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show($toast);"
 )
 
@@ -70,7 +70,7 @@ def _notify_windows(title: str, message: str) -> bool:
     return True
 
 
-def notify(message: str, title: str = "Clipoa") -> bool:
+def notify(message: str, title: str = "ClipRoll") -> bool:
     if not enabled() or not message:
         return False
     try:

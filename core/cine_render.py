@@ -1,6 +1,6 @@
 """
 Rendu « Roblox 3D Ciné » : le moteur three.js (core/cine_engine/engine/film.html) tourne dans Chrome sans fenêtre,
-Clipoa lui sert les fichiers en local puis capture chaque image et l'encode avec ffmpeg.
+ClipRoll lui sert les fichiers en local puis capture chaque image et l'encode avec ffmpeg.
 Adapté du moteur Docteur Shark v3.4 (GTAO, bloom de nuit, lumière de contour, étalonnage, visages vivants).
 """
 import base64

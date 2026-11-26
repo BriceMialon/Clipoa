@@ -56,7 +56,7 @@
     box.appendChild(el("div", "font-size:13px;opacity:.8;margin-bottom:12px",
       isContact
         ? "Pose ta question ou décris ce qui ne va pas. On te répond par e-mail."
-        : "Le rapport contient la version de Clipoa, ton système, l'étape en erreur et les journaux récents. " +
+        : "Le rapport contient la version de ClipRoll, ton système, l'étape en erreur et les journaux récents. " +
           "Tes clés API, jetons, mots de passe et vidéos ne sont jamais envoyés."));
 
     var msgLabel = el("label", "display:block;font-weight:600;font-size:13px",
@@ -87,7 +87,7 @@
     box.appendChild(previewLink); box.appendChild(pre);
 
     box.appendChild(el("div", "font-size:12px;opacity:.65;margin-top:10px",
-      "En cliquant sur Envoyer, tu acceptes que ces informations soient transmises à l'équipe Clipoa pour corriger le problème ou te répondre. " +
+      "En cliquant sur Envoyer, tu acceptes que ces informations soient transmises à l'équipe ClipRoll pour corriger le problème ou te répondre. " +
       "Elles sont supprimées automatiquement après 90 jours."));
 
     var status = el("div", "font-size:13px;margin-top:10px;display:none");
@@ -138,7 +138,7 @@
           dl.onclick = function () { download(res.report); };
           status.appendChild(dl);
         }
-      }).catch(function () { send.disabled = false; status.textContent = "Envoi impossible (Clipoa ne répond pas)."; });
+      }).catch(function () { send.disabled = false; status.textContent = "Envoi impossible (ClipRoll ne répond pas)."; });
     };
   }
 
@@ -147,7 +147,7 @@
     if (bubble) return;
     bubble = el("div", "position:fixed;left:16px;bottom:16px;z-index:99998;max-width:330px;padding:12px 14px;border-radius:14px;" +
       "background:rgba(20,20,28,.94);color:#fff;font:13px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35)");
-    bubble.appendChild(el("div", "font-weight:600;margin-bottom:6px", "Clipoa a rencontré un problème"));
+    bubble.appendChild(el("div", "font-weight:600;margin-bottom:6px", "ClipRoll a rencontré un problème"));
     bubble.appendChild(el("div", "opacity:.75;margin-bottom:10px;word-break:break-word", (inc.message || "").slice(0, 140)));
     var go = el("button", "background:#7c5cff;color:#fff;border:0;border-radius:10px;padding:7px 12px;font-weight:600;cursor:pointer", "Envoyer un rapport");
     var no = el("button", "background:transparent;color:#bbb;border:0;margin-left:8px;cursor:pointer", "Ignorer");

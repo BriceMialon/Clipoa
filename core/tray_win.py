@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Icône Clipoa dans la zone de notification Windows (system tray).
+Icône ClipRoll dans la zone de notification Windows (system tray).
 
 Processus séparé lancé par `core.menubar.launch(port)` sur Windows :
 - Affiche l'état du rendu (en cours + %, vidéo prête, aucun rendu) dans le menu et l'infobulle.
-- Propose « Ouvrir Clipoa » (aussi action par défaut au double-clic) et « Quitter »
+- Propose « Ouvrir ClipRoll » (aussi action par défaut au double-clic) et « Quitter »
   (avec confirmation Win32 si un rendu est en cours).
 - Lit l'état sur `/api/jobs` toutes les 2 s et se ferme tout seul quand le serveur s'arrête.
 - Dépendances Windows uniquement : `pystray` et `Pillow` (optionnelles, zéro impact sur macOS).
@@ -23,7 +23,7 @@ from core.platform_win import open_url, pid_alive, terminate_pid
 
 
 def _load_icon_image():
-    """Charge l'icône Clipoa (PIL.Image) ou dessine un badge minimaliste en secours."""
+    """Charge l'icône ClipRoll (PIL.Image) ou dessine un badge minimaliste en secours."""
     from PIL import Image, ImageDraw
 
     if ICON.exists():
@@ -48,7 +48,7 @@ def _confirm_quit_busy() -> bool:
         res = ctypes.windll.user32.MessageBoxW(
             0,
             "Un rendu est en cours.\nQuitter quand même ?",
-            "Clipoa",
+            "ClipRoll",
             MB_YESNO | MB_ICONWARNING,
         )
         return res == IDYES
@@ -81,11 +81,11 @@ def main() -> None:
     menu = pystray.Menu(
         pystray.MenuItem(lambda _item: state["line"], on_open),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Ouvrir Clipoa", on_open, default=True),
+        pystray.MenuItem("Ouvrir ClipRoll", on_open, default=True),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quitter", on_quit),
     )
-    tray = pystray.Icon("Clipoa", _load_icon_image(), "Clipoa", menu)
+    tray = pystray.Icon("ClipRoll", _load_icon_image(), "ClipRoll", menu)
 
     def poll_loop():
         while not stop_event.is_set():
@@ -99,7 +99,7 @@ def main() -> None:
                 state["line"] = s["line"]
                 state["title"] = s["title"]
                 state["busy"] = s["busy"]
-                tray.title = f"Clipoa — {s['title']}" if s["title"] else "Clipoa"
+                tray.title = f"ClipRoll — {s['title']}" if s["title"] else "ClipRoll"
                 tray.update_menu()
             except Exception:
                 pass

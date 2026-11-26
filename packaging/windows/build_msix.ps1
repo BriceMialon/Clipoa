@@ -1,10 +1,10 @@
 ﻿<#
 .SYNOPSIS
-  Construit le paquet Microsoft Store (.msix) de Clipoa pour Windows x64.
+  Construit le paquet Microsoft Store (.msix) de ClipRoll pour Windows x64.
 
 .DESCRIPTION
   - Copie uniquement les fichiers commités (git archive HEAD) : jamais storage/ ni les clés.
-  - Compile core/, agents/ et app.py en modules natifs (.pyd) avec Nuitka, plus Clipoa.exe (lanceur sans console).
+  - Compile core/, agents/ et app.py en modules natifs (.pyd) avec Nuitka, plus ClipRoll.exe (lanceur sans console).
   - Exclut volontairement `imageio-ffmpeg` du paquet MSIX (FFmpeg et Blender sont téléchargés
     depuis leurs sources officielles avec validation dans l'assistant au premier lancement).
   - Génère les icônes MSIX requises et emballe avec makeappx.exe.
@@ -94,10 +94,10 @@ try {
         Pop-Location
     }
 
-    Write-Host "▸ Compilation du lanceur Clipoa.exe (sans fenêtre console)" -ForegroundColor Magenta
+    Write-Host "▸ Compilation du lanceur ClipRoll.exe (sans fenêtre console)" -ForegroundColor Magenta
     Copy-Item (Join-Path $Root "packaging\windows\launcher.py") -Destination (Join-Path $Src "launcher.py")
     & $PyExe -m nuitka --standalone --windows-console-mode=disable `
-        --output-dir=$Stage --output-filename="Clipoa.exe" `
+        --output-dir=$Stage --output-filename="ClipRoll.exe" `
         --include-data-dir="$Src\templates=templates" `
         --include-data-dir="$Src\static=static" `
         --include-data-dir="$Src\assets=assets" `
@@ -110,10 +110,10 @@ try {
         (Join-Path $Src "launcher.py")
 
     $DistDir = Join-Path $Stage "launcher.dist"
-    if (-not (Test-Path (Join-Path $DistDir "Clipoa.exe"))) {
-        throw "Clipoa.exe introuvable dans $DistDir"
+    if (-not (Test-Path (Join-Path $DistDir "ClipRoll.exe"))) {
+        throw "ClipRoll.exe introuvable dans $DistDir"
     }
-    # Modules compilés (core, agents, clipoa_app) à côté de Clipoa.exe : Nuitka refuse
+    # Modules compilés (core, agents, clipoa_app) à côté de ClipRoll.exe : Nuitka refuse
     # un motif *.pyd en --include-data-files, on les copie après coup.
     Copy-Item (Join-Path $Src "*.pyd") -Destination $DistDir
 
@@ -166,7 +166,7 @@ for name, (w, h) in sizes.items():
         Sort-Object FullName -Descending | Select-Object -First 1
     if (-not $makeappx) { throw "makeappx.exe introuvable (installe le Windows 10/11 SDK)." }
 
-    $MsixOut = Join-Path $Dist "Clipoa-$Version-x64.msix"
+    $MsixOut = Join-Path $Dist "ClipRoll-$Version-x64.msix"
     if (Test-Path $MsixOut) { Remove-Item -Force $MsixOut }
     Write-Host "▸ Empaquetage MSIX ($MsixOut)" -ForegroundColor Magenta
     & $makeappx.FullName pack /d $DistDir /p $MsixOut /o
@@ -177,7 +177,7 @@ for name, (w, h) in sizes.items():
             Sort-Object FullName -Descending | Select-Object -First 1
         if (-not $signtool) { throw "signtool.exe introuvable." }
         $cert = New-SelfSignedCertificate -Type Custom -Subject $Publisher -KeyUsage DigitalSignature `
-            -FriendlyName "Clipoa Dev Test" -CertStoreLocation "Cert:\CurrentUser\My" `
+            -FriendlyName "ClipRoll Dev Test" -CertStoreLocation "Cert:\CurrentUser\My" `
             -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
         $pfx = Join-Path $BuildDir "test.pfx"
         $pwd = ConvertTo-SecureString -String "clipoa-test" -Force -AsPlainText

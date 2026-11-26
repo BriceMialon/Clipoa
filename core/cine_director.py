@@ -4,9 +4,9 @@ Réalisateur « Roblox 3D Ciné » (qualité Docteur Shark / série d'horreur) p
 1. La narration (mots Whisper) devient timeline.json au format du moteur.
 2. Claude écrit les plans en code (shots.js) avec l'API du moteur : décors, acteurs,
    expressions, caméras, éclairages, effets.
-3. Clipoa ouvre la scène, prend une image par plan et détecte les défauts (erreur JS, caméra dans un objet, tête coupée,
+3. ClipRoll ouvre la scène, prend une image par plan et détecte les défauts (erreur JS, caméra dans un objet, tête coupée,
    personnages qui se traversent, image noire). L'IA corrige (2 tours max).
-4. Rendu final 1080x1920 à 30 i/s, un MP4 sans son que Clipoa habille ensuite (voix, musique, sous-titres).
+4. Rendu final 1080x1920 à 30 i/s, un MP4 sans son que ClipRoll habille ensuite (voix, musique, sous-titres).
 C'est plus long et plus coûteux en tokens que les styles Blender : l'interface le signale avant de lancer.
 """
 import json

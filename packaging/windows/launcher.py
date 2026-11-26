@@ -5,7 +5,7 @@ Point d'entrée Windows (MSIX & lanceur autonome).
 Rôle :
 1. Configure l'environnement persistant dans %LOCALAPPDATA%\\Clipoa (le dossier MSIX
    WindowsApps étant en lecture seule, storage/ et runtime/ survivent aux MAJ du Store).
-2. Si Clipoa tourne déjà sur http://127.0.0.1:<port>, ouvre simplement le navigateur et quitte.
+2. Si ClipRoll tourne déjà sur http://127.0.0.1:<port>, ouvre simplement le navigateur et quitte.
 3. Sinon, démarre le serveur Flask (clipoa_app.run_app), l'icône de zone de notification
    (tray) et ouvre http://localhost:<port> dès que le serveur répond.
 """
@@ -28,7 +28,7 @@ def _server_ready(port: int) -> bool:
 
 def _setup_environment() -> Path:
     local_app_data = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    data_dir = Path(os.getenv("CLIPOA_DATA_DIR") or (Path(local_app_data) / "Clipoa"))
+    data_dir = Path(os.getenv("CLIPOA_DATA_DIR") or (Path(local_app_data) / "ClipRoll"))
     runtime_dir = data_dir / "runtime"
     logs_dir = data_dir / "logs"
     for d in (data_dir, runtime_dir, logs_dir):
@@ -37,7 +37,7 @@ def _setup_environment() -> Path:
     os.environ["CLIPOA_DATA_DIR"] = str(data_dir)
     os.environ.setdefault("CLIPOA_STORE_APP", "1")
     os.environ.setdefault("CLIPOA_EDITION", "public")
-    os.environ.setdefault("CLIPOA_APP_ID", "Clipoa")
+    os.environ.setdefault("CLIPOA_APP_ID", "ClipRoll")
     os.environ.setdefault("HF_HOME", str(runtime_dir / "huggingface"))
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
     os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(runtime_dir / "ms-playwright"))
@@ -73,7 +73,7 @@ def main() -> None:
 
     from core.platform_win import open_url
 
-    # Si Clipoa tourne déjà : ouvrir l'interface et quitter sans doublon
+    # Si ClipRoll tourne déjà : ouvrir l'interface et quitter sans doublon
     if _server_ready(port):
         open_url(f"http://localhost:{port}")
         return

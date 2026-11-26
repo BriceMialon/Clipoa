@@ -24,7 +24,7 @@ def is_windows() -> bool:
 
 
 def is_store_app(base_dir: Optional[Path] = None) -> bool:
-    """True si Clipoa tourne dans un paquet MSIX (Microsoft Store).
+    """True si ClipRoll tourne dans un paquet MSIX (Microsoft Store).
 
     Détection :
     1. Variable explicite `CLIPOA_STORE_APP=1` (posée par le lanceur MSIX).

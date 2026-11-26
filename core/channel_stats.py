@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Statistiques de la chaîne YouTube connectée : TOUTES les vidéos (publiées avec ou sans Clipoa),
+Statistiques de la chaîne YouTube connectée : TOUTES les vidéos (publiées avec ou sans ClipRoll),
 avec vues, likes, commentaires, un score /100 et le « pourquoi » (ce qui a marché / ce qui a freiné).
 
 Score /100 relatif à la chaîne (pour qu'une petite chaîne ait aussi des notes parlantes) :
@@ -130,7 +130,7 @@ def fetch_youtube_videos() -> Dict[str, Any]:
 
 
 def render_for_video(video_id: str) -> str:
-    """Identifiant de la fabrication Clipoa d'une vidéo YouTube publiée (vide si faite sans Clipoa)."""
+    """Identifiant de la fabrication ClipRoll d'une vidéo YouTube publiée (vide si faite sans ClipRoll)."""
     try:
         from core.social_publisher import FreeSocialPublisher
         for post in FreeSocialPublisher.load_queue():
@@ -145,8 +145,8 @@ def render_for_video(video_id: str) -> str:
 def remake_request(video_id: str) -> Dict[str, Any]:
     """
     Ce qu'il faut envoyer à la Fabrique pour refaire la vidéo EN MIEUX :
-    - faite avec Clipoa → même style, script d'origine réécrit en corrigeant les points faibles ;
-    - faite sans Clipoa → on copie son style (lien de la vidéo) et on raconte la même idée en corrigeant les points faibles.
+    - faite avec ClipRoll → même style, script d'origine réécrit en corrigeant les points faibles ;
+    - faite sans ClipRoll → on copie son style (lien de la vidéo) et on raconte la même idée en corrigeant les points faibles.
     """
     data = load()
     v = next((x for x in (data.get("videos") or []) if x.get("id") == video_id), None)

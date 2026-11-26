@@ -178,7 +178,7 @@ class BrowserPortalAuth:
                                 "status": "connected",
                                 "platform": platform,
                                 "label": label,
-                                "message": f"{cfg['name']} connecté ! Retour sur Clipoa.",
+                                "message": f"{cfg['name']} connecté ! Retour sur ClipRoll.",
                             }
                     else:
                         with _STATES_LOCK:
