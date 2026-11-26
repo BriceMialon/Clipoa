@@ -220,7 +220,7 @@ def _install_blender(home: Path, latest: Dict[str, Any]) -> None:
     version = str(latest.get("blender_version") or "")
     runtime = home / "data" / "runtime"
     marker = runtime / "blender_version"
-    if not version or (marker.exists() and marker.read_text().strip() == version):
+    if not version or (marker.exists() and marker.read_text(encoding="utf-8").strip() == version):
         return
     url = str(latest.get("blender_url") or "")
     if not url.startswith("https://download.blender.org/"):
@@ -259,7 +259,7 @@ def _install_blender(home: Path, latest: Dict[str, Any]) -> None:
         dmg.unlink(missing_ok=True)
     shutil.rmtree(runtime / "Blender.app", ignore_errors=True)
     new_app.rename(runtime / "Blender.app")
-    marker.write_text(version + "\n")
+    marker.write_text(version + "\n", encoding="utf-8")
 
 
 def _apply(info: Dict[str, Any]) -> None:

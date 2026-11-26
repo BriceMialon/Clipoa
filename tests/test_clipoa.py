@@ -174,8 +174,9 @@ class TestClipoaCoreFixes(unittest.TestCase):
         before = load_settings()
         try:
             save_settings({"claude": {"live_quota": {"util_5h": 0.9, "resets_5h": 9999999999}}})
-            mode = stat.S_IMODE(os.stat(SETTINGS_FILE).st_mode)
-            self.assertEqual(mode, 0o600)
+            if os.name != "nt":  # droits Unix 600 : sans objet sous Windows
+                mode = stat.S_IMODE(os.stat(SETTINGS_FILE).st_mode)
+                self.assertEqual(mode, 0o600)
             reset_claude_quota_counter()
             after = load_settings()
             self.assertEqual(after["claude"]["live_quota"], {})

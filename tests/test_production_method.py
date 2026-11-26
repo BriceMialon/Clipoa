@@ -550,7 +550,12 @@ class TestStyleFromReference(unittest.TestCase):
         self.assertEqual(c.post("/api/make-like", json={"topic": "x"}).status_code, 400)
         self.assertEqual(c.post("/api/make-like", json={"url": "https://youtube.com/shorts/abc"}).status_code, 400)
         self.assertEqual(c.post("/api/plugins/from-reference", json={"url": "https://youtube.com/shorts/abc"}).status_code, 403)
-        html = c.get("/").get_data(as_text=True)
+        # Le formulaire n'apparaît qu'une fois Claude connecté : on simule une IA connectée
+        # (sur la CI aucune IA n'est branchée).
+        from unittest.mock import patch
+        real_status = clipoa_app.ClaudeBridge.check_status(live_probe=False)
+        with patch.object(clipoa_app.ClaudeBridge, "check_status", return_value={**real_status, "connected": True}):
+            html = c.get("/").get_data(as_text=True)
         self.assertIn('id="fab-ref-url"', html)
         self.assertNotIn('data-splaque="new_plugin"', html)
         self.assertIn("syncRefUrlLock", html)
