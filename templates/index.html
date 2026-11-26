@@ -137,23 +137,7 @@
           </div>
           {% endif %}
 
-          {% if agy_status.connected %}
-          <!-- Antigravity Neon -->
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); {{ 'margin-top:10px;' if claude_status.connected else '' }}">
-            <span style="display:flex; align-items:center; gap:6px;">
-              <span class="dot ok" id="side-agy-dot"></span>
-              <span>Antigravity Neon</span>
-            </span>
-            <span id="side-agy-pct" style="color:{{ 'var(--danger, #d9534f)' if agy_status.quota.exhausted else 'var(--muted)' }};" title="Utilisation restante sur 5h">
-              {{ agy_status.quota.remaining_pct }}% restant{{ (' · reset ' ~ agy_status.quota.resets_at) if agy_status.quota.exhausted else '' }}
-            </span>
-          </div>
-          <div class="progress-track" style="margin-top:5px; height:4px;">
-            <div class="progress-fill" id="side-agy-bar" style="width:{{ agy_status.quota.remaining_pct }}%; animation:none;"></div>
-          </div>
-          {% endif %}
-
-          {% if not claude_status.connected and not agy_status.connected %}
+          {% if not claude_status.connected %}
           <div style="display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:var(--accent);">
             <span class="dot warn"></span>
             <span>Connecter une IA →</span>
@@ -171,15 +155,12 @@
         <div class="ai-taskbar-wrap" id="ai-taskbar" aria-label="Barre IA pour les questions">
           <form class="ai-taskbar-bar" style="width:100%;" onsubmit="event.preventDefault(); askAiHelp();">
 
-            <!-- Modèles : Claude Opus 5.5, + Gemini Neon Medium seulement si Antigravity est connecté -->
+            <!-- Modèle : Claude -->
             <select id="ai-tb-model" class="ai-tb-model" title="Modèle IA qui répond" onchange="saveAiTaskbarModel()">
               <option value="claude:opus" selected>Claude Opus 5.5</option>
-              {% if agy_status.connected %}
-              <option value="antigravity:gemini-4-neon-medium">Gemini Neon Medium</option>
-              {% endif %}
             </select>
 
-            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur Clipoa ?' if (claude_status.connected or agy_status.connected) else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
+            <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Une question sur Clipoa ?' if claude_status.connected else 'Connecte Claude pour activer l’aide IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
 
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
           </form>
@@ -187,14 +168,14 @@
           <div class="ai-taskbar-drawer" id="ai-tb-drawer">
             <div class="ai-drawer-head">
               <div class="ai-drawer-title">
-                <span class="dot {{ 'ok' if (claude_status.connected or agy_status.connected) else 'warn' }}" id="ai-drawer-dot"></span>
+                <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="ai-drawer-dot"></span>
                 <span>Aide IA Clipoa</span>
                 <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
-                  {{ 'Réponses courtes, avec le nom exact des onglets et boutons' if (claude_status.connected or agy_status.connected) else 'Connecte Claude pour activer l’aide' }}
+                  {{ 'Réponses courtes, avec le nom exact des onglets et boutons' if claude_status.connected else 'Connecte Claude pour activer l’aide' }}
                 </span>
               </div>
               <div style="display:flex; gap:6px; align-items:center;">
-                {% if not (claude_status.connected or agy_status.connected) %}
+                {% if not claude_status.connected %}
                 <button type="button" class="btn btn-coral btn-xs" onclick="toggleAiTaskbarDrawer(false); showView('reglages')">Connexions</button>
                 {% endif %}
                 <button type="button" class="btn btn-ghost btn-xs" onclick="clearAiHelp()" title="Effacer la discussion">Effacer</button>
@@ -205,10 +186,10 @@
             <div class="ai-drawer-body" id="ai-tb-messages">
               <div class="ai-msg assistant">
                 <div class="ai-msg-meta"><span>✦ Assistant Clipoa</span></div>
-                {% if claude_status.connected or agy_status.connected %}
+                {% if claude_status.connected %}
                 Salut ! Pose-moi ta question sur Clipoa : créer une vidéo, copier le style d'une vidéo, publier, comprendre tes statistiques…
                 {% else %}
-                Pour activer l'aide IA en direct, connecte Claude ou Antigravity dans « Connexions ».
+                Pour activer l'aide IA en direct, connecte Claude dans « Connexions ».
                 {% endif %}
               </div>
             </div>
@@ -380,13 +361,13 @@
             </div>
           </div>
 
-          {% if not claude_status.connected and not agy_status.connected %}
+          {% if not claude_status.connected %}
           <!-- Écran simplifié tant qu'aucune IA n'est connectée -->
           <div class="composer lg-sheen" style="text-align:center; padding:42px 24px;">
             <div style="font-size:32px; margin-bottom:10px;">🔌</div>
             <h2 style="font-family:var(--font-display); font-size:20px; font-weight:800; color:var(--ink);">Connecte une IA pour commencer</h2>
             <p style="font-size:13.5px; color:var(--muted); max-width:420px; margin:8px auto 18px; line-height:1.5;">
-              Branche Claude ou Antigravity dans Connexions pour débloquer la génération de scripts et de vidéos.
+              Branche Claude dans Connexions pour débloquer la génération de scripts et de vidéos.
             </p>
             <button type="button" class="btn btn-coral" onclick="showView('reglages')">Ouvrir Connexions →</button>
           </div>
@@ -557,7 +538,7 @@
               </div>
             </div>
 
-            <!-- IA qui génère (juste après le moteur de rendu : Claude Opus 5.5 Medium vs Antigravity Neon Medium) -->
+            <!-- IA qui génère : Claude -->
             <div class="step-block" style="margin-top:14px;">
               <div class="step-label">
                 <span>2 · IA qui génère</span>
@@ -573,26 +554,7 @@
                 </button>
                 {% endif %}
 
-                {% if agy_status.connected %}
-                <button type="button" class="pick-card {{ 'actif' if not claude_status.connected else '' }}" id="eng-card-antigravity" onclick="selectEngine('antigravity')">
-                  <div class="pick-top">
-                    <span class="pick-title">Antigravity · Neon (Medium)</span>
-                    <span class="pick-badge">Connecté</span>
-                  </div>
-                </button>
-                {% endif %}
               </div>
-
-              {% if agy_status.connected %}
-              <div id="agy-model-row" style="display:{{ 'flex' if not claude_status.connected else 'none' }}; margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap;">
-                <select id="agy-model" class="input-sm" style="flex:1; min-width:200px;" onchange="saveAntigravityModel(this.value); updateCreateCTA()">
-                  {% for am in agy_status.models %}
-                    <option value="{{ am.id }}" {{ 'selected' if (agy_status.model or 'gemini-4-neon-medium') == am.id else '' }}>{{ am.label }}</option>
-                  {% endfor %}
-                </select>
-                <button type="button" class="btn btn-ghost btn-sm" onclick="refreshAntigravityStatus(true)">↻</button>
-              </div>
-              {% endif %}
             </div>
 
             <!-- Voix compacte -->
@@ -1245,63 +1207,6 @@
                     <input type="password" id="claude-apikey-input" class="input-sm" style="flex:1; min-width:180px;" placeholder="Ou colle ta clé API Anthropic (sk-ant-…)" autocomplete="off">
                     <button type="button" class="btn btn-primary btn-xs" onclick="saveClaudeApiKey()">Tester et enregistrer</button>
                     <a class="btn btn-ghost btn-xs" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Créer une clé ↗</a>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-
-            <!-- Carte 2 : Antigravity (agy) -->
-            <div class="conn-opt-plaque lg-sheen">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                  <div class="conn-mini-ico" style="margin-bottom:0;">{{ brand('antigravity', 'Antigravity', '#4285F4', 30) }}</div>
-                  <span id="reg-agy-status" style="font-size:12px; font-weight:700; color:{{ 'var(--ok)' if agy_status.connected else 'var(--muted)' }};">
-                    {{ '✓ Connecté' if agy_status.connected else 'À connecter' }}
-                  </span>
-                </div>
-                <div style="font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4;">
-                  Modèle par défaut : <b style="color:var(--ink);">Gemini 4 Neon (Medium)</b>.
-                </div>
-
-                <div class="quota-dual-grid">
-                  <div class="quota-mini-box">
-                    <div class="quota-mini-top">
-                      <span style="color:var(--muted); font-weight:600;">Reste (5h)</span>
-                      <span id="reg-agy-quota-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct ~ '%') if agy_status.connected else '—' }}</span>
-                    </div>
-                    <div class="quota-mini-bar">
-                      <div class="quota-mini-fill" id="reg-agy-quota-bar" style="width:{{ agy_status.quota.remaining_pct if agy_status.connected else 0 }}%; background:var(--accent);"></div>
-                    </div>
-                  </div>
-                  <div class="quota-mini-box">
-                    <div class="quota-mini-top">
-                      <span style="color:var(--muted); font-weight:600;">Reste (hebdo)</span>
-                      <span id="reg-agy-quota-7d-right" style="color:var(--ink); font-weight:700;">{{ (agy_status.quota.remaining_pct_7d ~ '%') if agy_status.connected else '—' }}</span>
-                    </div>
-                    <div class="quota-mini-bar">
-                      <div class="quota-mini-fill" id="reg-agy-quota-7d-bar" style="width:{{ agy_status.quota.remaining_pct_7d if agy_status.connected else 0 }}%; background:var(--indigo);"></div>
-                    </div>
-                  </div>
-                </div>
-                <div id="reg-agy-quota-note" style="font-size:11px; margin-top:4px; line-height:1.4; color:var(--danger, #d9534f);{{ '' if agy_status.quota.exhausted else ' display:none;' }}">
-                  {% if agy_status.quota.exhausted %}⛔ Quota épuisé · reset à {{ agy_status.quota.resets_at }} (dans {{ agy_status.quota.resets_in }}){% endif %}
-                </div>
-                <div id="agy-quota-adjust" style="display:none; margin-top:6px; gap:6px; align-items:center; flex-wrap:wrap; font-size:11.5px;">
-                  Reste 5h <input id="agy-adj-5h" type="number" min="0" max="100" step="1" placeholder="%" style="width:58px;">
-                  Reste hebdo <input id="agy-adj-7d" type="number" min="0" max="100" step="1" placeholder="%" style="width:58px;">
-                  <button type="button" class="btn btn-primary btn-xs" onclick="saveAgyQuotaAdjust()">OK</button>
-                </div>
-              </div>
-
-              <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-                <span></span>
-                <div style="display:flex; gap:5px;">
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="refreshAntigravityStatus(true)" title="Rafraîchir statut et modèles">↻</button>
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="toggleAgyQuotaAdjust()" title="Recopier les % restants affichés dans l'app Antigravity">Ajuster</button>
-                  {% if agy_status.connected %}
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="switchAntigravityAccount()">Changer</button>
-                  {% else %}
-                  <button type="button" class="btn btn-ghost btn-xs" onclick="startAntigravityLogin()">Connecter</button>
                   {% endif %}
                 </div>
               </div>
@@ -2219,7 +2124,7 @@
 
     function computeScaledPluginMetrics(pl, durSec = 60, engOverride = null) {
       const scale = Math.max(0.4, Math.min(3.0, (durSec || 60) / 60));
-      const eng = (engOverride || createEngine || 'claude') === 'antigravity' ? 'antigravity' : 'claude';
+      const eng = 'claude';
       const rMode = (pl && pl.render_mode === 'blender3d') ? 'blender3d' : 'motion';
       // Benchmark par style (mesuré sur les vraies fabrications, sinon valeur de départ propre au style)
       const styleKey = pl && pl.id ? pl.id : '_motion';
@@ -2232,10 +2137,10 @@
       }
       const baseMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.baselines_60s) || {};
       const quotaMap = (LEARNED_ESTIMATES && LEARNED_ESTIMATES.quota_pct_60s) || {};
-      const baseTime = baseMap[`${eng}:${rMode}`] || (rMode === 'blender3d' ? (eng === 'antigravity' ? 115 : 135) : (eng === 'antigravity' ? 42 : 55));
+      const baseTime = baseMap[`${eng}:${rMode}`] || (rMode === 'blender3d' ? 135 : 55);
       const timeSec = Math.max(12, Math.round(baseTime * (0.45 + 0.55 * scale)));
       const timeLbl = '~' + formatDurShort(timeSec);
-      const baseQuota = quotaMap[eng] || (eng === 'antigravity' ? 1.1 : 3.2);
+      const baseQuota = quotaMap[eng] || 3.2;
       const quotaPct = Math.min(100, Math.round(baseQuota * (0.5 + 0.5 * scale) * 10) / 10);
       return { timeSec, timeLbl, quotaPct, eng };
     }
@@ -2543,7 +2448,7 @@
     async function generateFabriqueScript() {
       const topic = val('main-topic');
       if (!topic) return toast('Décris ton idée avant de générer le script.');
-      const rawChoice = (val('fab-script-model') || (AI_CONNECTED_PROVIDERS.claude ? 'claude:claude-opus-5-5-medium' : 'antigravity:gemini-4-neon-medium')).split(':');
+      const rawChoice = (val('fab-script-model') || 'claude:claude-opus-5-5-medium').split(':');
       const eng = rawChoice[0] || 'claude';
       const mdl = rawChoice[1] === 'cli' ? '' : (rawChoice[1] || '');
       const btn = document.getElementById('fab-gen-script-btn');
@@ -2644,7 +2549,6 @@
               if (st) st.textContent = `✓ Généré (${payload.engine_label || eng})`;
               updateCreateCTA();
               refreshClaudeQuota();
-              refreshAntigravityStatus(false, true);
               toast('Script généré ! Tu peux le valider, le modifier à la main ou avec l’IA.');
               setTimeout(() => { if (progWrap) progWrap.style.display = 'none'; }, 1800);
             } else if (evName === 'error') {
@@ -2741,7 +2645,7 @@
       if (metricsEl) {
         const m = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
         const durTag = formatDurShort(targetDurationSec);
-        const engLbl = m.eng === 'antigravity' ? 'Antigravity' : 'Claude';
+        const engLbl = 'Claude';
         metricsEl.innerHTML = `
           <span class="plugin-metric-pill">⏱ ${escHtml(m.timeLbl)} (${escHtml(durTag)})</span>
           <span class="plugin-metric-pill cost">⚡ ~${m.quotaPct}% quota (${engLbl})</span>
@@ -2910,26 +2814,13 @@
 
     // ===== Moteurs, Rendu & Navigation Spatiale =====
     function selectEngine(eng) {
-      createEngine = (eng === 'antigravity') ? 'antigravity' : 'claude';
-      document.getElementById('eng-card-claude')?.classList.toggle('actif', createEngine === 'claude');
-      document.getElementById('eng-card-antigravity')?.classList.toggle('actif', createEngine === 'antigravity');
+      createEngine = 'claude';
+      document.getElementById('eng-card-claude')?.classList.toggle('actif', true);
       const claudeRow = document.getElementById('claude-model-row');
-      if (claudeRow) claudeRow.style.display = createEngine === 'claude' ? 'flex' : 'none';
-      const agyRow = document.getElementById('agy-model-row');
-      if (agyRow) agyRow.style.display = createEngine === 'antigravity' ? 'flex' : 'none';
+      if (claudeRow) claudeRow.style.display = 'flex';
       renderStylePlaquesStrip();
       renderActivePluginBar();
       updateCreateCTA();
-    }
-
-    async function startAntigravityLogin() {
-      const res = await apiJson('/api/antigravity/login', { method: 'POST' });
-      toast(res.message || res.error || 'Terminal Antigravity ouvert');
-    }
-
-    async function switchAntigravityAccount() {
-      const res = await apiJson('/api/antigravity/switch', { method: 'POST' });
-      toast(res.message || res.error || 'Changement de compte Antigravity ouvert dans le Terminal');
     }
 
     async function switchElevenLabsAccount() {
@@ -2943,15 +2834,6 @@
       openModal('modal-el-connect');
       setTimeout(() => document.getElementById('el-api-key')?.focus(), 120);
       toast('Ancien compte débranché — colle ta nouvelle clé ElevenLabs !');
-    }
-
-    async function saveAntigravityModel(mid) {
-      if (!mid) return;
-      await apiJson('/api/antigravity/model', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: mid }),
-      });
     }
 
     async function refreshElevenLabsCredits(silent = false) {
@@ -2993,87 +2875,6 @@
           : (st.connected ? 'Branché' : 'Non branché');
       }
       if (!silent) toast(st.connected ? '✓ Crédits ElevenLabs actualisés' : (st.message || 'Non branché'));
-    }
-
-    function applyAgyQuota(aq, ok) {
-      // Affiche ce qu'il RESTE (comme l'app Antigravity), 0 % dès qu'un « quota reached » est détecté.
-      const remPct = aq.remaining_pct ?? 100;
-      const rem7d = aq.remaining_pct_7d ?? 100;
-      const red = 'var(--danger, #d9534f)';
-      const sPct = document.getElementById('side-agy-pct');
-      if (sPct) {
-        sPct.textContent = ok ? `${remPct}% restant${aq.exhausted ? ' · reset ' + aq.resets_at : ''}` : 'Off';
-        sPct.style.color = aq.exhausted ? red : 'var(--muted)';
-      }
-      const sBar = document.getElementById('side-agy-bar');
-      if (sBar) sBar.style.width = `${ok ? remPct : 0}%`;
-      const rRight = document.getElementById('reg-agy-quota-right');
-      if (rRight) { rRight.textContent = ok ? `${remPct}%` : '—'; rRight.style.color = remPct <= 5 ? red : 'var(--ink)'; }
-      const rBar = document.getElementById('reg-agy-quota-bar');
-      if (rBar) rBar.style.width = `${ok ? remPct : 0}%`;
-      const r7d = document.getElementById('reg-agy-quota-7d-right');
-      if (r7d) { r7d.textContent = ok ? `${rem7d}%` : '—'; r7d.style.color = rem7d <= 5 ? red : 'var(--ink)'; }
-      const r7dBar = document.getElementById('reg-agy-quota-7d-bar');
-      if (r7dBar) r7dBar.style.width = `${ok ? rem7d : 0}%`;
-      const note = document.getElementById('reg-agy-quota-note');
-      if (note) {
-        note.style.display = aq.exhausted ? '' : 'none';
-        note.textContent = aq.exhausted ? `⛔ Quota épuisé · reset à ${aq.resets_at} (dans ${aq.resets_in})` : '';
-      }
-    }
-
-    function toggleAgyQuotaAdjust() {
-      const box = document.getElementById('agy-quota-adjust');
-      if (box) box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
-    }
-
-    async function saveAgyQuotaAdjust() {
-      const v5 = document.getElementById('agy-adj-5h')?.value;
-      const v7 = document.getElementById('agy-adj-7d')?.value;
-      const res = await apiJson('/api/antigravity/quota', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rem_5h: v5, rem_7d: v7 }) });
-      if (res && res.quota) {
-        applyAgyQuota(res.quota, true);
-        toggleAgyQuotaAdjust();
-        toast(`Antigravity : ${res.quota.remaining_pct}% restant (5h) · ${res.quota.remaining_pct_7d}% (hebdo)`);
-      } else {
-        toast((res && res.error) || 'Impossible d’enregistrer');
-      }
-    }
-
-    async function refreshAntigravityStatus(probe = true, silent = false) {
-      if (!silent) toast('Vérification Antigravity CLI…');
-      const st = await apiJson('/api/antigravity/status?probe=' + (probe ? '1' : '0'));
-      // la vraie vérification du quota (mini-requête à Antigravity) tourne en arrière-plan : on relit le résultat ensuite
-      if (probe) setTimeout(() => refreshAntigravityStatus(false, true), 35000);
-      const ok = !!st.connected;
-      AI_CONNECTED_PROVIDERS.antigravity = ok;
-      const badge = document.querySelector('#eng-card-antigravity .pick-badge');
-      if (badge) badge.textContent = ok ? 'Connecté' : 'À connecter';
-      const regSt = document.getElementById('reg-agy-status');
-      if (regSt) {
-        regSt.textContent = ok ? '✓ Connecté' : 'À connecter';
-        regSt.style.color = ok ? 'var(--ok)' : 'var(--muted)';
-      }
-      const sDot = document.getElementById('side-agy-dot');
-      if (sDot) sDot.className = 'dot ' + (ok ? ((st.quota || {}).exhausted ? 'warn' : 'ok') : 'warn');
-      applyAgyQuota(st.quota || {}, ok);
-      if (Array.isArray(st.models) && st.models.length) {
-        const sel = document.getElementById('agy-model');
-        if (sel) {
-          sel.innerHTML = st.models.map(m =>
-            `<option value="${escHtml(m.id)}" ${st.model === m.id ? 'selected' : ''}>${escHtml(m.label)}</option>`
-          ).join('');
-        }
-        const grp = document.getElementById('ai-tb-agy-group');
-        if (grp) {
-          grp.label = 'Antigravity ' + (ok ? '✓' : '(non connecté)');
-          grp.innerHTML = st.models.map(m =>
-            `<option value="antigravity:${escHtml(m.id)}">${escHtml(m.label)}</option>`
-          ).join('');
-        }
-      }
-      updateCreateCTA();
-      if (!silent) toast(ok ? `✓ Antigravity connecté (${(st.models || []).length} modèles)` : 'Antigravity pas encore connecté — valide dans le Terminal.');
     }
 
     let lockedRenderType = null;
@@ -3129,9 +2930,7 @@
       const activePl = STYLE_PLUGINS.find(p => p.id === activePluginId);
       const cSel = document.getElementById('claude-gen-model');
       const cLabel = cSel && cSel.selectedOptions[0] ? cSel.selectedOptions[0].textContent.trim() : 'Claude Opus 5.5 (Medium)';
-      const agySel = document.getElementById('agy-model');
-      const agyLabel = agySel && agySel.selectedOptions[0] ? agySel.selectedOptions[0].textContent.trim() : 'Gemini 4 Neon (Medium)';
-      const engLabel = createEngine === 'antigravity' ? `Antigravity · ${agyLabel}` : cLabel;
+      const engLabel = cLabel;
       if (hint) hint.textContent = engLabel;
 
       const renderLabels = {
@@ -3276,7 +3075,7 @@
     // ===== Statistiques : refaire une vidéo en mieux =====
     async function remakeVideo(id, btn) {
       if (btn) { btn.disabled = true; btn.textContent = 'Lancement…'; }
-      const engine = (typeof createEngine !== 'undefined' && createEngine === 'antigravity') ? 'antigravity' : 'claude';
+      const engine = 'claude';
       const res = await apiJson('/api/channel-stats/' + encodeURIComponent(id) + '/remake', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ engine, voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null }),
@@ -3560,7 +3359,6 @@
 
     async function refreshJobs() {
       refreshClaudeQuota();
-      refreshAntigravityStatus(false, true);
       refreshElevenLabsCredits(true);
       try {
         const data = await (await fetch('/api/jobs')).json();
@@ -3614,7 +3412,7 @@
           const liveIndicator = job.status === 'running'
             ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
                  <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">⏱ ${remEstTxt}</b>
-                 ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null && !(job.params && job.params.engine === 'antigravity'))
+                 ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
                    ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
                </div>
                <div class="step-pills">
@@ -4167,7 +3965,7 @@
         if (gemBtn) gemBtn.style.display = canUseGemini ? 'block' : 'none';
         const resetTxt = q.resets_at ? ` (reset prévu à ${q.resets_at})` : '';
         const actionHint = canUseGemini
-          ? 'Bascule sur Gemini Flash (gratuit), Antigravity ou change de compte Claude.'
+          ? 'Bascule sur Gemini Flash (gratuit) ou change de compte Claude.'
           : 'Attends le reset ou change de compte dans Connexions.';
         document.getElementById('cq-msg').textContent = (rem < need)
           ? `Il ne reste que ${rem}% de quota Claude (5h)${resetTxt}, alors qu'il faut environ ~${need}% pour terminer cette action. ${actionHint}`
@@ -4204,7 +4002,7 @@
       }
     }
 
-    // ===== Fabrication Unifiée (Étape 1 Script revu/édité + Étape 2 Rendu & IA Claude/Antigravity) =====
+    // ===== Fabrication Unifiée (Étape 1 Script revu/édité + Étape 2 Rendu & IA Claude) =====
     async function submitUnifiedCreate() {
       const mainText = val('main-topic');
       const refUrl = val('fab-ref-url');
@@ -4229,10 +4027,9 @@
       const enable_sfx = !!document.getElementById('fab-enable-sfx')?.checked;
       const topic = isCustomScript ? (customTitle || mainText.slice(0, 60) || custom_script.slice(0, 60)) : mainText;
 
-      // Détermine le moteur réel + modèle choisi (Claude Opus 5.5 Medium via agy ou Claude CLI, vs Antigravity Neon Medium)
-      // « Claude » = Claude CLI (ton quota Claude), « Antigravity » = agy (ton quota Antigravity). Jamais de mélange.
-      let reqEngine = createEngine === 'antigravity' ? 'antigravity' : 'claude';
-      let reqModel = reqEngine === 'antigravity' ? (val('agy-model') || 'gemini-4-neon-medium') : '';
+      // Seul Claude écrit les scripts
+      let reqEngine = 'claude';
+      let reqModel = '';
 
       if (refUrl && (refUrl.startsWith('http://') || refUrl.startsWith('https://'))) {
         // Vidéo d'exemple : l'agent regarde la vidéo, crée le style correspondant et fabrique TA vidéo dans ce style
@@ -5397,7 +5194,6 @@
     let aiHelpHistory = [];
     const AI_CONNECTED_PROVIDERS = {
       claude: {{ 'true' if claude_status.connected else 'false' }},
-      antigravity: {{ 'true' if agy_status.connected else 'false' }},
       gemini: {{ 'true' if gemini_status.connected else 'false' }},
     };
 
@@ -5564,13 +5360,8 @@
     }
 
     window.addEventListener('load', () => {
-      if (!AI_CONNECTED_PROVIDERS.claude && AI_CONNECTED_PROVIDERS.antigravity) {
-        selectEngine('antigravity');
-      }
       initAiTaskbarModel();
       restoreAiHelp();
-      // crédits Antigravity vérifiés pour de vrai au chargement (résultat relu ~40 s plus tard)
-      if (AI_CONNECTED_PROVIDERS.antigravity) setTimeout(() => refreshAntigravityStatus(false, true), 40000);
       renderPluginsGallery();
       renderActivePluginBar();
       updateFabScriptMeter();
@@ -5641,8 +5432,7 @@
 <!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
 <style>
   [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe,
-  #eng-card-antigravity, #agy-model-row, .conn-opt-plaque:has(#reg-agy-status),
-  div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn { display: none !important; }
+    div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn { display: none !important; }
 </style>
 {% endif %}
 </body>
