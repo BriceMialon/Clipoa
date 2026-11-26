@@ -143,3 +143,11 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 ## 26/11/2026 — Notifications empilées (idée Sonner, sans React)
 - `static/js/cliproll_toast.js` + `static/css/toasts.css` : `toast(msg, type?)` empile jusqu'à 3 notifications (succès/erreur/info deviné si absent : « ✓ » = succès, mots « Erreur/Échec/impossible… » = erreur), durée selon la longueur (erreurs ≥ 6 s), pause au survol/focus, bouton Fermer, `role="alert"` pour les erreurs, doublons fusionnés.
 - `templates/index.html` : l'ancien `toast()` délègue au module ; `#toast` → `#toast-stack`. Les 190 appels existants ne changent pas.
+
+## 26/11/2026 — Corrections de la revue Impeccable (npx impeccable detect)
+- Contraste AA : `--faint` éclairci (sombre #8A90B4, clair #6A6F8B) ; nouveau `--accent-fill` (#D92648) pour les fonds corail sous texte blanc ; dégradé CTA assombri (≥ 4.8:1).
+- Tailles : texte courant ≥ 12 px, pastilles/badges ≥ 11 px (index.html, liquid-glass.css, cliproll-ui.css, cliproll.css).
+- Mouvement : `--spring-liquid` et l'icône étincelle sans rebond (ease-out).
+- Halos colorés retirés sauf sur le bouton principal (`--cr-shadow-coral` adouci) ; 2 bordures latérales remplacées par une bordure fine teintée.
+- Titres des modales `h3` → `h2` (hiérarchie après le `h1` de la vue).
+- Faux positifs ignorés : `animation: var(--spring)` (courbe ease-out malgré son nom), polices Inter/Plus Jakarta (choix de marque).

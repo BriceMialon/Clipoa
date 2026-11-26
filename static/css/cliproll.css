@@ -33,7 +33,7 @@
 
   /* Dégradés */
   --cr-grad-brand: linear-gradient(135deg, #00E5FF 0%, #FF3B5C 100%);
-  --cr-grad-cta: linear-gradient(135deg, #FF3B5C 0%, #FF1E6E 55%, #E02482 100%);
+  --cr-grad-cta: linear-gradient(135deg, #D92648 0%, #D4145C 55%, #BF1D72 100%); /* texte blanc AA ≥ 4.5 */
   --cr-grad-surface: linear-gradient(180deg, rgba(28, 28, 56, 0.9) 0%, rgba(16, 16, 34, 0.96) 100%);
 
   /* Rayons & ombres */
@@ -41,8 +41,8 @@
   --cr-radius-md: 12px;
   --cr-radius-lg: 18px;
   --cr-radius-pill: 9999px;
-  --cr-shadow-coral: 0 8px 28px -6px rgba(255, 59, 92, 0.55);
-  --cr-shadow-cyan: 0 8px 24px -6px rgba(0, 229, 255, 0.4);
+  --cr-shadow-coral: 0 8px 24px -8px rgba(255, 59, 92, 0.38);
+  --cr-shadow-cyan: 0 8px 24px -8px rgba(0, 0, 0, 0.5); /* halo coloré réservé au bouton principal */
 }
 
 /* ---------- 1. BOUTONS SPÉCIAUX CLIPROLL ---------- */
@@ -96,7 +96,7 @@
   transform: translateX(120%);
 }
 .cr-btn-spark .cr-spark-icon {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .cr-btn-spark:hover .cr-spark-icon {
   transform: rotate(22deg) scale(1.15);
@@ -126,7 +126,7 @@
 }
 .cr-btn-pro:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 30px -8px rgba(0, 229, 255, 0.45), 0 10px 30px -8px rgba(255, 59, 92, 0.45);
+  box-shadow: 0 10px 28px -10px rgba(0, 0, 0, 0.55);
 }
 
 /* Boutons Plateformes (YouTube Shorts, TikTok, Instagram Reels, macOS/Windows) */
@@ -212,7 +212,7 @@ html[data-theme="light"] .ai-mode-seg {
   border: none;
   background: transparent;
   color: var(--muted);
-  font: 600 11.5px var(--font-body);
+  font: 600 12px var(--font-body);
   padding: 4px 10px;
   border-radius: 999px;
   cursor: pointer;
@@ -232,7 +232,7 @@ html[data-theme="light"] .ai-mode-seg {
   background: rgba(0, 229, 255, 0.04);
 }
 .ai-roster-pill {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 9px;
   border-radius: 999px;
@@ -286,7 +286,7 @@ html[data-theme="light"] .ai-team-step b {
   color: var(--ink);
 }
 .cr-audit-kpi span {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 
@@ -447,7 +447,7 @@ html[data-theme="light"] .topbar-fab-bar {
   align-items: center;
   gap: 6px;
   font-family: var(--cr-font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -472,7 +472,6 @@ html[data-theme="light"] .topbar-fab-bar {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  box-shadow: 0 0 8px currentColor;
 }
 
 /* ---------- 3. BARRE DE PROGRESSION IA ---------- */
@@ -489,7 +488,6 @@ html[data-theme="light"] .topbar-fab-bar {
   height: 100%;
   border-radius: var(--cr-radius-pill);
   background: var(--cr-grad-brand);
-  box-shadow: 0 0 14px rgba(0, 229, 255, 0.5);
   transition: width 0.35s ease;
 }
 
@@ -531,11 +529,12 @@ html[data-theme="dark"] {
   --ink: var(--cr-text);
   --ink-2: #DCE0F0;
   --muted: var(--cr-text-muted);
-  --faint: #6B7196;
+  --faint: #8A90B4; /* AA ≥ 4.5 sur les surfaces sombres */
   --btn-bg: var(--cr-text);
   --btn-text: var(--cr-bg);
 
   --accent: var(--cr-coral);
+  --accent-fill: #D92648; /* corail des fonds sous texte blanc (AA ≥ 4.5) */
   --accent-link: #FF6B84;
   --accent-soft: var(--cr-coral-soft);
   --cta-grad: var(--cr-grad-cta);
@@ -558,11 +557,12 @@ html[data-theme="light"] {
   --ink: var(--cr-bg);
   --ink-2: #1F2033;
   --muted: #5A5F7A;
-  --faint: #81869F;
+  --faint: #6A6F8B; /* AA ≥ 4.5 sur fond blanc */
   --btn-bg: var(--cr-bg);
   --btn-text: #FFFFFF;
   /* Corail et cyan assombris pour rester lisibles sur fond blanc (contraste AA ≥ 4.5). */
   --accent: #D61F45;
+  --accent-fill: #D61F45;
   --accent-link: #C81E44;
   --accent-soft: rgba(214, 31, 69, 0.10);
   --indigo: #007A8F;
@@ -572,7 +572,7 @@ html[data-theme="light"] {
   --aurora-3: rgba(123, 44, 255, 0.10);
 }
 
-.brand-mark-svg { border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(0, 229, 255, 0.45); }
+.brand-mark-svg { border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.5); }
 .plugin-card.on { border-color: rgba(0, 229, 255, 0.38); }
 
 @media (prefers-reduced-motion: reduce) {
