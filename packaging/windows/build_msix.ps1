@@ -228,39 +228,30 @@ for name, (w, h) in sizes.items():
             Write-Host ("Binaires refusés (" + $bad.Count + ") :") -ForegroundColor Yellow
             $bad | Select-Object -First 80 | ForEach-Object { Write-Host "  $_" }
 
-            # Diagnostic par moitiés : quel sous-dossier rend le paquet impossible à signer ?
-            $top = Get-ChildItem -Path $DistDir -Directory | Where-Object { $_.Name -ne "Assets" }
-            $variants = @(@{ name = "socle"; dirs = @() }) + ($top | ForEach-Object { @{ name = $_.Name; dirs = @($_.Name) } })
-            foreach ($v in $variants) {
-                $vdir = Join-Path $BuildDir ("variant_" + $v.name)
+            # Diagnostic : paquets d'essai réduits
+            function Test-Variant($label, [scriptblock]$fill, $extra) {
+                $vdir = Join-Path $BuildDir ("v_" + [System.Guid]::NewGuid().ToString("N").Substring(0, 6))
                 New-Item -ItemType Directory -Force -Path $vdir | Out-Null
-                Get-ChildItem -Path $DistDir -File | Copy-Item -Destination $vdir
+                Copy-Item (Join-Path $DistDir "AppxManifest.xml") $vdir
                 Copy-Item -Recurse (Join-Path $DistDir "Assets") $vdir
-                foreach ($d in $v.dirs) { Copy-Item -Recurse (Join-Path $DistDir $d) $vdir }
-                $vmsix = Join-Path $BuildDir ("variant_" + $v.name + ".msix")
+                & $fill $vdir
+                $vmsix = "$vdir.msix"
                 & $makeappx.FullName pack /d $vdir /p $vmsix /o 2>&1 | Out-Null
-                & $signtool.FullName sign /q /fd SHA256 /f $pfx /p "clipoa-test" $vmsix 2>&1 | Out-Null
-                $ok = if ($LASTEXITCODE -eq 0) { "signé" } else { "REFUSÉ" }
-                Write-Host ("  paquet d'essai [" + $v.name + "] : " + $ok)
-                if ($v.name -ne "socle" -and $LASTEXITCODE -ne 0) {
-                    # Descend d'un niveau dans le dossier fautif
-                    Get-ChildItem -Path (Join-Path $DistDir $v.name) -Directory | ForEach-Object {
-                        $sub = $_
-                        $sdir = Join-Path $BuildDir ("sub_" + $sub.Name)
-                        New-Item -ItemType Directory -Force -Path $sdir | Out-Null
-                        Get-ChildItem -Path $DistDir -File | Copy-Item -Destination $sdir
-                        Copy-Item -Recurse (Join-Path $DistDir "Assets") $sdir
-                        $dest = Join-Path $sdir $v.name
-                        New-Item -ItemType Directory -Force -Path $dest | Out-Null
-                        Copy-Item -Recurse $sub.FullName $dest
-                        $smsix = Join-Path $BuildDir ("sub_" + $sub.Name + ".msix")
-                        & $makeappx.FullName pack /d $sdir /p $smsix /o 2>&1 | Out-Null
-                        & $signtool.FullName sign /q /fd SHA256 /f $pfx /p "clipoa-test" $smsix 2>&1 | Out-Null
-                        if ($LASTEXITCODE -ne 0) { Write-Host ("    REFUSÉ avec " + $v.name + "\" + $sub.Name) }
-                        Remove-Item -Recurse -Force $sdir, $smsix -ErrorAction SilentlyContinue
-                    }
-                }
+                $packed = $LASTEXITCODE
+                $out = & $signtool.FullName sign /fd SHA256 @extra $vmsix 2>&1
+                $res = if ($LASTEXITCODE -eq 0) { "signé" } else { "REFUSÉ : " + (($out | Select-String "Error") -join " | ") }
+                Write-Host ("  [" + $label + "] pack=" + $packed + " -> " + $res)
                 Remove-Item -Recurse -Force $vdir, $vmsix -ErrorAction SilentlyContinue
+            }
+            $pfxArgs = @("/f", $pfx, "/p", "clipoa-test")
+            $storeArgs = @("/sha1", $cert.Thumbprint)
+            Test-Variant "exe seul" { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d } $pfxArgs
+            Test-Variant "exe seul, magasin" { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d } $storeArgs
+            Test-Variant "notepad" { param($d) Copy-Item "$env:WINDIR\System32\notepad.exe" (Join-Path $d "ClipRoll.exe") } $pfxArgs
+            Test-Variant "socle sans vcruntime" { param($d) Get-ChildItem -Path $DistDir -File | Where-Object { $_.Name -notmatch '^vcruntime' -and $_.Name -ne 'AppxManifest.xml' } | Copy-Item -Destination $d } $pfxArgs
+            Get-ChildItem -Path $DistDir -File | Where-Object { $_.Name -ne 'AppxManifest.xml' } | ForEach-Object {
+                $f = $_
+                Test-Variant ("exe + " + $f.Name) { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d; Copy-Item $f.FullName $d -Force } $pfxArgs
             }
             Write-Warning "Signature d'essai impossible : le .msix est livré NON signé."
             Rename-Item $MsixOut ($MsixOut -replace '\.msix$', '-unsigned.msix')
