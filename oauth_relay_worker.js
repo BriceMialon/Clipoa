@@ -318,11 +318,12 @@ function legalPage(kind) {
       title: "Clipoa — Politique de confidentialité",
       body: `<p>Clipoa demande uniquement les autorisations nécessaires pour publier vos vidéos et lire les informations de base de votre profil (identifiant, nom affiché).</p>
 <p>Les jetons d'accès sont transmis à l'application Clipoa installée sur votre ordinateur et y sont stockés localement. Ce relais ne conserve ni jetons ni données personnelles et ne les partage avec aucun tiers.</p>
-<p>Pour supprimer vos données, déconnectez le compte dans Clipoa et révoquez l'accès dans les paramètres de la plateforme.</p>`,
+<p>Pour supprimer vos données, déconnectez le compte dans Clipoa et révoquez l'accès dans les paramètres de la plateforme.</p>
+<p><b>Rapports d'erreur et support.</b> Un rapport n'est envoyé que lorsque vous cliquez sur « Envoyer ». Il contient la version de Clipoa, votre système, l'étape en erreur, les journaux techniques récents (si vous les joignez), votre message et, si vous la donnez, votre adresse e-mail pour vous répondre. Avant l'envoi, Clipoa retire les clés API, jetons, mots de passe, adresses e-mail des journaux, adresses IP et votre nom d'utilisateur. Le rapport sert uniquement à corriger le problème ou à vous répondre, il n'est partagé avec personne et il est supprimé automatiquement après 90 jours. Pour en demander la suppression plus tôt, écrivez-nous avec le numéro du rapport.</p>`,
     },
   };
   const p = pages[kind];
-  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${p.title}</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#222}</style></head><body><h1>${p.title}</h1>${p.body}<p><small>Dernière mise à jour : 24 novembre 2026</small></p></body></html>`;
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${p.title}</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#222}</style></head><body><h1>${p.title}</h1>${p.body}<p><small>Dernière mise à jour : 26 novembre 2026</small></p></body></html>`;
   return new Response(html, {
     headers: baseSecurityHeaders({
       "Content-Type": "text/html; charset=utf-8",
@@ -330,6 +331,178 @@ function legalPage(kind) {
       "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
     }),
   });
+}
+
+// ---------- Support : rapports de plantage & messages (route /support/*) ----------
+// Bindings / secrets (tous optionnels, au moins un stockage ou une alerte requis) :
+//   - SUPPORT_KV            : namespace Workers KV où sont rangés les rapports (expirent après 90 jours)
+//   - SUPPORT_ADMIN_TOKEN   : jeton pour lire les rapports (GET /support/reports, Authorization: Bearer …)
+//   - SUPPORT_WEBHOOK_URL   : webhook Discord (ou compatible {content}) pour être prévenu à chaque rapport
+//   - SUPPORT_EMAIL + SUPPORT_EMAIL_FROM + SUPPORT_EMAIL_TO : alerte e-mail via Cloudflare Email Routing (domaine requis)
+const MAX_SUPPORT_BODY_BYTES = 256 * 1024;
+const SUPPORT_TTL_S = 90 * 24 * 3600;
+const SUPPORT_SECRET_PATTERNS = [
+  /\bsk-ant-[A-Za-z0-9_-]{12,}/g,
+  /\b(?:sk|rk|pk)_(?:live_|test_)?[A-Za-z0-9]{16,}\b/g,
+  /\bAIza[0-9A-Za-z_-]{20,}/g,
+  /\bya29\.[0-9A-Za-z._-]{20,}/g,
+  /(Bearer\s+)[A-Za-z0-9._~+\/=-]{8,}/gi,
+];
+
+function scrubSupportText(value, maxLen) {
+  let out = String(value == null ? "" : value).slice(0, maxLen);
+  for (const re of SUPPORT_SECRET_PATTERNS) out = out.replace(re, "[REDACTED]");
+  return out;
+}
+
+function sanitizeSupportReport(raw) {
+  const app = raw.app && typeof raw.app === "object" ? raw.app : {};
+  const inc = raw.incident && typeof raw.incident === "object" ? raw.incident : null;
+  const report = {
+    schema: 1,
+    kind: raw.kind === "contact" ? "contact" : "crash",
+    created_at: scrubSupportText(raw.created_at, 40),
+    received_at: new Date().toISOString(),
+    app: {},
+    message: scrubSupportText(raw.message, 4000),
+    page: scrubSupportText(raw.page, 200),
+  };
+  for (const k of ["version", "edition", "os", "machine", "python", "locale"]) {
+    report.app[k] = scrubSupportText(app[k], 80);
+  }
+  if (typeof raw.contact_email === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(raw.contact_email)) {
+    report.contact_email = raw.contact_email.slice(0, 200);
+  }
+  if (inc) {
+    report.incident = {};
+    for (const k of ["id", "source", "job_kind", "at"]) report.incident[k] = scrubSupportText(inc[k], 60);
+    report.incident.step = scrubSupportText(inc.step, 500);
+    report.incident.error = scrubSupportText(inc.error, 8000);
+    report.incident.traceback = scrubSupportText(inc.traceback, 16000);
+    report.incident.count = Number(inc.count) || 1;
+  }
+  if (Array.isArray(raw.logs)) {
+    report.logs = raw.logs.slice(-200).map((l) => scrubSupportText(l, 1000));
+  }
+  return report;
+}
+
+function timingSafeEqualStr(a, b) {
+  const x = new TextEncoder().encode(String(a));
+  const y = new TextEncoder().encode(String(b));
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] || 0) ^ (y[i] || 0);
+  return diff === 0;
+}
+
+function supportSummary(id, r) {
+  const what = r.kind === "contact" ? "Message support" : "Rapport de plantage";
+  const err = r.incident ? (r.incident.error || "").slice(0, 300) : "";
+  return [
+    `${what} ${id}`,
+    `Version ${r.app.version || "?"} (${r.app.edition || "?"}) · ${r.app.os || "?"} ${r.app.machine || ""}`,
+    r.incident ? `Étape : ${r.incident.step || "?"}\nErreur : ${err}` : "",
+    r.message ? `Message : ${r.message.slice(0, 800)}` : "",
+    r.contact_email ? `Répondre à : ${r.contact_email}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+async function notifySupport(env, id, report) {
+  const text = supportSummary(id, report);
+  const jobs = [];
+  if (env.SUPPORT_WEBHOOK_URL && String(env.SUPPORT_WEBHOOK_URL).startsWith("https://")) {
+    jobs.push(fetchWithTimeout(env.SUPPORT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: text.slice(0, 1900), allowed_mentions: { parse: [] } }),
+    }).catch(() => {}));
+  }
+  if (env.SUPPORT_EMAIL && env.SUPPORT_EMAIL_FROM && env.SUPPORT_EMAIL_TO) {
+    jobs.push((async () => {
+      try {
+        const { EmailMessage } = await import("cloudflare:email");
+        const subject = (report.kind === "contact" ? "[Clipoa] Support " : "[Clipoa] Plantage ") + id;
+        const mime = [
+          `From: Clipoa <${env.SUPPORT_EMAIL_FROM}>`,
+          `To: ${env.SUPPORT_EMAIL_TO}`,
+          report.contact_email ? `Reply-To: ${report.contact_email}` : "",
+          `Subject: ${subject}`,
+          `Message-ID: <${id}@${String(env.SUPPORT_EMAIL_FROM).split("@")[1] || "clipoa"}>`,
+          "MIME-Version: 1.0",
+          "Content-Type: text/plain; charset=utf-8",
+          "",
+          text + "\n\n" + JSON.stringify(report, null, 2).slice(0, 60000),
+        ].filter((l, i) => l !== "" || i > 5).join("\r\n");
+        await env.SUPPORT_EMAIL.send(new EmailMessage(env.SUPPORT_EMAIL_FROM, env.SUPPORT_EMAIL_TO, mime));
+      } catch {
+        console.error(JSON.stringify({ event: "support_email_failed" }));
+      }
+    })());
+  }
+  await Promise.all(jobs);
+}
+
+async function handleSupport(request, env, url, method, ipHash) {
+  if (url.pathname === "/support/report") {
+    if (method !== "POST") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
+    const rl = checkRateLimit(`support:${ipHash}`, 5, 10 * 60_000);
+    if (!rl.allowed) {
+      return jsonResponse({ ok: false, error: "rate_limited", retry_after: rl.retryAfter }, 429,
+        { "Retry-After": String(rl.retryAfter) });
+    }
+    if (!env.SUPPORT_KV && !env.SUPPORT_WEBHOOK_URL && !env.SUPPORT_EMAIL) {
+      return jsonResponse({ ok: false, error: "support_not_configured" }, 503);
+    }
+    const len = Number(request.headers.get("Content-Length") || 0);
+    if (len > MAX_SUPPORT_BODY_BYTES) return jsonResponse({ ok: false, error: "payload_too_large" }, 413);
+    const text = await request.text();
+    if (text.length > MAX_SUPPORT_BODY_BYTES) return jsonResponse({ ok: false, error: "payload_too_large" }, 413);
+    let raw;
+    try { raw = JSON.parse(text); } catch { return jsonResponse({ ok: false, error: "invalid_json" }, 400); }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.schema !== 1) {
+      return jsonResponse({ ok: false, error: "invalid_report" }, 400);
+    }
+    const report = sanitizeSupportReport(raw);
+    if (report.kind === "contact" && !report.message.trim()) {
+      return jsonResponse({ ok: false, error: "empty_message" }, 400);
+    }
+    const day = report.received_at.slice(0, 10);
+    const id = `R-${day.replace(/-/g, "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    if (env.SUPPORT_KV) {
+      await env.SUPPORT_KV.put(`report:${id}`, JSON.stringify(report), {
+        expirationTtl: SUPPORT_TTL_S,
+        metadata: { kind: report.kind, version: report.app.version, at: report.received_at,
+          error: report.incident ? report.incident.error.slice(0, 120) : report.message.slice(0, 120) },
+      });
+    }
+    await notifySupport(env, id, report);
+    console.log(JSON.stringify({ event: "support_report", kind: report.kind, id }));
+    return jsonResponse({ ok: true, id });
+  }
+
+  // Lecture des rapports (réservée à l'éditeur de Clipoa)
+  if (url.pathname === "/support/reports" || url.pathname.startsWith("/support/reports/")) {
+    if (method !== "GET") return jsonResponse({ ok: false, error: "method_not_allowed" }, 405);
+    const auth = request.headers.get("Authorization") || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    if (!env.SUPPORT_ADMIN_TOKEN || !token || !timingSafeEqualStr(token, env.SUPPORT_ADMIN_TOKEN)) {
+      return jsonResponse({ ok: false, error: "unauthorized" }, 401);
+    }
+    if (!env.SUPPORT_KV) return jsonResponse({ ok: false, error: "support_kv_missing" }, 503);
+    const one = url.pathname.slice("/support/reports/".length);
+    if (one) {
+      if (!/^R-\d{8}-[A-F0-9]{8}$/.test(one)) return jsonResponse({ ok: false, error: "bad_id" }, 400);
+      const value = await env.SUPPORT_KV.get(`report:${one}`, "json");
+      return value ? jsonResponse({ ok: true, id: one, report: value }) : jsonResponse({ ok: false, error: "not_found" }, 404);
+    }
+    const list = await env.SUPPORT_KV.list({ prefix: "report:", limit: 100, cursor: url.searchParams.get("cursor") || undefined });
+    return jsonResponse({
+      ok: true,
+      reports: list.keys.map((k) => ({ id: k.name.slice(7), ...(k.metadata || {}) })),
+      cursor: list.list_complete ? null : list.cursor,
+    });
+  }
+  return jsonResponse({ ok: false, error: "not_found" }, 404);
 }
 
 export default {
@@ -367,6 +540,11 @@ export default {
           { "Retry-After": String(rl.retryAfter) }
         );
       }
+    }
+
+    // Support : rapports de plantage et messages des utilisateurs
+    if (url.pathname.startsWith("/support/")) {
+      return handleSupport(request, env, url, method, ipHash);
     }
 
     // 0. Pages légales (exigées par TikTok / Meta / Google)

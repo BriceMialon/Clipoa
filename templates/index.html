@@ -229,6 +229,9 @@
               <button type="button" class="ws-item ws-add" onclick="toggleWsMenu(false); showView('auto')">＋ Connecter un compte</button>
             </div>
           </div>
+          <button type="button" class="icon-btn" onclick="window.ClipoaSupport && ClipoaSupport.openContact()" title="Contacter le support" aria-label="Contacter le support">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </button>
           <button type="button" class="icon-btn" onclick="openModal('modal-phone')" title="Ouvrir sur ton téléphone (QR Wi-Fi)">
             <svg class="ico" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
           </button>
@@ -3472,8 +3475,9 @@
                    <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
                  </div>`
               : (job.status !== 'running'
-                ? `<div style="display:flex; gap:8px; margin-top:10px;">
+                ? `<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
                      ${job.kind && ['make','clone'].includes(job.kind) ? `<button class="btn btn-ghost btn-sm" onclick="resumeJob('${job.id}')">Reprendre</button>` : ''}
+                     ${job.status === 'error' && /^inc_[a-f0-9]+$/.test(job.incident_id || '') ? `<button class="btn btn-ghost btn-sm" onclick="window.ClipoaSupport && ClipoaSupport.open({incidentId:'${job.incident_id}'})">Envoyer le rapport</button>` : ''}
                      <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
                    </div>`
                 : ''));
@@ -5472,5 +5476,6 @@
 </style>
 {% endif %}
 <script src="/static/js/clipoa_update.js" defer></script>
+<script src="/static/js/clipoa_support.js" defer></script>
 </body>
 </html>

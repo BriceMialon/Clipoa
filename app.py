@@ -490,9 +490,15 @@ def _finish_job(job_id: str, result=None, error: str = None):
     with JOBS_LOCK:
         if job_id in JOBS:
             if error:
+                failed_step = JOBS[job_id].get("step") or ""
                 JOBS[job_id]["status"] = "error"
                 JOBS[job_id]["error"] = error
                 JOBS[job_id]["step"] = f"Erreur : {error}"
+                try:
+                    JOBS[job_id]["incident_id"] = _crash_report.record_incident(
+                        "job", error, step=failed_step, job_kind=JOBS[job_id].get("kind") or "", job_id=job_id)
+                except Exception:
+                    pass
             else:
                 JOBS[job_id]["status"] = "done"
                 JOBS[job_id]["progress"] = 100
@@ -2904,6 +2910,10 @@ def api_assistant_help():
 from core import updater as _updater  # noqa: E402
 _updater.register(app)
 
+# Rapports de plantage + contact support (capture locale, envoi seulement au clic)
+from core import crash_report as _crash_report  # noqa: E402
+_crash_report.register(app)
+
 
 @app.route("/api/system/health", methods=["GET"])
 def api_system_health():
@@ -2932,6 +2942,7 @@ def api_system_cleanup():
 
 
 def run_app(port=8080):
+    _crash_report.install_capture()
     harden_sensitive_files(STORAGE_DIR)
     cleanup_res = cleanup_temp_storage(DOWNLOADS_DIR, AUDIO_DIR, max_age_days=CLIPOA_TEMP_TTL_DAYS)
     FreeSocialPublisher.start_scheduler()

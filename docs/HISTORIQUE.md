@@ -91,3 +91,9 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `_oauth_base_url` (app.py) garde l'hôte réel (`127.0.0.1` ou `localhost`) : certains navigateurs résolvent `localhost` en ::1 et le retour OAuth se perdait.
 - `_publish_tiktok` : app non auditée + compte public → TikTok refuse la publication directe (`unaudited_client_can_only_post_to_private_accounts`) ; repli automatique en brouillon (`/v2/post/publish/inbox/video/init/`, scope `video.upload`), résultat `privacy: INBOX_DRAFT`. Publication directe publique = audit TikTok requis (domaine vérifié, vidéo de démo, UI de confidentialité exigée par TikTok).
 - Meta : inscription développeur bloquée (Facebook refuse les modifications depuis un « nouvel appareil ») ; à refaire depuis un appareil habituel.
+
+## Rapports de plantage et contact support (2026-11-26)
+- `core/crash_report.py` : capture locale (console en mémoire, `sys.excepthook`, `threading.excepthook`, erreurs Flask non rattrapées → JSON 500 avec `incident_id`, échecs de fabrication via `_finish_job` → `job.incident_id`). Incidents dans `storage/support/incidents.json` (20 derniers, dédoublonnés sur 60 s).
+- Routes : GET `/api/support/incidents`, POST `/api/support/preview`, `/api/support/send`, `/api/support/dismiss`. Envoi seulement au clic, nettoyage des secrets (valeurs exactes de `storage/*.json` + motifs), repli `storage/support/outbox/`.
+- UI : `static/js/clipoa_support.js` (fenêtre d'envoi, bulle de plantage), bouton « ? » dans la topbar, « Envoyer le rapport » sur une tâche en erreur.
+- Relais : `/support/report` (KV `SUPPORT_KV`, 90 jours, alerte Discord ou e-mail en option), `/support/reports` protégé par `SUPPORT_ADMIN_TOKEN`, page /privacy complétée. Mise en place : `docs/SUPPORT.md`.
