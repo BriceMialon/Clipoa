@@ -99,3 +99,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `core/license.py` : clé `CLIPOA-XXXX-XXXX-XXXX-XXXX` → jeton signé Ed25519 lié à l'appareil (empreinte hachée), valable 7 j (jamais au-delà de fin de période + 3 j), vérifié hors ligne en Python pur. Statuts acceptés : active, trialing, past_due. Renouvellement en ligne au plus toutes les 12 h. Stockage `storage/license.json`.
 - `app.py` : `/api/license/status|activate|deactivate` ; en édition publique, les POST `/api/make` et `/api/fabrique/*` renvoient 402 sans licence valide (lecture seule, rien supprimé). Édition perso : licence non exigée.
 - Reste à faire : écran Licence dans l'UI, email avec la clé, relais OAuth réservé aux abonnés (en-tête `X-Clipoa-License`), déploiement du Worker, `DEFAULT_PUBKEY_HEX` à remplir.
+
+## 26/11/2026 — Accessibilité clavier de l'interface (audit Vercel/Emil)
+- `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
+- `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
+- Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.
