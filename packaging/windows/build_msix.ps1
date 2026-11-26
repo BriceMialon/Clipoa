@@ -207,8 +207,25 @@ for name, (w, h) in sizes.items():
         $pfx = Join-Path $BuildDir "test.pfx"
         $pwd = ConvertTo-SecureString -String "clipoa-test" -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd | Out-Null
-        & $signtool.FullName sign /debug /v /fd SHA256 /f $pfx /p "clipoa-test" $MsixOut
-        if ($LASTEXITCODE -ne 0) { throw "Signature d'essai impossible (signtool code $LASTEXITCODE)." }
+        & $signtool.FullName sign /fd SHA256 /f $pfx /p "clipoa-test" $MsixOut
+        if ($LASTEXITCODE -ne 0) {
+            # Diagnostic : quels binaires du paquet SignTool refuse-t-il ? (« bad PE »)
+            Write-Host "▸ Recherche des binaires refusés par SignTool" -ForegroundColor Yellow
+            $probe = Join-Path $BuildDir "probe"
+            New-Item -ItemType Directory -Force -Path $probe | Out-Null
+            $bad = @()
+            Get-ChildItem -Path $DistDir -Recurse -File -Include "*.exe","*.dll","*.pyd" | ForEach-Object {
+                $copy = Join-Path $probe ("f" + [System.Guid]::NewGuid().ToString("N") + $_.Extension)
+                Copy-Item $_.FullName $copy
+                & $signtool.FullName sign /q /fd SHA256 /f $pfx /p "clipoa-test" $copy 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { $bad += $_.FullName.Substring($DistDir.Length + 1) }
+                Remove-Item -Force $copy -ErrorAction SilentlyContinue
+            }
+            Write-Host ("Binaires refusés (" + $bad.Count + ") :") -ForegroundColor Yellow
+            $bad | Select-Object -First 80 | ForEach-Object { Write-Host "  $_" }
+            Write-Warning "Signature d'essai impossible : le .msix est livré NON signé."
+            Rename-Item $MsixOut ($MsixOut -replace '\.msix$', '-unsigned.msix')
+        }
     }
 
     Write-Host "✓ Paquet prêt : $MsixOut" -ForegroundColor Green
