@@ -10,3 +10,6 @@ Mise en place (mode test Stripe) :
 5. `npx wrangler secret put STRIPE_SECRET_KEY` (sk_test_...), `npx wrangler deploy`.
 6. Stripe → Webhooks → `https://<worker>/stripe/webhook`, événements `checkout.session.completed` et `customer.subscription.*` → `npx wrangler secret put STRIPE_WEBHOOK_SECRET`.
 7. Stripe → Portail client : activer résiliation et changement de carte.
+8. Anti-churn (portail, sans code) : Portail client → Résiliation → activer « Demander la raison » et « Offre de fidélisation » (coupon, ex. -50 % sur 1 mois). Mettre l'abonnement en pause n'est pas proposé par le portail : à ajouter dans le Worker si on le veut.
+
+Prix décidés (26/11/2026) : 9 €/mois et 59 €/an (annuel présélectionné), essai 3 jours carte demandée.

@@ -94,7 +94,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 
 
 ## Abonnement Stripe et licence (2026-11-26, mode test)
-- Choix de Brice : essai 7 jours carte demandée (géré par Stripe). Prix et nombre d'appareils en attente (proposé : une offre 12 €/mois ou 99 €/an, 2 appareils).
+- Choix de Brice (26/11) : abonnement uniquement (pas de licence perpétuelle), modèle BYOK, essai 3 jours carte demandée (géré par Stripe), 9 €/mois ou 59 €/an (annuel présélectionné), pas de quota mensuel. Anti-churn : offre de remise à la résiliation dans le portail Stripe. Nombre d.appareils non confirmé (2 par défaut).
 - `license_worker/` : Worker Cloudflare `clipoa-license` + D1 (`schema.sql`). Routes `/checkout` (Checkout abonnement, `trial_period_days`, `payment_method_collection=always`), `/success` (affiche la clé), `/portal` (portail client Stripe), `/stripe/webhook` (signature HMAC vérifiée, événements dédoublonnés), `/license/activate|refresh|deactivate`. Refuse toute clé `sk_live` tant que `ALLOW_LIVE` ≠ `yes`. Paire Ed25519 : `python3 license_worker/gen_keys.py`.
 - `core/license.py` : clé `CLIPOA-XXXX-XXXX-XXXX-XXXX` → jeton signé Ed25519 lié à l'appareil (empreinte hachée), valable 7 j (jamais au-delà de fin de période + 3 j), vérifié hors ligne en Python pur. Statuts acceptés : active, trialing, past_due. Renouvellement en ligne au plus toutes les 12 h. Stockage `storage/license.json`.
 - `app.py` : `/api/license/status|activate|deactivate` ; en édition publique, les POST `/api/make` et `/api/fabrique/*` renvoient 402 sans licence valide (lecture seule, rien supprimé). Édition perso : licence non exigée.

@@ -1,5 +1,5 @@
 // Serveur de licence Clipoa (Cloudflare Worker + D1).
-// - POST /checkout            {plan}            -> URL Stripe Checkout (abonnement, essai 7 j, carte demandée)
+// - POST /checkout            {plan}            -> URL Stripe Checkout (abonnement, essai 3 j, carte demandée)
 // - GET  /success?session_id=                    -> page qui affiche la clé de licence
 // - POST /portal              {key}             -> URL du portail client Stripe (carte, factures, résiliation)
 // - POST /stripe/webhook                         -> événements Stripe (signature vérifiée)
@@ -232,8 +232,8 @@ async function handleCheckout(env, body) {
     mode: "subscription",
     "line_items[0][price]": price,
     "line_items[0][quantity]": "1",
-    "subscription_data[trial_period_days]": String(Number(env.TRIAL_DAYS || 7)),
-    payment_method_collection: "always", // essai 7 j avec carte demandée (choix de Brice, 26/11/2026)
+    "subscription_data[trial_period_days]": String(Number(env.TRIAL_DAYS || 3)),
+    payment_method_collection: "always", // essai 3 j avec carte demandée (choix de Brice, 26/11/2026)
     allow_promotion_codes: "true",
     billing_address_collection: "auto",
     success_url: base + "/success?session_id={CHECKOUT_SESSION_ID}",
