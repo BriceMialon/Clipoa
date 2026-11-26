@@ -303,7 +303,9 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("fab-enable-sfx", html)
         self.assertIn("reg-quota-7d-right", html)
         self.assertNotIn("Antigravity", html)
-        self.assertIn("switchElevenLabsAccount()", html)
+        # connexion / changement de compte ElevenLabs : parcours guidé (static/js/clipoa_elevenlabs.js)
+        self.assertIn("ClipoaEleven.open()", html)
+        self.assertIn("/static/js/clipoa_elevenlabs.js", html)
 
 
 if __name__ == "__main__":
