@@ -4,7 +4,8 @@
 
 .DESCRIPTION
   - Copie uniquement les fichiers commités (git archive HEAD) : jamais storage/ ni les clés.
-  - Compile core/, agents/ et app.py en modules natifs (.pyd) avec Nuitka, plus ClipRoll.exe (lanceur sans console).
+  - Compile core/, agents/ et app.py en modules natifs (.pyd) avec Nuitka, plus ClipRoll.exe (petit lanceur sans console).
+  - Embarque un CPython complet + les dépendances telles quelles dans python\ (pas de recompilation Nuitka).
   - Exclut volontairement `imageio-ffmpeg` du paquet MSIX (FFmpeg et Blender sont téléchargés
     depuis leurs sources officielles avec validation dans l'assistant au premier lancement).
   - Génère les icônes MSIX requises et emballe avec makeappx.exe.
@@ -95,30 +96,47 @@ try {
     }
 
     Write-Host "▸ Compilation du lanceur ClipRoll.exe (sans fenêtre console)" -ForegroundColor Magenta
-    Copy-Item (Join-Path $Root "packaging\windows\launcher.py") -Destination (Join-Path $Src "launcher.py")
+    # Le lanceur ne contient que la bibliothèque standard : compilation rapide. Les dépendances
+    # ne passent PAS par Nuitka (plus de 2 h + échec sur la CI) : elles sont embarquées telles
+    # quelles avec un CPython complet dans python\.
     & $PyExe -m nuitka --standalone --windows-console-mode=disable `
         --output-dir=$Stage --output-filename="ClipRoll.exe" `
-        --include-data-dir="$Src\templates=templates" `
-        --include-data-dir="$Src\static=static" `
-        --include-data-dir="$Src\assets=assets" `
-        --include-data-dir="$Src\core=core" `
-        --include-data-dir="$Src\agents=agents" `
-        --include-data-files="$Src\config.py=config.py" `
-        --include-package=flask,jinja2,werkzeug,requests,faster_whisper,edge_tts,pystray,PIL,yaml,huggingface_hub,yt_dlp `
-        --nofollow-import-to=imageio_ffmpeg `
         --assume-yes-for-downloads `
-        (Join-Path $Src "launcher.py")
+        (Join-Path $Root "packaging\windows\clipoa_stub.py")
 
-    $DistDir = Join-Path $Stage "launcher.dist"
+    $DistDir = Join-Path $Stage "clipoa_stub.dist"
     if (-not (Test-Path (Join-Path $DistDir "ClipRoll.exe"))) {
         throw "ClipRoll.exe introuvable dans $DistDir"
     }
-    # Modules compilés (core, agents, clipoa_app) à côté de ClipRoll.exe : Nuitka refuse
-    # un motif *.pyd en --include-data-files, on les copie après coup.
-    Copy-Item (Join-Path $Src "*.pyd") -Destination $DistDir
+
+    Write-Host "▸ Python embarqué + dépendances (sans recompilation)" -ForegroundColor Magenta
+    # Dossier du CPython de base du venv de build (ligne « home = » de pyvenv.cfg)
+    $homeLine = Get-Content (Join-Path $BuildVenv "pyvenv.cfg") | Where-Object { $_ -match '^\s*home\s*=' } | Select-Object -First 1
+    $PyHome = ($homeLine -split '=', 2)[1].Trim()
+    if (-not (Test-Path (Join-Path $PyHome "python.exe"))) { throw "CPython de base introuvable ($PyHome)" }
+    $PyDist = Join-Path $DistDir "python"
+    Copy-Item -Recurse -Force $PyHome $PyDist
+    $SitePkgs = Join-Path $PyDist "Lib\site-packages"
+    New-Item -ItemType Directory -Force -Path $SitePkgs | Out-Null
+    Get-ChildItem -Path (Join-Path $BuildVenv "Lib\site-packages") |
+        Where-Object { $_.Name -notmatch '^(nuitka|Nuitka|ordered_set|zstandard|imageio_ffmpeg)' } |
+        ForEach-Object { Copy-Item -Recurse -Force $_.FullName $SitePkgs }
+    Get-ChildItem -Path $PyDist -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+    if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
+
+    Write-Host "▸ Code ClipRoll (modules compilés .pyd + fichiers)" -ForegroundColor Magenta
+    Copy-Item (Join-Path $Root "packaging\windows\launcher.py") -Destination (Join-Path $Src "launcher.py")
+    $AppDist = Join-Path $DistDir "app"
+    Copy-Item -Recurse -Force $Src $AppDist
+
+    # Vérification : l'app se charge avec le Python embarqué (sans démarrer le serveur)
+    $env:CLIPOA_NO_AUTO_TOOLS = "1"
+    & (Join-Path $PyDist "python.exe") -c "import sys; sys.path.insert(0, r'$AppDist'); import os; os.chdir(r'$AppDist'); import clipoa_app, core.platform_win; print('  ok', clipoa_app.app.name)"
+    if ($LASTEXITCODE -ne 0) { throw "Le code ClipRoll ne se charge pas avec le Python embarqué." }
+    Remove-Item Env:\CLIPOA_NO_AUTO_TOOLS
 
     # Métadonnées de release (edition + release.json)
-    Set-Content -Encoding UTF8 -Path (Join-Path $DistDir "edition") -Value $Edition
+    Set-Content -Encoding UTF8 -Path (Join-Path $AppDist "edition") -Value $Edition
     $commit = git -C $Root rev-parse --short HEAD
     $builtAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     @{
@@ -128,7 +146,7 @@ try {
         edition = $Edition
         commit = $commit
         built_at = $builtAt
-    } | ConvertTo-Json | Set-Content -Encoding UTF8 -Path (Join-Path $DistDir "release.json")
+    } | ConvertTo-Json | Set-Content -Encoding UTF8 -Path (Join-Path $AppDist "release.json")
 
     Write-Host "▸ Génération des assets MSIX + AppxManifest.xml" -ForegroundColor Magenta
     $AssetsDir = Join-Path $DistDir "Assets"

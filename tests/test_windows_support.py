@@ -155,7 +155,7 @@ class WindowsPackagingArtifactsTests(unittest.TestCase):
         # Vérifie que build_msix.ps1 exclut bien imageio-ffmpeg (pas de FFmpeg GPL dans le MSIX)
         msix_ps = (ROOT / "packaging/windows/build_msix.ps1").read_text(encoding="utf-8")
         self.assertIn("imageio-ffmpeg", msix_ps)
-        self.assertIn("--nofollow-import-to=imageio_ffmpeg", msix_ps)
+        self.assertIn("imageio_ffmpeg)", msix_ps)  # jamais copié dans le Python embarqué
 
 
 if __name__ == "__main__":
