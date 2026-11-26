@@ -82,7 +82,7 @@
 
     var previewLink = el("button", "background:none;border:0;padding:0;margin-top:10px;color:var(--accent,#7c5cff);cursor:pointer;font:inherit;font-size:13px;text-decoration:underline",
       "Voir exactement ce qui sera envoyé");
-    var pre = el("pre", "display:none;margin-top:8px;max-height:240px;overflow:auto;font-size:11px;white-space:pre-wrap;word-break:break-word;" +
+    var pre = el("pre", "display:none;margin-top:8px;max-height:240px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word;" +
       "background:rgba(127,127,127,.1);padding:10px;border-radius:10px");
     box.appendChild(previewLink); box.appendChild(pre);
 

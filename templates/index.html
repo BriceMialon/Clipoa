@@ -15,10 +15,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
   <title>ClipRoll — Studio 9:16</title>
-  <link rel="stylesheet" href="/static/css/liquid-glass.css?v=7">
-  <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=2">
-  <link rel="stylesheet" href="/static/css/cliproll.css?v=4">
+  <link rel="stylesheet" href="/static/css/liquid-glass.css?v=8">
+  <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=3">
+  <link rel="stylesheet" href="/static/css/cliproll.css?v=5">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
+  <link rel="stylesheet" href="/static/css/toasts.css?v=2">
+  <script src="/static/js/cliproll_toast.js?v=2"></script>
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
@@ -135,7 +137,7 @@
           <button type="button" data-theme="dark" onclick="applyTheme('dark')"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>Sombre</button>
         </div>
         <div class="sidebar-quota-card" onclick="showView('reglages')" title="Gérer tes moteurs IA & quotas">
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink); margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; color:var(--ink); margin-bottom:10px;">
             <span style="display:flex; align-items:center; gap:6px;">
               <span class="dot {{ 'ok' if el_status.connected else 'warn' }}" id="top-el-dot"></span>
               <span>ElevenLabs</span>
@@ -144,7 +146,7 @@
           </div>
           {% if claude_status.connected %}
           <!-- Claude Opus 5.5 -->
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; color:var(--ink);">
             <span style="display:flex; align-items:center; gap:6px;">
               <span class="dot ok" id="side-claude-dot"></span>
               <span>Claude Opus 5.5</span>
@@ -195,7 +197,7 @@
               <div class="ai-drawer-title">
                 <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="ai-drawer-dot"></span>
                 <span id="ai-drawer-heading">Équipe d'agents IA ClipRoll</span>
-                <span style="font-size:11px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
+                <span style="font-size:12px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
                   {{ 'Exécute tes missions (semaine, audit, hooks, vidéos) · validation humaine avant publication' if claude_status.connected else 'Connecte Claude pour activer ton équipe' }}
                 </span>
               </div>
@@ -460,7 +462,7 @@
             <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + aperçu mis en forme + valider / modifier) -->
             <div id="fab-script-review-box" style="display:none; margin-top:12px; padding:14px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
               <div id="fab-gen-progress-wrap" style="display:none; margin-bottom:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; font-weight:600; color:var(--ink);">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; color:var(--ink);">
                   <span id="fab-gen-progress-stage">Connexion à l'IA…</span>
                   <span id="fab-gen-progress-pct" style="color:var(--accent);">5%</span>
                 </div>
@@ -579,7 +581,7 @@
               <div id="render-extra-broll" style="display:none; margin-top:8px; font-size:12px; color:var(--muted); align-items:center; gap:8px; flex-wrap:wrap;">
                 <input type="file" id="fab-bg-file" accept="video/*" style="display:none;" onchange="onFabBrollFilePicked(this)">
                 <button type="button" class="btn btn-ghost btn-xs" onclick="document.getElementById('fab-bg-file').click()">↑ Choisir un fichier MP4</button>
-                <span id="broll-picked-chip" style="display:none; font-size:11.5px; font-weight:600; color:var(--ok); background:var(--ok-soft); padding:4px 9px; border-radius:99px;"></span>
+                <span id="broll-picked-chip" style="display:none; font-size:12px; font-weight:600; color:var(--ok); background:var(--ok-soft); padding:4px 9px; border-radius:99px;"></span>
               </div>
 
               <div id="render-locked-banner" style="display:none; margin-top:8px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12px; color:var(--muted); align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
@@ -612,8 +614,8 @@
               <div class="step-label">
                 <span>2 · Voix</span>
                 <div style="display:flex; gap:5px; text-transform:none; letter-spacing:0;">
-                  <button type="button" class="chip actif" id="vmode-auto" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('auto')">Auto</button>
-                  <button type="button" class="chip" id="vmode-manual" style="padding:3px 9px; font-size:11px;" onclick="setVoiceMode('manual')">Choisir</button>
+                  <button type="button" class="chip actif" id="vmode-auto" style="padding:3px 9px; font-size:12px;" onclick="setVoiceMode('auto')">Auto</button>
+                  <button type="button" class="chip" id="vmode-manual" style="padding:3px 9px; font-size:12px;" onclick="setVoiceMode('manual')">Choisir</button>
                 </div>
               </div>
               <div class="pick-grid">
@@ -903,18 +905,18 @@
                     {{ brand(key, acc.short_name, acc.color, 20) }}
                     <span>{{ acc.short_name }}</span>
                   </div>
-                  <div style="font-size:11.5px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:{{ 'var(--ok)' if acc.auto_api else 'var(--muted)' }};">
+                  <div style="font-size:12px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:{{ 'var(--ok)' if acc.auto_api else 'var(--muted)' }};">
                     {{ '✓ ' ~ acc.label if acc.auto_api else 'Non connecté' }}
                   </div>
                   {% if acc.auto_api and acc.accounts|length > 1 %}
-                  <select class="input-sm" title="Changer de compte {{ acc.short_name }}" style="margin-top:6px; padding:4px 8px; font-size:11.5px; max-width:100%;" data-plat="{{ key }}" onchange="switchSocialAccount(this.dataset.plat, this.value)">
+                  <select class="input-sm" title="Changer de compte {{ acc.short_name }}" style="margin-top:6px; padding:4px 8px; font-size:12px; max-width:100%;" data-plat="{{ key }}" onchange="switchSocialAccount(this.dataset.plat, this.value)">
                     {% for a in acc.accounts %}
                     <option value="{{ a.key }}" {{ 'selected' if a.active else '' }}>{{ a.label }}</option>
                     {% endfor %}
                   </select>
                   {% endif %}
                   {% if key == 'facebook' and acc.auto_api and acc.available_pages|length > 1 %}
-                  <select class="input-sm" style="margin-top:6px; padding:4px 8px; font-size:11.5px;" onchange="selectMetaPage(this.value)">
+                  <select class="input-sm" style="margin-top:6px; padding:4px 8px; font-size:12px;" onchange="selectMetaPage(this.value)">
                     {% for pg in acc.available_pages %}
                     <option value="{{ pg.id }}" {{ 'selected' if pg.id == acc.page_id else '' }}>{{ pg.name }}{{ (' · @' ~ pg.ig_username) if pg.ig_username else '' }}</option>
                     {% endfor %}
@@ -959,7 +961,7 @@
                   {% for key, acc in social_accounts.items() %}
                   <div class="plat-pill {{ 'selected' if acc.auto_api else '' }}" data-plat="{{ key }}" data-oauth="{{ acc.oauth_provider }}" data-ready="{{ '1' if acc.oauth_ready else '0' }}" data-connected="{{ '1' if acc.auto_api else '0' }}" style="{{ '' if acc.auto_api else 'opacity:0.78; border-style:dashed;' }}" onclick="togglePulsePlatform(this)">
                     <span style="display:inline-flex; align-items:center; gap:6px;">{{ brand(key, acc.short_name, acc.color, 18) }}{{ acc.short_name }}</span>
-                    <div style="font-size:10.5px; font-weight:600; color:{{ 'var(--ok)' if acc.auto_api else 'var(--accent)' }}; margin-top:2px;">{{ ('✓ ' ~ acc.label) if acc.auto_api else 'Brancher →' }}</div>
+                    <div style="font-size:11px; font-weight:600; color:{{ 'var(--ok)' if acc.auto_api else 'var(--accent)' }}; margin-top:2px;">{{ ('✓ ' ~ acc.label) if acc.auto_api else 'Brancher →' }}</div>
                   </div>
                   {% endfor %}
                 </div>
@@ -1000,15 +1002,15 @@
                     {% if p.results %}
                       {% for rplat, rinfo in p.results.items() %}
                         {% if rinfo.ok and rinfo.url %}
-                        <div style="font-size:11.5px; margin-top:3px;">
+                        <div style="font-size:12px; margin-top:3px;">
                           <a href="{{ rinfo.url }}" target="_blank" rel="noopener" style="color:var(--ok); font-weight:600; text-decoration:none;">✓ Voir sur {{ rplat|capitalize }} ↗</a>
                         </div>
                         {% elif rinfo.ok %}
-                        <div style="font-size:11.5px; color:var(--ok); margin-top:3px;">✓ {{ rplat|capitalize }} : {{ rinfo.message }}</div>
+                        <div style="font-size:12px; color:var(--ok); margin-top:3px;">✓ {{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% elif rinfo.pending %}
-                        <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
+                        <div style="font-size:12px; color:var(--muted); margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% else %}
-                        <div style="font-size:11.5px; color:{{ 'var(--muted)' if rinfo.manual else 'var(--danger)' }}; margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
+                        <div style="font-size:12px; color:{{ 'var(--muted)' if rinfo.manual else 'var(--danger)' }}; margin-top:3px;">{{ rplat|capitalize }} : {{ rinfo.message }}</div>
                         {% endif %}
                       {% endfor %}
                     {% endif %}
@@ -1088,7 +1090,7 @@
                   </div>
                 </div>
                 {% if rep.improvements %}
-                <div style="background:var(--glass); padding:11px 13px; border-radius:13px; margin-top:10px; font-size:12.5px; border-left:3px solid var(--accent);">
+                <div style="background:var(--glass); padding:11px 13px; border-radius:13px; margin-top:10px; font-size:12.5px; border:1px solid color-mix(in srgb, var(--accent) 35%, transparent);">
                   <div style="font-weight:700; color:var(--accent); margin-bottom:4px;">Plan d'action pour la prochaine vidéo</div>
                   {% for imp in rep.improvements %}<div style="color:var(--ink-2); margin-top:3px;">• {{ imp }}</div>{% endfor %}
                 </div>
@@ -1197,19 +1199,19 @@
             <div class="sub-preview-grid">
               <div class="sub-preview-card actif" data-sub-card="submagic_yellow" onclick="pickStyleSubtitle('submagic_yellow', this)">
                 <div style="font-family:var(--font-display); font-weight:800; font-size:15px; color:#fff;">LA VRAIE <span style="color:#FFE600;">RAISON</span></div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Jaune Submagic</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Jaune Submagic</div>
               </div>
               <div class="sub-preview-card" data-sub-card="shortcrew_red" onclick="pickStyleSubtitle('shortcrew_red', this)">
                 <div style="font-family:var(--font-display); font-weight:800; font-size:15px; color:#fff;">LA VRAIE <span style="color:#FF4A2E;">RAISON</span></div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Corail Studio</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Corail Studio</div>
               </div>
               <div class="sub-preview-card" data-sub-card="neon_green" onclick="pickStyleSubtitle('neon_green', this)">
                 <div style="font-family:var(--font-display); font-weight:800; font-size:15px; color:#fff;">LA VRAIE <span style="color:#00FF88;">RAISON</span></div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Néon Vert</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Néon Vert</div>
               </div>
               <div class="sub-preview-card" data-sub-card="cyber_cyan" onclick="pickStyleSubtitle('cyber_cyan', this)">
                 <div style="font-family:var(--font-display); font-weight:800; font-size:15px; color:#fff;">LA VRAIE <span style="color:#00E5FF;">RAISON</span></div>
-                <div style="font-size:11.5px; color:var(--muted); margin-top:6px;">Cyber Cyan</div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Cyber Cyan</div>
               </div>
             </div>
           </div>
@@ -1263,14 +1265,14 @@
                     </div>
                   </div>
                 </div>
-                <div style="font-size:11px; color:var(--muted); margin-top:5px;" id="reg-quota-sub">
+                <div style="font-size:12px; color:var(--muted); margin-top:5px;" id="reg-quota-sub">
                   {{ ('Reset 5h : ' ~ claude_status.quota.resets_at ~ ' · ') if claude_status.quota.resets_at else '' }}{{ claude_status.quota.calls_5h }} appels ClipRoll
                 </div>
               </div>
 
               <div style="margin-top:10px; padding-top:8px; border-top:1px solid var(--border);">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
-                  <label style="display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); cursor:pointer;">
+                  <label style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer;">
                     <input type="checkbox" id="claude-adv-toggle" onchange="document.getElementById('claude-adv-drawer').style.display = this.checked ? 'flex' : 'none';" style="accent-color:var(--accent); width:13px; height:13px;">
                     <span>Paramètres avancés</span>
                   </label>
@@ -1280,25 +1282,25 @@
                   </div>
                 </div>
                 <div id="claude-adv-drawer" style="display:none; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px;">
-                  <select id="claude-model-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudeModel()">
+                  <select id="claude-model-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:12px;" onchange="updateClaudeModel()">
                     <option value="opus" {{ 'selected' if claude_status.model == 'opus' else '' }}>Opus 5.5</option>
                     <option value="sonnet" {{ 'selected' if claude_status.model == 'sonnet' else '' }}>Sonnet</option>
                     <option value="haiku" {{ 'selected' if claude_status.model == 'haiku' else '' }}>Haiku</option>
                   </select>
-                  <select id="claude-effort-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudeModel()">
+                  <select id="claude-effort-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:12px;" onchange="updateClaudeModel()">
                     <option value="low" {{ 'selected' if claude_status.effort == 'low' else '' }}>Effort Low</option>
                     <option value="medium" {{ 'selected' if claude_status.effort == 'medium' else '' }}>Effort Medium</option>
                     <option value="high" {{ 'selected' if claude_status.effort == 'high' else '' }}>Effort High</option>
                   </select>
-                  <select id="claude-plan-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:11.5px;" onchange="updateClaudePlan()">
+                  <select id="claude-plan-select" class="input-sm" style="width:auto; padding:4px 8px; font-size:12px;" onchange="updateClaudePlan()">
                     {% for pk, pv in claude_plans.items() %}
                     <option value="{{ pk }}" {{ 'selected' if claude_status.quota.plan == pk else '' }}>{{ pv.label }}</option>
                     {% endfor %}
                   </select>
                 </div>
-                <div id="claude-login-box" style="display:none; font-size:11.5px; color:var(--accent); margin-top:6px;"></div>
+                <div id="claude-login-box" style="display:none; font-size:12px; color:var(--accent); margin-top:6px;"></div>
                 <!-- Clé API Anthropic de l'utilisateur (voie officielle pour une app tierce) -->
-                <div id="claude-apikey-row" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; font-size:11.5px;">
+                <div id="claude-apikey-row" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; font-size:12px;">
                   {% if claude_status.has_api_key %}
                     <span style="color:var(--ok); font-weight:700;">Clé API enregistrée</span>
                     <button type="button" class="btn btn-ghost btn-xs" onclick="removeClaudeApiKey()">Retirer la clé</button>
@@ -1333,7 +1335,7 @@
                 </div>
 
                 <div style="margin-top:10px;">
-                  <div id="reg-el-credits-text" style="font-size:11.5px; color:var(--ink); font-weight:600; line-height:1.4;">
+                  <div id="reg-el-credits-text" style="font-size:12px; color:var(--ink); font-weight:600; line-height:1.4;">
                     {% if el_status.connected and el_status.character_limit %}
                     {{ '{:,}'.format(el_status.remaining_chars).replace(',', ' ') }} / {{ '{:,}'.format(el_status.character_limit).replace(',', ' ') }} crédits (~{{ el_status.est_videos_left }} shorts)
                     {% elif el_status.connected %}
@@ -1345,7 +1347,7 @@
                   <div class="progress-track" style="margin-top:5px; height:5px;">
                     <div class="progress-fill" id="reg-el-credits-bar" style="width:{{ (100 - (el_status.used_pct or 0))|round(1) if (el_status.connected and el_status.character_limit) else 0 }}%; animation:none;"></div>
                   </div>
-                  <div id="reg-el-reset" style="font-size:11px; color:var(--muted); margin-top:5px;{{ '' if (el_status.connected and el_status.reset_in) else ' display:none;' }}">
+                  <div id="reg-el-reset" style="font-size:12px; color:var(--muted); margin-top:5px;{{ '' if (el_status.connected and el_status.reset_in) else ' display:none;' }}">
                     {% if el_status.connected and el_status.reset_in %}Crédits rechargés dans {{ el_status.reset_in }} ({{ el_status.reset_at }}){% endif %}
                   </div>
                 </div>
@@ -1374,11 +1376,11 @@
                 {{ brand(key, acc.short_name, acc.color, 18) }}
                 <span>{{ acc.short_name }}</span>
                 {% if acc.auto_api %}
-                <span style="color:var(--ok); font-size:11.5px;">✓ Connecté</span>
+                <span style="color:var(--ok); font-size:12px;">✓ Connecté</span>
                 {% elif acc.connected %}
-                <span style="color:var(--indigo); font-size:11.5px;">Studio</span>
+                <span style="color:var(--indigo); font-size:12px;">Studio</span>
                 {% else %}
-                <span style="color:var(--muted); font-size:11.5px;">Connecter</span>
+                <span style="color:var(--muted); font-size:12px;">Connecter</span>
                 {% endif %}
               </button>
               {% endfor %}
@@ -1394,7 +1396,7 @@
                 <input type="text" id="oa-relay-url" class="input-sm" style="flex:1;" value="{{ oauth_apps.relay.url }}" placeholder="https://clipoa-oauth.clipoa-studio.workers.dev">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="saveRelayConfig()">Enregistrer Relais</button>
               </div>
-              <div style="font-size:11px; color:var(--muted); margin-top:4px;">
+              <div style="font-size:12px; color:var(--muted); margin-top:4px;">
                 Callbacks HTTPS : <code>{{ oauth_apps.relay.url }}/oauth/{youtube|tiktok|meta}/callback</code>
               </div>
             </div>
@@ -1474,7 +1476,7 @@
             <button type="button" class="btn btn-danger btn-xs" onclick="closeTheaterMode()" aria-label="Fermer">✕</button>
           </div>
         </div>
-        <h3 id="theater-title" style="font-size:21px; line-height:1.25;"></h3>
+        <h2 id="theater-title" style="font-size:21px; line-height:1.25;"></h2>
         <div id="theater-meta" style="font-size:12.5px; color:var(--muted);"></div>
         <div id="theater-caption" style="font-size:13px; color:var(--ink-2); background:var(--glass-soft); border:1px solid var(--border); padding:12px; border-radius:14px; max-height:110px; overflow-y:auto;"></div>
         <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
@@ -1494,7 +1496,7 @@
   <div class="modal-bg" id="modal-gemini-connect" onclick="if(event.target===this) closeModal('modal-gemini-connect')">
     <div class="modal">
       <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Google Gemini & Vidéo IA</h3>
+        <h2>Google Gemini & Vidéo IA</h2>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-gemini-connect')" aria-label="Fermer">✕</button>
       </div>
       <p style="font-size:13px; color:var(--muted);">{{ gemini_status.message }}</p>
@@ -1513,7 +1515,7 @@
   <!-- Modal QR Mobile -->
   <div class="modal-bg" id="modal-phone" onclick="if(event.target===this) closeModal('modal-phone')">
     <div class="modal" style="text-align:center;">
-      <h3>Ouvrir sur ton téléphone</h3>
+      <h2>Ouvrir sur ton téléphone</h2>
       <p style="color:var(--muted); font-size:13.5px;">Scanne ce QR code sur le même Wi-Fi :</p>
       <div style="background:#fff; padding:14px; border-radius:18px; width:196px; height:196px; margin:0 auto; display:flex; align-items:center; justify-content:center;">
         <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ mobile_url | urlencode }}" alt="QR" style="width:168px;height:168px;">
@@ -1530,12 +1532,12 @@
   <div class="modal-bg" id="modal-analyze" onclick="if(event.target===this) closeModal('modal-analyze')">
     <div class="modal" style="max-width:620px; max-height:90vh; overflow-y:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <h3 id="an-title">Analyse virale & Script</h3>
+        <h2 id="an-title">Analyse virale & Script</h2>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-analyze')" aria-label="Fermer">✕</button>
       </div>
       <div id="an-meta" style="font-size:12.5px; color:var(--muted);"></div>
       <div style="background:var(--glass-soft); border:1px solid var(--border); border-radius:16px; padding:14px 16px; display:flex; flex-direction:column; gap:7px;">
-        <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent);">Pourquoi cette vidéo a marché</div>
+        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent);">Pourquoi cette vidéo a marché</div>
         <div id="an-why" style="font-size:14px; color:var(--ink); line-height:1.5;"></div>
         <div id="an-hook" style="font-size:13px; color:var(--ink-2);"></div>
         <div id="an-arc" style="font-size:12.5px; color:var(--muted);"></div>
@@ -1561,7 +1563,7 @@
     <div class="modal" style="max-width:650px; max-height:90vh; overflow-y:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
         <div>
-          <h3>Agent Expert Script</h3>
+          <h2>Agent Expert Script</h2>
           <div style="font-size:12px; color:var(--muted);">Skills rétention + Plugin de style (DA) + inspiration concurrente</div>
         </div>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-script-lab')" aria-label="Fermer">✕</button>
@@ -1630,7 +1632,7 @@
   <!-- Modal Garde Quota Claude -->
   <div class="modal-bg" id="modal-claude-quota" onclick="if(event.target===this) closeModal('modal-claude-quota')">
     <div class="modal" style="max-width:440px;">
-      <h3>Quota Claude insuffisant</h3>
+      <h2>Quota Claude insuffisant</h2>
       <p id="cq-msg" style="color:var(--muted); font-size:13.5px; line-height:1.5;"></p>
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:6px;">
         <button type="button" class="btn btn-coral" id="cq-gemini-btn" onclick="switchToGeminiFromQuotaModal()">Basculer sur Gemini Flash (Gratuit)</button>
@@ -1646,8 +1648,8 @@
   <!-- Modal Config OAuth -->
   <div class="modal-bg" id="modal-social-connect" onclick="if(event.target===this) closeModal('modal-social-connect')">
     <div class="modal" style="max-width:480px;">
-      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent);">Réglages OAuth · 1 seule fois</div>
-      <h3 id="sc-title" style="margin-top:4px;">Activer le portail natif</h3>
+      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--accent);">Réglages OAuth · 1 seule fois</div>
+      <h2 id="sc-title" style="margin-top:4px;">Activer le portail natif</h2>
       <p style="color:var(--muted); font-size:13px;" id="sc-sub"></p>
       <div style="font-size:12px; background:var(--glass-soft); padding:8px 10px; border-radius:10px; color:var(--ink-2); display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <code id="sc-cb-url" style="overflow:hidden; text-overflow:ellipsis;"></code>
@@ -1655,7 +1657,7 @@
       </div>
       <input type="text" id="sc-cid" class="input-sm" placeholder="Client ID / App ID">
       <input type="password" id="sc-csec" class="input-sm" placeholder="Client Secret / App Secret">
-      <div style="font-size:11.5px; color:var(--muted);">
+      <div style="font-size:12px; color:var(--muted);">
         Console officielle : <a id="sc-console-link" href="#" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:underline;">Ouvrir le portail développeur ↗</a>
       </div>
       <div style="display:flex; gap:8px;">
@@ -1668,7 +1670,7 @@
   <!-- Modal Cloner Recette -->
   <div class="modal-bg" id="modal-clone" onclick="if(event.target===this) closeModal('modal-clone')">
     <div class="modal">
-      <h3>Copier cette recette virale</h3>
+      <h2>Copier cette recette virale</h2>
       <p style="color:var(--muted); font-size:13.5px;" id="clone-source-title"></p>
       <input type="text" id="clone-topic" class="input-sm" placeholder="Quel est TON sujet pour ce short ?">
       <div style="display:flex; gap:10px;">
@@ -1681,7 +1683,7 @@
   <!-- Modal Retoucher ("Corriger avec tes mots") -->
   <div class="modal-bg" id="modal-revise" onclick="if(event.target===this) closeModal('modal-revise')">
     <div class="modal">
-      <h3>Corriger avec tes mots</h3>
+      <h2>Corriger avec tes mots</h2>
       <p style="color:var(--muted); font-size:13.5px;">Dis à l'équipe ce que tu veux changer : la voix et le style sont conservés.</p>
       <textarea id="revise-feedback" class="input-sm" rows="3" placeholder="Ex : Rends les 3 premières secondes plus percutantes…"></textarea>
       <div style="display:flex; gap:10px;">
@@ -1696,7 +1698,7 @@
     <div class="modal" style="max-width:580px; max-height:90vh; overflow-y:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
         <div>
-          <h3>Ma semaine en 1 clic</h3>
+          <h2>Ma semaine en 1 clic</h2>
           <div style="font-size:12.5px; color:var(--muted);">Le Stratège prépare 5 vidéos calibrées (Lun → Ven) prêtes pour le Mode Nuit.</div>
         </div>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-week')" aria-label="Fermer">✕</button>
@@ -1728,7 +1730,7 @@
   <!-- Modal Raccourci Studio Même Navigateur -->
   <div class="modal-bg" id="modal-portal-confirm" onclick="if(event.target===this) closeModal('modal-portal-confirm')">
     <div class="modal" style="max-width:440px;">
-      <h3 id="pc-title">Connexion en cours…</h3>
+      <h2 id="pc-title">Connexion en cours…</h2>
       <p id="pc-sub" style="color:var(--muted); font-size:13.5px; line-height:1.5;">
         Le studio officiel vient de s'ouvrir dans un onglet de <b>ton navigateur</b>. Vérifie que tu es connecté puis valide.
       </p>
@@ -1745,7 +1747,7 @@
     <div class="modal plugin-modal">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
         <div>
-          <h3 id="pe-modal-title">Nouveau style</h3>
+          <h2 id="pe-modal-title">Nouveau style</h2>
           <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">Charge tes planches de modèles, ton script de rendu et la DA que Claude utilisera (le créateur peut toujours écrire son propre script).</div>
         </div>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-plugin-editor')" aria-label="Fermer">✕</button>
@@ -1882,7 +1884,7 @@
         </div>
 
         <div class="var-chips">
-          <span style="font-size:11.5px; color:var(--muted);">Variables dispo :</span>
+          <span style="font-size:12px; color:var(--muted);">Variables dispo :</span>
           <button type="button" class="var-chip" onclick="insertPluginScriptVar('{script_text}')">{script_text}</button>
           <button type="button" class="var-chip" onclick="insertPluginScriptVar('{sheets_dir}')">{sheets_dir}</button>
           <button type="button" class="var-chip" onclick="insertPluginScriptVar('{audio_wav}')">{audio_wav}</button>
@@ -1902,7 +1904,7 @@
         <div class="field">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
             <label>Consignes de Direction Artistique (DA / Style Bible) pour Claude</label>
-            <span id="pe-da-token-est" style="font-size:11.5px; font-weight:600; color:var(--accent); font-variant-numeric:tabular-nums;"></span>
+            <span id="pe-da-token-est" style="font-size:12px; font-weight:600; color:var(--accent); font-variant-numeric:tabular-nums;"></span>
           </div>
           <textarea id="pe-da-prompt" class="big-input" rows="7" oninput="updateEditorTokenPreview()" placeholder="Décris la DA exacte : style visuel des personnages, décors, éclairages, palette de couleurs, cadrages 9:16, rythme des plans, expressions…&#10;Ex : Style Conte 2D × Monde 3D, personnages plats à contours épais dans un décor 3D low-poly."></textarea>
         </div>
@@ -1923,7 +1925,7 @@
     </div>
   </div>
 
-  <div id="toast"></div>
+  <div id="toast-stack"></div>
 
   <!-- ==================== LOGIQUE CLIENT CLIPOA ==================== -->
   <script>
@@ -3332,7 +3334,7 @@
             <button type="button" class="btn btn-ghost btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="copyInspirationLink(this.dataset.url)">Copier le lien</button>
             <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="useInspirationLink(this.dataset.url)">S’inspirer du style →</button>
           </div>
-          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:11.5px; color:var(--muted); padding:0 0 8px;">Voir la vidéo ↗</a>
+          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:12px; color:var(--muted); padding:0 0 8px;">Voir la vidéo ↗</a>
         </div>`;
       }).join('');
     }
@@ -3390,14 +3392,8 @@
       return stripEmoji(t) || 'Vidéo';
     }
 
-    let toastTimer = null;
-    function toast(msg) {
-      const el = document.getElementById('toast');
-      if (!el) return;
-      el.textContent = msg; el.classList.add('show');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
-    }
+    // Notifications empilées : voir static/js/cliproll_toast.js (chargé dans <head>).
+    function toast(msg, type) { return window.__crToast ? window.__crToast(msg, type) : undefined; }
 
     // Focus des modales : on mémorise l'élément qui l'a ouverte, on met le focus dedans,
     // et on le rend à la fermeture (clavier et lecteurs d'écran).
@@ -3723,7 +3719,7 @@
             <div style="margin-bottom:auto;"><span class="sp-pill-top"><span class="pulse-dot"></span>En cours · ${rp}%</span></div>
             <div>
               <div style="font-weight:800; color:#fff; font-size:14px; line-height:1.3;">${escHtml(runningJob.label || 'Fabrication')}</div>
-              <div style="font-size:11.5px; color:rgba(255,255,255,0.78); margin-top:5px;">${escHtml(runningJob.step || '')}</div>
+              <div style="font-size:12px; color:rgba(255,255,255,0.78); margin-top:5px;">${escHtml(runningJob.step || '')}</div>
               <div class="progress-track" style="margin-top:10px;"><div class="progress-fill" style="width:${rp}%;"></div></div>
             </div>
           </div>`;
@@ -3888,11 +3884,11 @@
           <div class="sheet-thumb-media">
             ${s.is_image
               ? `<img src="${escHtml(s.url)}" alt="${escHtml(s.original_name)}">`
-              : `<div style="text-align:center; padding:8px;"><div style="color:var(--cr-cyan);margin-bottom:4px;"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div style="font-size:10.5px; color:var(--muted); margin-top:3px;">${escHtml((s.ext || '').toUpperCase())}</div></div>`}
+              : `<div style="text-align:center; padding:8px;"><div style="color:var(--cr-cyan);margin-bottom:4px;"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div><div style="font-size:11px; color:var(--muted); margin-top:3px;">${escHtml((s.ext || '').toUpperCase())}</div></div>`}
           </div>
           <div class="sheet-thumb-foot">
-            <div style="font-size:11px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(s.original_name)}">${escHtml(s.original_name)}</div>
-            <div style="font-size:10px; color:var(--muted);">${escHtml(SHEET_ROLE_LABELS[s.role] || 'Planche')} · ${s.size_kb || 0} Ko</div>
+            <div style="font-size:12px; font-weight:700; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escHtml(s.original_name)}">${escHtml(s.original_name)}</div>
+            <div style="font-size:11px; color:var(--muted);">${escHtml(SHEET_ROLE_LABELS[s.role] || 'Planche')} · ${s.size_kb || 0} Ko</div>
           </div>
         </div>
       `).join('');
@@ -4953,16 +4949,16 @@
         const details = Object.entries(p.results || {}).map(([rplat, rinfo]) => {
           const cap = rplat.charAt(0).toUpperCase() + rplat.slice(1);
           if (rinfo && rinfo.ok && rinfo.url) {
-            return `<div style="font-size:11.5px; margin-top:3px;"><a href="${escapePulseHtml(rinfo.url)}" target="_blank" rel="noopener" style="color:var(--ok); font-weight:600; text-decoration:none;">✓ Voir sur ${escapePulseHtml(cap)} ↗</a></div>`;
+            return `<div style="font-size:12px; margin-top:3px;"><a href="${escapePulseHtml(rinfo.url)}" target="_blank" rel="noopener" style="color:var(--ok); font-weight:600; text-decoration:none;">✓ Voir sur ${escapePulseHtml(cap)} ↗</a></div>`;
           }
           if (rinfo && rinfo.ok) {
-            return `<div style="font-size:11.5px; color:var(--ok); margin-top:3px;">✓ ${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Publié')}</div>`;
+            return `<div style="font-size:12px; color:var(--ok); margin-top:3px;">✓ ${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Publié')}</div>`;
           }
           if (rinfo && rinfo.pending) {
-            return `<div style="font-size:11.5px; color:var(--muted); margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Envoi…')}</div>`;
+            return `<div style="font-size:12px; color:var(--muted); margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml(rinfo.message || 'Envoi…')}</div>`;
           }
           const col = (rinfo && rinfo.manual) ? 'var(--muted)' : 'var(--danger)';
-          return `<div style="font-size:11.5px; color:${col}; margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml((rinfo && rinfo.message) || 'Erreur')}</div>`;
+          return `<div style="font-size:12px; color:${col}; margin-top:3px;">${escapePulseHtml(cap)} : ${escapePulseHtml((rinfo && rinfo.message) || 'Erreur')}</div>`;
         }).join('');
 
         const retryBtn = ['scheduled', 'failed', 'partial'].includes(p.status)
@@ -5332,7 +5328,7 @@
           return `<label style="display:flex; gap:10px; align-items:flex-start; padding:11px 13px; border-radius:14px; background:var(--glass-soft); border:1px solid var(--border); cursor:pointer;">
             <input type="checkbox" class="week-chk" data-idx="${idx}" checked onchange="updateWeekCount()" style="margin-top:3px; accent-color:var(--accent); width:16px; height:16px;">
             <div style="flex:1; min-width:0;">
-              <div style="font-size:11px; font-weight:700; color:var(--accent); text-transform:uppercase;">${escHtml(it.jour || 'Jour ' + (idx+1))}${it.angle ? ' · ' + escHtml(it.angle) : ''}</div>
+              <div style="font-size:12px; font-weight:700; color:var(--accent); text-transform:uppercase;">${escHtml(it.jour || 'Jour ' + (idx+1))}${it.angle ? ' · ' + escHtml(it.angle) : ''}</div>
               <div style="font-size:13.5px; font-weight:600; color:var(--ink); margin-top:2px;">${escHtml(titre)}</div>
               ${it.promesse ? `<div style="font-size:12px; color:var(--muted); margin-top:2px;">${escHtml(it.promesse)}</div>` : ''}
             </div>
