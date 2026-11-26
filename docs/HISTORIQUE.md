@@ -97,3 +97,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Routes : GET `/api/support/incidents`, POST `/api/support/preview`, `/api/support/send`, `/api/support/dismiss`. Envoi seulement au clic, nettoyage des secrets (valeurs exactes de `storage/*.json` + motifs), repli `storage/support/outbox/`.
 - UI : `static/js/clipoa_support.js` (fenêtre d'envoi, bulle de plantage), bouton « ? » dans la topbar, « Envoyer le rapport » sur une tâche en erreur.
 - Relais : `/support/report` (KV `SUPPORT_KV`, 90 jours, alerte Discord ou e-mail en option), `/support/reports` protégé par `SUPPORT_ADMIN_TOKEN`, page /privacy complétée. Mise en place : `docs/SUPPORT.md`.
+
+## 26/11/2026 — Accessibilité clavier de l'interface (audit Vercel/Emil)
+- `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
+- `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
+- Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.

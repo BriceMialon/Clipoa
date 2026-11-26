@@ -16,6 +16,7 @@
   <title>Clipoa — Studio 9:16</title>
   <link rel="stylesheet" href="/static/css/liquid-glass.css?v=7">
   <link rel="stylesheet" href="/static/css/clipoa-ui.css?v=2">
+  <link rel="stylesheet" href="/static/css/a11y.css?v=1">
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
@@ -927,7 +928,7 @@
                     {% if p.status in ('scheduled', 'failed', 'partial') %}
                     <button type="button" class="btn btn-ghost btn-xs" onclick="publishQueuedNow('{{ p.id }}')">{{ 'Envoyer' if p.status == 'scheduled' else '↻' }}</button>
                     {% endif %}
-                    <button type="button" class="btn btn-danger btn-xs" onclick="deletePostiz('{{ p.id }}')">✕</button>
+                    <button type="button" class="btn btn-danger btn-xs" onclick="deletePostiz('{{ p.id }}')" aria-label="Supprimer">✕</button>
                   </div>
                 </div>
                 {% else %}
@@ -980,7 +981,7 @@
                       <div class="kpi-pill"><b>{{ rep.metrics.engagement_rate }}%</b> eng.</div>
                     </div>
                   </div>
-                  <button type="button" class="btn btn-danger btn-xs" onclick="deleteInternalReport('{{ rep.id }}')">✕</button>
+                  <button type="button" class="btn btn-danger btn-xs" onclick="deleteInternalReport('{{ rep.id }}')" aria-label="Supprimer">✕</button>
                 </div>
                 <div class="grid-2" style="margin-top:12px; gap:10px; font-size:12.5px;">
                   <div style="background:var(--glass); padding:11px 13px; border-radius:13px; border:1px solid var(--stroke-subtle);">
@@ -1375,7 +1376,7 @@
           <div style="display:flex; gap:6px;">
             <button type="button" class="btn btn-ghost btn-xs" onclick="stepTheater(-1)">← Préc.</button>
             <button type="button" class="btn btn-ghost btn-xs" onclick="stepTheater(1)">Suiv. →</button>
-            <button type="button" class="btn btn-danger btn-xs" onclick="closeTheaterMode()">✕</button>
+            <button type="button" class="btn btn-danger btn-xs" onclick="closeTheaterMode()" aria-label="Fermer">✕</button>
           </div>
         </div>
         <h3 id="theater-title" style="font-size:21px; line-height:1.25;"></h3>
@@ -1398,7 +1399,7 @@
     <div class="modal">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3>Brancher ElevenLabs</h3>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-el-connect')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-el-connect')" aria-label="Fermer">✕</button>
       </div>
       <p style="font-size:13px; color:var(--muted);">{{ el_status.message }}</p>
       <a class="btn btn-ghost btn-sm" href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">1. Ouvrir mes clés ElevenLabs ↗</a>
@@ -1416,7 +1417,7 @@
     <div class="modal">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <h3>Google Gemini & Vidéo IA</h3>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-gemini-connect')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-gemini-connect')" aria-label="Fermer">✕</button>
       </div>
       <p style="font-size:13px; color:var(--muted);">{{ gemini_status.message }}</p>
       <a class="btn btn-ghost btn-sm" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Obtenir une clé gratuite AI Studio ↗</a>
@@ -1452,7 +1453,7 @@
     <div class="modal" style="max-width:620px; max-height:90vh; overflow-y:auto;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
         <h3 id="an-title">Analyse virale & Script</h3>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-analyze')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-analyze')" aria-label="Fermer">✕</button>
       </div>
       <div id="an-meta" style="font-size:12.5px; color:var(--muted);"></div>
       <div style="background:var(--glass-soft); border:1px solid var(--border); border-radius:16px; padding:14px 16px; display:flex; flex-direction:column; gap:7px;">
@@ -1485,7 +1486,7 @@
           <h3>Agent Expert Script</h3>
           <div style="font-size:12px; color:var(--muted);">Skills rétention + Plugin de style (DA) + inspiration concurrente</div>
         </div>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-script-lab')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-script-lab')" aria-label="Fermer">✕</button>
       </div>
 
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -1620,7 +1621,7 @@
           <h3>Ma semaine en 1 clic</h3>
           <div style="font-size:12.5px; color:var(--muted);">Le Stratège prépare 5 vidéos calibrées (Lun → Ven) prêtes pour le Mode Nuit.</div>
         </div>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-week')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-week')" aria-label="Fermer">✕</button>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <input type="text" id="week-niche" class="input-sm" style="flex:1; min-width:180px;" placeholder="Ta niche (ex : Storytelling, Finance, Gaming, IA…)">
@@ -1669,7 +1670,7 @@
           <h3 id="pe-modal-title">Nouveau style</h3>
           <div style="font-size:12.5px; color:var(--muted); margin-top:2px;">Charge tes planches de modèles, ton script de rendu et la DA que Claude utilisera (le créateur peut toujours écrire son propre script).</div>
         </div>
-        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-plugin-editor')">✕</button>
+        <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-plugin-editor')" aria-label="Fermer">✕</button>
       </div>
 
       <input type="hidden" id="pe-id" value="">
@@ -1942,6 +1943,7 @@
       location.reload();
     }
     async function removeClaudeApiKey() {
+      if (!confirm('Retirer ta clé API Claude de Clipoa ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
       const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
       if (d.error) return toast('❌ ' + d.error);
       location.reload();
@@ -3242,13 +3244,77 @@
       toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
     }
 
-    function openModal(id) { document.getElementById(id)?.classList.add('open'); }
-    function closeModal(id) { document.getElementById(id)?.classList.remove('open'); }
+    // Focus des modales : on mémorise l'élément qui l'a ouverte, on met le focus dedans,
+    // et on le rend à la fermeture (clavier et lecteurs d'écran).
+    const _modalOpener = {};
+    const _FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    function _focusInto(m) {
+      const box = m.querySelector('.modal') || m;
+      const target = box.querySelector('[autofocus]') || box.querySelector('input:not([type="hidden"]), textarea, select') || box.querySelector(_FOCUSABLE);
+      if (target) setTimeout(() => target.focus({ preventScroll: true }), 30);
+    }
+    function _restoreFocus(id) {
+      const el = _modalOpener[id];
+      delete _modalOpener[id];
+      if (el && document.contains(el)) el.focus({ preventScroll: true });
+    }
+    function openModal(id) {
+      const m = document.getElementById(id);
+      if (!m) return;
+      _modalOpener[id] = document.activeElement;
+      m.classList.add('open');
+      _focusInto(m);
+    }
+    function closeModal(id) {
+      const m = document.getElementById(id);
+      if (!m) return;
+      m.classList.remove('open');
+      _restoreFocus(id);
+    }
     function toggleEl(id) { document.getElementById(id)?.classList.toggle('open'); }
+    // Rôle dialogue sur toutes les modales.
+    document.querySelectorAll('.modal-bg').forEach(m => {
+      const box = m.querySelector('.modal');
+      if (box && !box.hasAttribute('role')) { box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); }
+    });
+    // Les blocs cliquables (div/span avec onclick) deviennent utilisables au clavier.
+    const _CLICKABLE = 'div[onclick]:not(.modal-bg), span[onclick], li[onclick]';
+    function _kbd(el) {
+      if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0');
+      if (!el.hasAttribute('role')) el.setAttribute('role', 'button');
+    }
+    function _makeClickablesKeyboard(root) {
+      if (root.matches && root.matches(_CLICKABLE)) _kbd(root);
+      root.querySelectorAll(_CLICKABLE).forEach(_kbd);
+    }
+    _makeClickablesKeyboard(document);
+    new MutationObserver(muts => {
+      for (const mu of muts) for (const n of mu.addedNodes) if (n.nodeType === 1) _makeClickablesKeyboard(n);
+    }).observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('keydown', e => {
+      const t = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && t && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON' && t.tagName !== 'A') {
+        e.preventDefault();
+        t.click();
+      }
+    });
+    // Tab reste dans la modale ouverte (piège de focus).
+    document.addEventListener('keydown', e => {
+      if (e.key !== 'Tab') return;
+      const opened = [...document.querySelectorAll('.modal-bg.open')];
+      const m = opened[opened.length - 1];
+      if (!m) return;
+      const items = [...m.querySelectorAll(_FOCUSABLE)].filter(x => x.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (!m.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+      else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         if (document.getElementById('modal-theater')?.classList.contains('open')) closeTheaterMode();
-        document.querySelectorAll('.modal-bg.open').forEach(m => m.classList.remove('open'));
+        document.querySelectorAll('.modal-bg.open').forEach(m => { m.classList.remove('open'); _restoreFocus(m.id); });
       } else if (document.getElementById('modal-theater')?.classList.contains('open')) {
         if (e.key === 'ArrowRight') stepTheater(1);
         else if (e.key === 'ArrowLeft') stepTheater(-1);
@@ -3805,6 +3871,7 @@
     async function deletePluginSheet(filename) {
       const pid = val('pe-id');
       if (!pid) return;
+      if (!confirm('Supprimer cette planche ?')) return;
       const res = await apiJson(`/api/plugins/${encodeURIComponent(pid)}/sheets/${encodeURIComponent(filename)}`, { method: 'DELETE' });
       if (res.error) return toast(res.error);
       STYLE_PLUGINS = res.plugins || STYLE_PLUGINS;
@@ -4750,7 +4817,7 @@
           </div>
           <div style="display:flex; gap:5px; flex-shrink:0;">
             ${retryBtn}
-            <button type="button" class="btn btn-danger btn-xs" onclick="deletePostiz('${escapePulseHtml(p.id)}')">✕</button>
+            <button type="button" class="btn btn-danger btn-xs" onclick="deletePostiz('${escapePulseHtml(p.id)}')" aria-label="Supprimer">✕</button>
           </div>
         </div>`;
       }).join('');
@@ -4837,6 +4904,7 @@
     }
 
     async function deletePostiz(id) {
+      if (!confirm('Retirer cette publication de la file d\'attente ?')) return;
       await fetch('/api/social/queue/' + encodeURIComponent(id), { method: 'DELETE' });
       const qData = await apiJson('/api/social/queue');
       renderPulseQueue(qData.queue || []);
@@ -4974,6 +5042,7 @@
     }
 
     async function deleteInternalReport(id) {
+      if (!confirm('Supprimer ce rapport ?')) return;
       await apiJson('/api/analytics/internal/' + encodeURIComponent(id), { method: 'DELETE' });
       document.getElementById('rep-' + id)?.remove();
       toast('Rapport supprimé');
