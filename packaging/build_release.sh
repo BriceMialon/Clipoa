@@ -45,6 +45,8 @@ UV_PYTHON_PREFERENCE=only-managed "$UV" python install --no-bin "$PY_VERSION" >/
 UV_PYTHON_PREFERENCE=only-managed "$UV" venv -q --python "$PY_VERSION" "$B/venv"
 "$UV" pip install -q --python "$B/venv/bin/python" "nuitka>=2.5,<3" ordered-set zstandard
 "$UV" pip install -q --python "$B/venv/bin/python" -r requirements.txt   # Nuitka doit voir les mêmes paquets
+echo "▸ Verrou des dépendances (versions + empreintes)"
+"$UV" pip compile -q requirements.txt --generate-hashes --python-version "$PY_VERSION" --python-platform aarch64-apple-darwin -o requirements.lock
 NUITKA=("$B/venv/bin/python" -m nuitka --module --no-pyi-file --remove-output --output-dir="$B/out" --assume-yes-for-downloads)
 
 echo "▸ Compilation de core/ et agents/ (plusieurs minutes)"
@@ -98,6 +100,9 @@ BL_FILE="blender-$BLENDER_VERSION-macos-arm64.dmg"
 BL_SHA="$(curl -fsSL "$BL_DIR/blender-$BLENDER_VERSION.sha256" | awk -v f="$BL_FILE" '$2==f {print $1}')"
 [ -n "$BL_SHA" ] || { echo "empreinte de $BL_FILE introuvable sur blender.org" >&2; exit 1; }
 
+WH_REV="$(curl -fsSL https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main | "$B/venv/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+[ -n "$WH_REV" ] || { echo "révision Whisper introuvable" >&2; exit 1; }
+
 mkdir -p "$DIST"
 PKG="clipoa-$VERSION-macos-arm64.tar.gz"
 tar -czf "$DIST/$PKG" -C "$SRC" .
@@ -106,7 +111,8 @@ NOTES_JSON="$("$B/venv/bin/python" -c 'import json,sys; print(json.dumps(sys.arg
 cat > "$DIST/latest.json" <<EOS
 {"version": "$VERSION", "platform": "macos-arm64", "url": "$PKG", "sha256": "$SHA",
  "size": $(stat -f%z "$DIST/$PKG"), "notes": $NOTES_JSON,
- "blender_version": "$BLENDER_VERSION", "blender_url": "$BL_DIR/$BL_FILE", "blender_sha256": "$BL_SHA"}
+ "blender_version": "$BLENDER_VERSION", "blender_url": "$BL_DIR/$BL_FILE", "blender_sha256": "$BL_SHA",
+ "whisper_revision": "$WH_REV"}
 EOS
 sed "s#__CLIPOA_UPDATE_URL__#$UPDATE_URL#" "$ROOT/packaging/install.sh" > "$DIST/install.sh"
 rm -rf "$B"

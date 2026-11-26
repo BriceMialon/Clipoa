@@ -31,7 +31,7 @@ from config import BASE_DIR
 
 RESTART_EXIT_CODE = 42
 CHECK_TTL_S = 3600
-SHARED_LINKS = {"storage": "../../data/storage", "runtime": "../../data/runtime", "venv": "../../venv"}
+SHARED_LINKS = {"storage": "../../data/storage", "runtime": "../../data/runtime", "venv": "../../venv", "venv_tts": "../../data/venv_tts"}
 
 _LOCK = threading.Lock()
 _CACHE: Dict[str, Any] = {"at": 0.0, "info": None}
@@ -166,6 +166,8 @@ def _install_requirements(home: Path, req: Path) -> None:
     uv = home / "tools" / "uv" / "uv"
     if uv.exists():
         cmd = [str(uv), "pip", "install", "-q", "--python", str(py), "-r", str(req)]
+        if req.name.endswith(".lock"):
+            cmd.insert(3, "--require-hashes")
     else:
         cmd = [str(py), "-m", "pip", "install", "-q", "-r", str(req)]
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
@@ -229,8 +231,9 @@ def _apply(info: Dict[str, Any]) -> None:
         raise RuntimeError("le paquet ne correspond pas à la version annoncée")
     link_shared(tmp_dir)
 
-    old_req = BASE_DIR / "requirements.txt"
-    new_req = tmp_dir / "requirements.txt"
+    req_name = "requirements.lock" if (tmp_dir / "requirements.lock").exists() else "requirements.txt"
+    old_req = BASE_DIR / req_name
+    new_req = tmp_dir / req_name
     if new_req.exists() and (not old_req.exists() or old_req.read_bytes() != new_req.read_bytes()):
         _STATE.update(step="Mise à jour des outils…", progress=75)
         _install_requirements(home, new_req)

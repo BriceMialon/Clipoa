@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Dict, Any, List
@@ -22,7 +23,10 @@ class AudioTranscriber:
                 from faster_whisper import WhisperModel
                 logger.info(f"Loading faster-whisper model ({model_size})...")
                 # device='cpu' with compute_type='int8' is ultra fast and stable on Apple Silicon
-                cls._model = WhisperModel(model_size, device="cpu", compute_type="int8")
+                # modèle installé par packaging/install.sh (version fixée, rangé avec Clipoa) ; sinon téléchargement habituel
+                local = os.getenv("CLIPOA_WHISPER_DIR", "")
+                source = local if model_size == "base" and local and os.path.isfile(os.path.join(local, "model.bin")) else model_size
+                cls._model = WhisperModel(source, device="cpu", compute_type="int8")
             return cls._model
 
     @classmethod

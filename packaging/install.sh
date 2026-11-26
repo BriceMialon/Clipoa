@@ -35,7 +35,7 @@ main() {
   esac
   UPDATE_URL="${UPDATE_URL%/}"
 
-  mkdir -p "$H"/{versions,data/storage,data/runtime,data/logs,data/updates,tools,bin}
+  mkdir -p "$H"/{versions,data/storage,data/runtime,data/venv_tts,data/logs,data/updates,tools,bin}
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
 
@@ -83,8 +83,13 @@ main() {
     ln -sfn ../../data/storage "$D/storage"
     ln -sfn ../../data/runtime "$D/runtime"
     ln -sfn ../../venv "$D/venv"
+    ln -sfn ../../data/venv_tts "$D/venv_tts"
     say "Installation des outils de Clipoa (quelques minutes la première fois)…"
-    "$UV" pip install -q --python "$H/venv/bin/python" -r "$D/requirements.txt"
+    if [ -f "$D/requirements.lock" ]; then   # versions et empreintes figées au moment du build
+      "$UV" pip install -q --require-hashes --python "$H/venv/bin/python" -r "$D/requirements.lock"
+    else
+      "$UV" pip install -q --python "$H/venv/bin/python" -r "$D/requirements.txt"
+    fi
     rm -rf "$H/versions/$VERSION"; mv "$D" "$H/versions/$VERSION"
   fi
   # 3b. Blender (version fixée par Clipoa, téléchargé sur blender.org, gardé dans data/runtime : jamais re-téléchargé aux mises à jour)
@@ -105,6 +110,17 @@ main() {
     printf '%s\n' "$BL_VER" > "$H/data/runtime/blender_version"
     rm -f "$TMP/blender.dmg"
   fi
+  # 3c. Modèle de transcription Whisper « base » (révision fixée, gardé dans data/runtime)
+  WH_REV="$(read_json whisper_revision 2>/dev/null || true)"
+  WH_DIR="$H/data/runtime/models/faster-whisper-base"
+  if [ -n "$WH_REV" ] && [ "$(cat "$WH_DIR/.clipoa_revision" 2>/dev/null)" != "$WH_REV" ]; then
+    say "Téléchargement du modèle de transcription (environ 150 Mo, une seule fois)…"
+    rm -rf "$WH_DIR"
+    HF_HUB_DISABLE_TELEMETRY=1 "$H/venv/bin/python" -c 'import sys; from huggingface_hub import snapshot_download; snapshot_download("Systran/faster-whisper-base", revision=sys.argv[1], local_dir=sys.argv[2])' "$WH_REV" "$WH_DIR" >/dev/null
+    [ -f "$WH_DIR/model.bin" ] || die "Modèle de transcription incomplet."
+    printf '%s\n' "$WH_REV" > "$WH_DIR/.clipoa_revision"
+  fi
+
   ln -sfn "versions/$VERSION" "$H/app.new" && mv -fh "$H/app.new" "$H/app"
 
   # 4. Lanceurs
@@ -115,6 +131,10 @@ H="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$H/data/logs/clipoa.log"
 [ -f "$LOG" ] && [ "$(stat -f%z "$LOG")" -gt 20000000 ] && mv -f "$LOG" "$LOG.1"
 export CLIPOA_LAUNCHER=1 CLIPOA_PORT="${CLIPOA_PORT:-8080}"
+# tout ce que l'app télécharge reste dans le dossier Clipoa et survit aux mises à jour
+export HF_HOME="$H/data/runtime/huggingface" HF_HUB_DISABLE_TELEMETRY=1
+export PLAYWRIGHT_BROWSERS_PATH="$H/data/runtime/ms-playwright"
+export CLIPOA_WHISPER_DIR="$H/data/runtime/models/faster-whisper-base"
 export CLIPOA_EDITION="$(cat "$H/app/edition" 2>/dev/null || echo public)"
 while :; do
   cd "$H/app" || exit 1
