@@ -48,6 +48,7 @@ from core.security import (
     is_allowed_host_header,
 )
 from core import edition as _edition
+from core.license import LicenseManager, LICENSED_PREFIXES
 from core.scraper import CompetitorScraper
 from core.pipeline import ShortCrewPipeline
 from core.claude_bridge import ClaudeBridge, ClaudeQuotaExceededError
@@ -195,6 +196,27 @@ def _run_with_job_guard(job_id: str, fn):
     return True
 
 
+LICENSE = LicenseManager(str(STORAGE_DIR))
+
+
+@app.route("/api/license/status", methods=["GET"])
+def api_license_status():
+    return jsonify(LICENSE.refresh())
+
+
+@app.route("/api/license/activate", methods=["POST"])
+def api_license_activate():
+    try:
+        return jsonify(LICENSE.activate((request.get_json(silent=True) or {}).get("key", "")))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/license/deactivate", methods=["POST"])
+def api_license_deactivate():
+    return jsonify(LICENSE.deactivate())
+
+
 @app.context_processor
 def _edition_ctx():
     return {"clipoa_edition": _edition.EDITION}
@@ -205,6 +227,11 @@ def _security_guard():
     # Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
     if _edition.is_blocked_path(request.path):
         return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de Clipoa."}), 403
+    # Version publique : fabrication réservée aux abonnés (lecture seule sinon, rien n'est supprimé)
+    if (_edition.is_public() and request.method == "POST"
+            and request.path.startswith(LICENSED_PREFIXES) and not LICENSE.can_fabricate()):
+        return jsonify({"error": "Abonnement inactif : activez votre licence Clipoa pour fabriquer des vidéos.",
+                        "license_required": True}), 402
     # 0. Anti-DNS-Rebinding guard (blocks malicious domains pointing to 127.0.0.1)
     lan_ip_allowed = get_lan_ip() if CLIPOA_ALLOW_LAN else ""
     if not is_allowed_host_header(request.host, allow_lan=CLIPOA_ALLOW_LAN, lan_ip=lan_ip_allowed):
