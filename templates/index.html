@@ -1204,9 +1204,16 @@
                     <span style="color:var(--ok); font-weight:700;">Clé API enregistrée</span>
                     <button type="button" class="btn btn-ghost btn-xs" onclick="removeClaudeApiKey()">Retirer la clé</button>
                   {% else %}
-                    <input type="password" id="claude-apikey-input" class="input-sm" style="flex:1; min-width:180px;" placeholder="Ou colle ta clé API Anthropic (sk-ant-…)" autocomplete="off">
-                    <button type="button" class="btn btn-primary btn-xs" onclick="saveClaudeApiKey()">Tester et enregistrer</button>
-                    <a class="btn btn-ghost btn-xs" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Créer une clé ↗</a>
+                    <button type="button" class="btn btn-primary btn-xs" onclick="startClaudeKeyFlow()">Connecter mon compte Claude</button>
+                    <div id="claude-keyflow" style="display:none; width:100%; margin-top:6px; line-height:1.5;">
+                      <div>1. Connecte-toi sur la page Anthropic qui vient de s'ouvrir, clique « Create Key », puis « Copy ».</div>
+                      <div>2. Reviens ici : la clé est détectée et testée toute seule (ou colle-la ci-dessous).</div>
+                      <div style="display:flex; gap:6px; margin-top:4px;">
+                        <input type="password" id="claude-apikey-input" class="input-sm" style="flex:1; min-width:180px;" placeholder="sk-ant-…" autocomplete="off" oninput="claudeKeyMaybeAutoSave(this.value)">
+                        <button type="button" class="btn btn-ghost btn-xs" onclick="saveClaudeApiKey()">Valider</button>
+                      </div>
+                      <div style="color:var(--muted, #888); margin-top:2px;">La clé reste sur cet ordinateur (chiffrée). L'usage est facturé par Anthropic sur ton compte.</div>
+                    </div>
                   {% endif %}
                 </div>
               </div>
@@ -1892,13 +1899,42 @@
     const val = id => (document.getElementById(id)?.value || '').trim();
     const escHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-    async function saveClaudeApiKey() {
+    // Connexion Claude guidée : Anthropic n'offre pas d'OAuth aux apps tierces,
+    // donc on ouvre la page des clés et on récupère la clé copiée au retour.
+    const CLAUDE_KEY_RE = /sk-ant-[A-Za-z0-9_\-]{20,}/;
+    let claudeKeyFlowOn = false, claudeKeySaving = false;
+    function startClaudeKeyFlow() {
+      window.open('https://console.anthropic.com/settings/keys', '_blank', 'noopener');
+      const box = document.getElementById('claude-keyflow');
+      if (box) box.style.display = 'block';
+      claudeKeyFlowOn = true;
+    }
+    function claudeKeyMaybeAutoSave(val) {
+      const m = String(val || '').match(CLAUDE_KEY_RE);
+      if (m) saveClaudeApiKey(m[0]);
+    }
+    window.addEventListener('focus', async () => {
+      if (!claudeKeyFlowOn || claudeKeySaving || !navigator.clipboard || !navigator.clipboard.readText) return;
+      try {
+        const m = (await navigator.clipboard.readText() || '').match(CLAUDE_KEY_RE);
+        if (m) {
+          const inp = document.getElementById('claude-apikey-input');
+          if (inp) inp.value = m[0];
+          saveClaudeApiKey(m[0]);
+        }
+      } catch (e) { /* lecture du presse-papiers refusée : l'utilisateur colle à la main */ }
+    });
+    async function saveClaudeApiKey(keyArg) {
+      if (claudeKeySaving) return;
       const inp = document.getElementById('claude-apikey-input');
-      const key = (inp && inp.value || '').trim();
+      const key = String((typeof keyArg === 'string' && keyArg) || (inp && inp.value) || '').trim();
       if (!key) return toast('Colle ta clé API Anthropic.');
       toast('Test de la clé…');
+      claudeKeySaving = true;
       const d = await apiJson('/api/claude/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+      claudeKeySaving = false;
       if (d.error) return toast('❌ ' + d.error);
+      claudeKeyFlowOn = false;
       toast('✓ Clé API Anthropic enregistrée');
       location.reload();
     }
