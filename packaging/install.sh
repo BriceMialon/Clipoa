@@ -57,7 +57,7 @@ main() {
   # 2. Python (même version mineure que celle qui a compilé Clipoa)
   if [ ! -x "$H/venv/bin/python" ]; then
     say "Installation de Python $PY_VERSION (dans $H, rien n'est modifié ailleurs)…"
-    "$UV" python install "$PY_VERSION" >/dev/null
+    "$UV" python install --no-bin "$PY_VERSION" >/dev/null
     "$UV" venv --seed --python "$PY_VERSION" "$H/venv" >/dev/null
   fi
 

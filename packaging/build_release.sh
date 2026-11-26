@@ -40,7 +40,7 @@ cd "$SRC"
 rm -rf tests docs site_public backups_multicomptes oauth_relay_worker.js cli.py ./*.command ./*.md packaging
 
 echo "▸ Environnement de compilation (Python $PY_VERSION + Nuitka)"
-UV_PYTHON_PREFERENCE=only-managed "$UV" python install "$PY_VERSION" >/dev/null
+UV_PYTHON_PREFERENCE=only-managed "$UV" python install --no-bin "$PY_VERSION" >/dev/null
 UV_PYTHON_PREFERENCE=only-managed "$UV" venv -q --python "$PY_VERSION" "$B/venv"
 "$UV" pip install -q --python "$B/venv/bin/python" "nuitka>=2.5,<3" ordered-set zstandard
 "$UV" pip install -q --python "$B/venv/bin/python" -r requirements.txt   # Nuitka doit voir les mêmes paquets
