@@ -129,6 +129,10 @@ try {
         if (Test-Path $d) { Get-ChildItem -Path $d -Recurse -File -Include "*.exe" | Remove-Item -Force }
     }
     Remove-Item -Recurse -Force (Join-Path $PyDist "Scripts") -ErrorAction SilentlyContinue
+    # Tcl/Tk (tkinter) : inutile à ClipRoll, et ses DLL sont refusées par SignTool (bad PE)
+    foreach ($rel in @("DLLs\tcl86t.dll", "DLLs\tk86t.dll", "DLLs\_tkinter.pyd", "tcl", "Lib\tkinter", "Lib\idlelib", "Lib\turtledemo")) {
+        Remove-Item -Recurse -Force (Join-Path $PyDist $rel) -ErrorAction SilentlyContinue
+    }
     if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
 
     Write-Host "▸ Code ClipRoll (modules compilés .pyd + fichiers)" -ForegroundColor Magenta
@@ -214,7 +218,7 @@ for name, (w, h) in sizes.items():
             $probe = Join-Path $BuildDir "probe"
             New-Item -ItemType Directory -Force -Path $probe | Out-Null
             $bad = @()
-            Get-ChildItem -Path $DistDir -Recurse -File -Include "*.exe","*.dll","*.pyd" | ForEach-Object {
+            Get-ChildItem -Path $DistDir -Recurse -File -Include "*.exe","*.dll","*.pyd" | Where-Object { $_.Name -notmatch '^vcruntime' } | ForEach-Object {
                 $copy = Join-Path $probe ("f" + [System.Guid]::NewGuid().ToString("N") + $_.Extension)
                 Copy-Item $_.FullName $copy
                 & $signtool.FullName sign /q /fd SHA256 /f $pfx /p "clipoa-test" $copy 2>&1 | Out-Null
@@ -225,9 +229,11 @@ for name, (w, h) in sizes.items():
             $bad | Select-Object -First 80 | ForEach-Object { Write-Host "  $_" }
             Write-Warning "Signature d'essai impossible : le .msix est livré NON signé."
             Rename-Item $MsixOut ($MsixOut -replace '\.msix$', '-unsigned.msix')
+            $global:LASTEXITCODE = 0
         }
     }
 
+    Get-ChildItem -Path $Dist -Filter "*.msix" | ForEach-Object { Write-Host ("  " + $_.Name + " : " + [math]::Round($_.Length / 1MB) + " Mo") }
     Write-Host "✓ Paquet prêt : $MsixOut" -ForegroundColor Green
 } finally {
     Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
