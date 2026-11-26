@@ -91,3 +91,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `_oauth_base_url` (app.py) garde l'hôte réel (`127.0.0.1` ou `localhost`) : certains navigateurs résolvent `localhost` en ::1 et le retour OAuth se perdait.
 - `_publish_tiktok` : app non auditée + compte public → TikTok refuse la publication directe (`unaudited_client_can_only_post_to_private_accounts`) ; repli automatique en brouillon (`/v2/post/publish/inbox/video/init/`, scope `video.upload`), résultat `privacy: INBOX_DRAFT`. Publication directe publique = audit TikTok requis (domaine vérifié, vidéo de démo, UI de confidentialité exigée par TikTok).
 - Meta : inscription développeur bloquée (Facebook refuse les modifications depuis un « nouvel appareil ») ; à refaire depuis un appareil habituel.
+
+## 26/11/2026 — Accessibilité clavier de l'interface (audit Vercel/Emil)
+- `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
+- `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
+- Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.
