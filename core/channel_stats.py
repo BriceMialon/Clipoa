@@ -272,8 +272,10 @@ def fetch_tiktok_videos(ws_key: Optional[str] = None, fallback_name: str = "", w
         except Exception:
             pass
 
-    # 2. Fallback profil public via yt-dlp si l'API TikTok n'a pas le scope video.list
-    if not videos:
+    # 2. Fallback profil public via yt-dlp si l'API TikTok n'a pas le scope video.list.
+    #    Coupé en version publique : lecture automatisée d'un profil, contraire aux CGU TikTok.
+    from core import edition as _edition
+    if not videos and not _edition.is_public():
         handle = _tiktok_handle(cfg, fallback_name, ws_id=ws_id)
         ytdlp = _find_ytdlp()
         if handle and ytdlp:
@@ -313,8 +315,9 @@ def fetch_tiktok_videos(ws_key: Optional[str] = None, fallback_name: str = "", w
 
     if not videos:
         raise RuntimeError(
-            f"Impossible de lire les vidéos TikTok de « {channel_name} » : le scope OAuth `video.list` n'est pas activé "
-            "et le profil public n'a pas pu être lu (compte privé ou @handle manquant)."
+            f"Impossible de lire les vidéos TikTok de « {channel_name} » : le scope OAuth `video.list` n'est pas activé"
+            + (" (reconnecte TikTok dans Connexions)." if _edition.is_public()
+               else " et le profil public n'a pas pu être lu (compte privé ou @handle manquant).")
         )
 
     total_views = sum(v["views"] for v in videos)
