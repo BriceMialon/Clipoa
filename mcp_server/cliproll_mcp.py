@@ -18,9 +18,23 @@ import os
 import sys
 import urllib.error
 import urllib.request
+import urllib.parse
 from typing import Any, Dict
 
-CLIPROLL_URL = os.environ.get("CLIPROLL_URL", "http://127.0.0.1:8080").rstrip("/")
+_LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _local_url(raw: str) -> str:
+    """ClipRoll tourne en local : on refuse toute autre adresse pour que le jeton ne parte jamais ailleurs."""
+    u = urllib.parse.urlparse((raw or "").strip() or "http://127.0.0.1:8080")
+    if u.scheme != "http" or u.hostname not in _LOCAL_HOSTS:
+        sys.stderr.write(f"CLIPROLL_URL ignorée ({raw!r}) : seule une adresse locale est autorisée.\n")
+        return "http://127.0.0.1:8080"
+    host = f"[{u.hostname}]" if ":" in u.hostname else u.hostname
+    return f"http://{host}:{u.port or 8080}"
+
+
+CLIPROLL_URL = _local_url(os.environ.get("CLIPROLL_URL", ""))
 CLIPROLL_TOKEN = os.environ.get("CLIPROLL_TOKEN", "")
 
 
@@ -65,12 +79,15 @@ TOOLS = [
     },
     {
         "name": "cliproll_generate_week",
-        "description": "Demande à l'équipe d'agents ClipRoll de planifier et lancer 5 vidéos pour la semaine.",
+        "description": ("Propose 5 sujets de vidéos pour la semaine. Rien n'est fabriqué au premier appel : "
+                        "montre les sujets à l'utilisateur, puis rappelle l'outil avec confirmed=true et ces topics s'il est d'accord."),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "niche": {"type": "string", "description": "Niche ou thème des 5 vidéos (optionnel, déduit de la chaîne sinon)"},
                 "duration_sec": {"type": "integer", "default": 60},
+                "confirmed": {"type": "boolean", "description": "true seulement après accord explicite de l'utilisateur", "default": False},
+                "topics": {"type": "array", "items": {"type": "string"}, "description": "Sujets proposés au premier appel, à renvoyer tels quels"},
             },
         },
     },
@@ -99,11 +116,13 @@ TOOLS = [
     },
     {
         "name": "cliproll_agent_mission",
-        "description": "Envoie une mission libre à l'équipe d'agents IA ClipRoll (Orchestrateur, Stratège Rétention, Scénariste, Producteur, Vérificateur).",
+        "description": ("Envoie une mission libre à l'équipe d'agents IA ClipRoll. Une mission qui fabrique une vidéo "
+                        "renvoie d'abord needs_confirmation : rappelle avec confirmed=true seulement après accord de l'utilisateur."),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "message": {"type": "string", "description": "Mission en langage naturel"},
+                "confirmed": {"type": "boolean", "default": False},
             },
             "required": ["message"],
         },
@@ -126,7 +145,9 @@ def _call_tool(name: str, args: Dict[str, Any]) -> Any:
     if name == "cliproll_generate_week":
         niche = (args.get("niche") or "").strip()
         msg = f"Génère mes 5 vidéos pour la semaine sur {niche}" if niche else "Génère mes 5 vidéos pour la semaine"
-        return _http("POST", "/api/agent-team/run", {"message": msg, "duration_sec": int(args.get("duration_sec", 60))})
+        topics = args.get("topics") if isinstance(args.get("topics"), list) else None
+        return _http("POST", "/api/agent-team/run", {"message": msg, "duration_sec": int(args.get("duration_sec", 60)),
+                                                     "confirmed": args.get("confirmed") is True, "topics": topics})
     if name == "cliproll_channel_audit":
         return _http("POST", "/api/channel-stats/audit", {})
     if name == "cliproll_optimize_script":
@@ -138,7 +159,7 @@ def _call_tool(name: str, args: Dict[str, Any]) -> Any:
     if name == "cliproll_sync_stats":
         return _http("POST", "/api/channel-stats/sync", {})
     if name == "cliproll_agent_mission":
-        return _http("POST", "/api/agent-team/run", {"message": args.get("message", "")})
+        return _http("POST", "/api/agent-team/run", {"message": args.get("message", ""), "confirmed": args.get("confirmed") is True})
     return {"error": f"Outil inconnu : {name}"}
 
 

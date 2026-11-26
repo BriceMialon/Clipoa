@@ -140,6 +140,14 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
 - Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.
 
+## 26/11/2026 — Équipe d'agents IA, audit rétention, stats TikTok (travail Antigravity, PR #6)
+- `core/agent_team.py` + `/api/agent-team/*` : barre IA « Équipe IA ». Aucune fabrication sans confirmation : la mission renvoie `needs_confirmation` et un bouton qui renvoie `confirmed: true` (+ les sujets affichés pour la semaine). Aucun chemin ne publie ni ne supprime.
+- `core/retention_audit.py` : audit 12 Shorts, hooks 1.5s, optimisation de script, audit anti-swipe.
+- `core/channel_stats.py` : cache par compte actif, TikTok par l'API officielle ; repli yt-dlp sur profil public seulement en édition perso.
+- Édition public : `/api/agent-team/` et `/api/channel-stats/tiktok-handle` coupés, mode Équipe IA masqué.
+- S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
+- `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.
+
 ## 26/11/2026 : site public cliproll.app (page de vente)
 - `site_public/` refait à partir de la page Gemini : accueil, `/tarifs`, confidentialité et conditions (FR + EN), 404, sitemap, robots, image Open Graph. Abonnement seul 19 €/mois ou 149 €/an, essai 3 jours carte demandée, Claude + ElevenLabs uniquement, aucun concurrent nommé.
 - Worker `clipoa-license` : `GET /checkout?plan=` redirige vers Stripe Checkout (boutons du site sans JS ni CORS), variable `SITE_URL` pour le retour après abandon et la sortie du portail. Reste à remplir : lien du portail client Stripe, mentions éditeur/rétractation/médiateur, vraies vidéos d'exemple (voir `site_public/README.md`).

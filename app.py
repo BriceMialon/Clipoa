@@ -1971,6 +1971,8 @@ def api_agent_team_run():
             enqueue_week_fn=_enqueue_week,
             make_video_fn=_make_video,
             remake_video_fn=_remake_video,
+            confirmed=data.get("confirmed") is True,
+            topics=data.get("topics") if isinstance(data.get("topics"), list) else None,
         )
         return jsonify(out)
     except Exception as e:
