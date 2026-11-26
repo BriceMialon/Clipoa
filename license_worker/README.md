@@ -12,4 +12,4 @@ Mise en place (mode test Stripe) :
 7. Stripe → Portail client : activer résiliation et changement de carte.
 8. Anti-churn (portail, sans code) : Portail client → Résiliation → activer « Demander la raison » et « Offre de fidélisation » (coupon, ex. -50 % sur 1 mois). Mettre l'abonnement en pause n'est pas proposé par le portail : à ajouter dans le Worker si on le veut.
 
-Prix décidés (26/11/2026) : 9 €/mois et 59 €/an (annuel présélectionné), essai 3 jours carte demandée.
+Prix décidés (26/11/2026) : 19 €/mois et 149 €/an (annuel présélectionné), essai 3 jours carte demandée.

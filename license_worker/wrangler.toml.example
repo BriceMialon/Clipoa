@@ -12,8 +12,8 @@ database_id = "A_REMPLIR"
 MAX_DEVICES = "2"
 TRIAL_DAYS = "3"
 TOKEN_DAYS = "7"
-PRICE_MONTHLY = "price_A_REMPLIR"   # 9 €/mois (mode test d'abord)
-PRICE_YEARLY = "price_A_REMPLIR"    # 59 €/an, présélectionné sur le site
+PRICE_MONTHLY = "price_A_REMPLIR"   # 19 €/mois (mode test d'abord)
+PRICE_YEARLY = "price_A_REMPLIR"    # 149 €/an, présélectionné sur le site
 PUBLIC_URL = "https://clipoa-license.clipoa-studio.workers.dev"
 
 # Secrets (npx wrangler secret put NOM) :
