@@ -1,0 +1,149 @@
+"""Style « Dessin à compteur » : découpe en images, mise en scène IA nettoyée, dessin SVG valide, sous-titres toon."""
+import os
+import sys
+import tempfile
+import unittest
+import xml.etree.ElementTree as ET
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from core import toon_kit as K  # noqa: E402
+from core import toon_engine as T  # noqa: E402
+
+
+def _words(n=40, step=0.32):
+    return [{"word": f"mot{i}", "start": round(0.1 + i * step, 3), "end": round(0.1 + i * step + 0.25, 3)} for i in range(n)]
+
+
+class TestPanels(unittest.TestCase):
+    def test_panels_cover_duration_and_are_short(self):
+        ws = _words()
+        dur = ws[-1]["end"] + 0.4
+        panels = T.build_panels(ws, dur, [4.0, 8.0])
+        self.assertEqual(panels[0]["start"], 0.0)
+        self.assertAlmostEqual(panels[-1]["end"], dur, places=2)
+        for a, b in zip(panels, panels[1:]):
+            self.assertAlmostEqual(a["end"], b["start"], places=3)
+        lens = [p["end"] - p["start"] for p in panels]
+        self.assertTrue(all(0.4 <= l <= 1.6 for l in lens), lens)
+        self.assertTrue(any(abs(p["start"] - 4.0) < 0.4 for p in panels))
+
+    def test_long_silence_is_split(self):
+        ws = [{"word": "a", "start": 0.1, "end": 0.3}, {"word": "b", "start": 6.0, "end": 6.3}]
+        panels = T.build_panels(ws, 7.0)
+        self.assertTrue(all(p["end"] - p["start"] <= T.PANEL_MAX_S + 0.01 for p in panels))
+
+
+class TestSanitize(unittest.TestCase):
+    def test_garbage_returns_none(self):
+        self.assertIsNone(T.sanitize({}, 3))
+        self.assertIsNone(T.sanitize({"panels": "x"}, 3))
+
+    def test_unknown_values_are_dropped_and_count_matches(self):
+        raw = {
+            "header": {"title": "<script>alert(1)</script>Ici", "counter_label": "Score", "accent": "rouge"},
+            "cast": [{"id": "hero", "skin": "not-a-color", "hair_style": "mohawk", "cap": "#123456", "glasses": 1}],
+            "locations": [{"id": "x", "kind": "volcano"}],
+            "panels": [{"i": 0, "f": "zoom", "c": [{"id": "hero", "e": "evil", "p": "dab", "n": "12", "g": 5}], "k": "abc"},
+                       {"i": 1, "f": "close", "c": [{"id": "ghost"}]}],
+        }
+        spec = T.sanitize(raw, 4)
+        self.assertEqual(len(spec["panels"]), 4)
+        self.assertNotIn("<", spec["header"]["title"])
+        self.assertEqual(spec["header"]["accent"], K.PINK)
+        hero = spec["cast"]["hero"]
+        self.assertTrue(hero["skin"].startswith("#"))
+        self.assertEqual(hero["hair_style"], "short")
+        self.assertEqual(spec["locations"]["x"]["kind"], "park_day")
+        p0 = spec["panels"][0]
+        self.assertEqual(p0["frame"], "medium")
+        self.assertEqual(p0["chars"][0]["expr"], "neutral")
+        self.assertEqual(p0["chars"][0]["pose"], "idle")
+        self.assertEqual(p0["chars"][0]["counter"], "12")
+        self.assertLessEqual(p0["chars"][0]["ghost"], 0.8)
+        self.assertIsNone(p0["counter"])
+        # perso inconnu -> remplacé par le héros, jamais d'image vide
+        self.assertEqual(spec["panels"][1]["chars"][0]["id"], "hero")
+
+    def test_card_without_cards_falls_back(self):
+        spec = T.sanitize({"panels": [{"i": 0, "f": "card", "card": "nope"}]}, 1)
+        self.assertEqual(spec["panels"][0]["frame"], "close")
+
+    def test_heuristic_spec(self):
+        panels = T.build_panels(_words(20), 7.0)
+        spec = T.heuristic_spec({"title": "Mon titre"}, panels)
+        self.assertEqual(len(spec["panels"]), len(panels))
+        self.assertEqual(spec["header"]["title"], "Mon titre")
+
+    def test_prompt_lists_every_panel(self):
+        panels = T.build_panels(_words(20), 7.0)
+        prompt = T.build_prompt({"title": "t"}, panels)
+        self.assertIn(f"EXACTEMENT {len(panels)} entrées", prompt)
+
+
+class TestDrawing(unittest.TestCase):
+    cast = {"a": {"skin": "#F6D3B3", "cap": "#F4B63F", "glasses": True, "hair_style": "curly"},
+            "b": {"skin": "#8D5A3B", "cap": None, "hair_style": "long", "top_style": "vest"}}
+
+    def _valid(self, svg):
+        ET.fromstring(K.wrap_svg(svg))
+
+    def test_every_expression_pose_and_style_is_valid_svg(self):
+        for e in K.EXPRESSIONS:
+            for p in K.POSES:
+                self._valid(K.character(self.cast["a"], e, p, "10 min", ghost=0.5))
+        for hs in K.HAIR_STYLES:
+            for ts in K.TOP_STYLES:
+                self._valid(K.character({"hair_style": hs, "top_style": ts, "cap": None}))
+
+    def test_every_location_frame_and_prop(self):
+        for loc in K.LOCATIONS:
+            for fr in ("close", "medium", "wide"):
+                pnl = {"frame": fr, "crowd": 4, "_unit": "min",
+                       "chars": [{"id": "a", "expr": "laugh", "pose": "wave", "counter": "3", "say": "Oh <là>"},
+                                 {"id": "b", "expr": "sad", "pose": "idle"}]}
+                self._valid(K.panel_svg(pnl, self.cast, {"kind": loc, "label": "Dortoir & co"}))
+        for pr in K.PROPS:
+            self._valid(K.panel_svg({"frame": "object", "prop": pr, "prop_label": "Oui"}, self.cast, {"kind": "plain"}))
+        card = {"title": "Règlement", "items": [["Article 1", "Tout <le> monde"], ["Article 2", "x"]], "hi": 1, "sign": "Moi"}
+        self._valid(K.panel_svg({"frame": "card", "card": card}, self.cast, {}))
+
+    def test_header_escapes_text(self):
+        svg = K.header_svg({"title": "A <b> & C", "subtitle": "x", "counter_label": "Score", "counter_unit": "pts"}, 7)
+        self._valid(svg)
+        self.assertIn("SCORE : 7 PTS", svg)
+        self.assertNotIn("<b>", svg)
+
+
+class TestStyleAndCaptions(unittest.TestCase):
+    def test_starter_style_registered(self):
+        from core.style_plugins import STARTER_PLUGINS, STARTER_PRODUCTION, sanitize_production
+        self.assertIn("compteur_toon", [p["id"] for p in STARTER_PLUGINS])
+        prod = STARTER_PRODUCTION["compteur_toon"]
+        self.assertEqual(sanitize_production(prod)["visual_style"], "toon_svg")
+        self.assertTrue(os.path.exists(os.path.join(os.path.dirname(__file__), "..", "assets", "style_covers", "compteur_toon.jpg")))
+
+    def test_plan_uses_toon_look(self):
+        from core import production_method as pm
+        from core.style_plugins import STARTER_PRODUCTION
+        ws = _words(20)
+        plan = pm.build_plan({"title": "t", "full_spoken_script": "x"}, ws, 7.0, None, style_overrides=STARTER_PRODUCTION["compteur_toon"])
+        self.assertEqual(plan["captions"]["look"], "toon")
+        self.assertEqual(plan["grade"], "clean")
+
+    def test_toon_subtitles_have_no_hook_and_use_toon_style(self):
+        from core.video_composer import VideoComposer
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "s.ass")
+            VideoComposer.generate_ass_subtitles(_words(8), p, style_name="toon_pink", hook_text="ACCROCHE",
+                                                 notes=[{"text": "NOTE", "start": 0, "end": 1}], look="toon")
+            txt = open(p, encoding="utf-8").read()
+        self.assertNotIn("ACCROCHE", txt)
+        self.assertNotIn(",Note", txt)
+        self.assertIn(",Toon,,", txt)
+        self.assertIn("pos(540,1500)", txt)
+        self.assertIn("&H008C50F0", txt)
+
+
+if __name__ == "__main__":
+    unittest.main()
