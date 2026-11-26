@@ -29,7 +29,7 @@ main() {
   die() {
     printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
     progress_page '' "<h2>Installation de Clipoa</h2><p style=\"color:#c00\">✗ $(html_esc "$*")</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
-    exit 1
+    DIED=1; exit 1
   }
 
   if [ "${1:-}" = "--uninstall" ]; then
@@ -50,7 +50,15 @@ main() {
 
   mkdir -p "$H"/{versions,data/storage,data/runtime,data/venv_tts,data/logs,data/updates,tools,bin}
   TMP="$(mktemp -d)"
-  trap 'rm -rf "$TMP"' EXIT
+  # sortie en erreur hors de die() (ex. curl coupé sous set -e) : la page de progression affiche l'échec au lieu de tourner sans fin
+  on_exit() {
+    local rc=$?
+    rm -rf "$TMP"
+    if [ "$rc" -ne 0 ] && [ -z "${DIED:-}" ]; then
+      progress_page '' "<h2>Installation de Clipoa</h2><p style=\"color:#c00\">✗ L'installation s'est arrêtée (code $rc).</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
+    fi
+  }
+  trap on_exit EXIT
 
   # 1. uv : installe Python et les dépendances sans rien toucher au reste du Mac
   UV="$H/tools/uv/uv"
