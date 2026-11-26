@@ -61,13 +61,13 @@ jobs:
         shell: pwsh
         run: |
           $ver = if ("${{ inputs.version }}") { "${{ inputs.version }}" } else { "${{ github.ref_name }}".TrimStart("v").Split("-")[0] }
-          $argsList = @(
-            "-Version", $ver,
-            "-IdentityName", "${{ inputs.identity_name || 'BriceMialon.Clipoa' }}",
-            "-Publisher", "${{ inputs.publisher || 'CN=BriceMialon' }}"
-          )
-          if ("${{ inputs.self_sign }}" -eq "true") { $argsList += "-SelfSign" }
-          .\packaging\windows\build_msix.ps1 @argsList
+          $msixArgs = @{
+            Version      = $ver
+            IdentityName = "${{ inputs.identity_name || 'BriceMialon.Clipoa' }}"
+            Publisher    = "${{ inputs.publisher || 'CN=BriceMialon' }}"
+          }
+          if ("${{ inputs.self_sign }}" -eq "true") { $msixArgs.SelfSign = $true }
+          .\packaging\windows\build_msix.ps1 @msixArgs
 
       - name: Build Web Release (Cloudflare R2)
         if: ${{ inputs.build_target == 'web' || inputs.build_target == 'both' }}

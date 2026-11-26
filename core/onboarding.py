@@ -65,6 +65,9 @@ def apply_action(action: str, path: Optional[Path] = None) -> Dict[str, Any]:
     return save_state(state, path)
 
 
+INSTALLABLE_TOOLS = ("blender", "ffmpeg", "whisper")
+
+
 def _tools_step(tools_status: Dict[str, Any]) -> Dict[str, Any]:
     tools = (tools_status or {}).get("tools") or {}
     items: List[Dict[str, Any]] = []
@@ -77,7 +80,10 @@ def _tools_step(tools_status: Dict[str, Any]) -> Dict[str, Any]:
             "label": label,
             "ok": bool(t.get("ok")),
             "installing": bool(t.get("installing")),
-            "can_install": key == "blender" and bool(t.get("auto")) and not t.get("ok"),
+            "progress": int(t.get("progress") or 0),
+            "error": str(t.get("error") or ""),
+            "source": str(t.get("source") or ""),
+            "can_install": key in INSTALLABLE_TOOLS and bool(t.get("auto")) and not t.get("ok"),
         })
     return {"id": "tools", "done": all(i["ok"] for i in items), "items": items}
 

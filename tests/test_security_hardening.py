@@ -197,6 +197,7 @@ class TestSecurityHardening(unittest.TestCase):
         finally:
             clipoa_app._LAN_ACCESS_TOKEN = orig_token
 
+    @unittest.skipIf(os.name == "nt", "droits Unix 600 : sans objet sous Windows")
     def test_harden_sensitive_files_permissions(self):
         with tempfile.TemporaryDirectory() as tmp:
             sdir = Path(tmp)

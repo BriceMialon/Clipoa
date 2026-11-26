@@ -136,20 +136,36 @@
   }
 
   function drawTools() {
-    var s = step("tools"), lines = "", installing = false;
+    var s = step("tools"), lines = "", installing = false, missingInstallable = 0;
     (s.items || []).forEach(function (t) {
       installing = installing || t.installing;
-      var extra = t.can_install && !t.installing ? '<button type="button" class="btn btn-ghost btn-xs ob-install" data-tool="' + esc(t.id) + '">Installer</button>'
-        : (t.installing ? '<span class="ob-muted">installation…</span>' : "");
+      if (t.can_install && !t.installing) missingInstallable++;
+      var pct = t.progress > 0 && t.progress < 100 ? " " + t.progress + "%" : "";
+      var extra = t.can_install && !t.installing
+        ? '<button type="button" class="btn btn-ghost btn-xs ob-install" data-tool="' + esc(t.id) + '">Installer</button>'
+        : (t.installing ? '<span class="ob-muted">installation…' + pct + '</span>'
+          : (t.error ? '<span class="ob-muted" title="' + esc(t.error) + '">erreur</span>' : ""));
       lines += okLine(t.label, t.ok, extra);
     });
-    frame("Les outils", (s.done ? "<p>Tout est installé.</p>" : "<p>Clipoa vérifie ce qu'il faut pour fabriquer tes vidéos.</p>") + lines,
-      s.done ? "Suivant" : null, s.done ? null : "Continuer quand même");
-    if (s.done) $("ob-pri").onclick = next;
+    var note = missingInstallable > 0
+      ? '<p class="ob-muted" style="margin-top:8px">Téléchargés une seule fois depuis leurs sources officielles (blender.org, FFmpeg, Hugging Face) et vérifiés par empreinte SHA-256.</p>'
+      : "";
+    var primary = s.done ? "Suivant" : (missingInstallable > 1 ? "Tout installer" : null);
+    frame("Les outils", (s.done ? "<p>Tout est installé.</p>" : "<p>Clipoa vérifie ce qu'il faut pour fabriquer tes vidéos.</p>") + lines + note,
+      primary, s.done ? null : "Continuer quand même");
+    if (s.done) {
+      $("ob-pri").onclick = next;
+    } else if (missingInstallable > 1) {
+      $("ob-pri").onclick = function () {
+        $("ob-pri").disabled = true;
+        fetch("/api/tools/all/install", { method: "POST" }).then(function () { return api("GET"); }).then(drawTools);
+      };
+    }
     Array.prototype.forEach.call(bg.querySelectorAll(".ob-install"), function (b) {
       b.onclick = function () {
         b.disabled = true;
-        fetch("/api/tools/blender/install", { method: "POST" }).then(function () { return api("GET"); }).then(drawTools);
+        var tool = encodeURIComponent(b.dataset.tool || "blender");
+        fetch("/api/tools/" + tool + "/install", { method: "POST" }).then(function () { return api("GET"); }).then(drawTools);
       };
     });
     if (!s.done) toolsTimer = setTimeout(function () { api("GET").then(function () { if (screen === "tools" && bg.classList.contains("open")) drawTools(); }); }, installing ? 4000 : 8000);

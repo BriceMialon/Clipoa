@@ -1750,6 +1750,15 @@ def api_tools_blender_install():
     return jsonify({"started": started, **tools_setup.status()})
 
 
+@app.route("/api/tools/<tool>/install", methods=["POST"])
+def api_tools_generic_install(tool):
+    from core import tools_setup
+    if tool not in ("blender", "ffmpeg", "whisper", "all"):
+        return jsonify({"error": "Outil inconnu."}), 400
+    started = tools_setup.start_tool_install(tool)
+    return jsonify({"started": started, **tools_setup.status()})
+
+
 # ---------- Assistant de premier lancement + « prochaine chose à faire » (core/onboarding.py) ----------
 
 def _onboarding_payload():
