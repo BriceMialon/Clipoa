@@ -1569,6 +1569,35 @@ class FreeSocialPublisher:
         return {"ok": True, "publish_id": publish_id, "privacy": used_privacy, "message": note}
 
     @classmethod
+    def tiktok_publish_status(cls, publish_id: str, account_key: str = "") -> Dict[str, Any]:
+        """Interroge TikTok sur l'état réel d'un envoi (publication directe ou brouillon)."""
+        cfg = cls.get_account_config("tiktok", account_key)
+        if not cfg.get("access_token"):
+            return {"ok": False, "message": "TikTok non connecté."}
+        token = cls._ensure_tiktok_token(cfg)
+        res = requests.post(
+            "https://open.tiktokapis.com/v2/post/publish/status/fetch/",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"},
+            json={"publish_id": publish_id},
+            timeout=15,
+        )
+        try:
+            body = res.json()
+        except Exception:
+            body = {"raw": res.text[:300]}
+        data = body.get("data") or {}
+        err = body.get("error") or {}
+        return {
+            "ok": res.status_code == 200 and (err.get("code") in (None, "", "ok")),
+            "http": res.status_code,
+            "status": data.get("status"),
+            "fail_reason": data.get("fail_reason"),
+            "uploaded_bytes": data.get("uploaded_bytes"),
+            "error_code": err.get("code"),
+            "error_message": err.get("message"),
+        }
+
+    @classmethod
     def _publish_instagram(
         cls,
         cfg: Dict[str, Any],

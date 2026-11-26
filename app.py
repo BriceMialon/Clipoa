@@ -1507,6 +1507,16 @@ def api_thumb_proxy():
         return "Error", 502
 
 
+@app.route("/api/social/tiktok/status/<path:publish_id>", methods=["GET"])
+def api_social_tiktok_status(publish_id):
+    if len(publish_id) > 200:
+        return jsonify({"error": "ID invalide"}), 400
+    try:
+        return jsonify(FreeSocialPublisher.tiktok_publish_status(publish_id, request.args.get("account", "")))
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+
+
 @app.route("/api/social/queue", methods=["GET"])
 def api_social_queue():
     return jsonify({"queue": FreeSocialPublisher.load_queue()})
