@@ -34,6 +34,32 @@ class ClaudeBridge:
     _login_state: Dict[str, Any] = {"running": False, "url": "", "output": "", "done": False}
 
     @classmethod
+    def _api_mode(cls) -> bool:
+        """Clé API de l'utilisateur prioritaire si elle est choisie (ou en version publique), ou si le CLI manque."""
+        from core import anthropic_api
+        if not anthropic_api.has_api_key():
+            return False
+        try:
+            from core.edition import is_public
+            if is_public():
+                return True
+        except Exception:
+            pass
+        if load_settings().get("claude", {}).get("auth_mode") == "api":
+            return True
+        return not (USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH))
+
+    @classmethod
+    def _api_query(cls, prompt: str, system_prompt: Optional[str], action: str, model: Optional[str]) -> str:
+        from core import anthropic_api
+        alias = model or load_settings().get("claude", {}).get("model") or "sonnet"
+        text, usage = anthropic_api.complete(prompt, system_prompt, alias)
+        cls._last_mode = "anthropic_api"
+        record_claude_usage(len(prompt) + len(system_prompt or ""), len(text), mode="anthropic_api", action=action,
+                            canonical_model=anthropic_api.model_id(alias), **usage)
+        return text
+
+    @classmethod
     def check_status(cls, live_probe: bool = False) -> Dict[str, Any]:
         cli_exists = os.path.exists(CLAUDE_CLI_PATH)
         cli_version = ""
@@ -80,8 +106,12 @@ class ClaudeBridge:
                     else "Claude Code non connecté — clique sur « Connecter un compte Claude »"
                 )
 
-        has_api_key = bool(ANTHROPIC_API_KEY)
-        if USE_CLAUDE_CLI and cli_exists and cli_authenticated:
+        from core import anthropic_api as _aapi
+        has_api_key = _aapi.has_api_key()
+        if has_api_key and cls._api_mode():
+            mode = "anthropic_api"
+            message = "Connecté via ta clé API Anthropic"
+        elif USE_CLAUDE_CLI and cli_exists and cli_authenticated:
             mode = "claude_cli"
         elif has_api_key:
             mode = "anthropic_api"
@@ -197,6 +227,10 @@ class ClaudeBridge:
     ) -> str:
         total_in = len(prompt) + len(system_prompt or "")
 
+        # 0. Clé API de l'utilisateur, quand c'est le mode choisi
+        if cls._api_mode():
+            return cls._api_query(prompt, system_prompt, action, model)
+
         # 1. Try Claude CLI first if enabled
         if USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH):
             try:
@@ -282,32 +316,11 @@ class ClaudeBridge:
             except Exception as e:
                 logger.warning(f"Claude CLI execution failed: {e}")
 
-        # 2. Try Anthropic API if key provided
-        if ANTHROPIC_API_KEY:
+        # 2. Repli : clé API de l'utilisateur (ou ANTHROPIC_API_KEY)
+        from core import anthropic_api as _aapi
+        if _aapi.has_api_key():
             try:
-                import requests
-                headers = {
-                    "x-api-key": ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                }
-                payload: Dict[str, Any] = {
-                    "model": os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5-5"),
-                    "max_tokens": 16000,
-                    "messages": [{"role": "user", "content": prompt}],
-                }
-                if system_prompt:
-                    payload["system"] = system_prompt
-
-                res = requests.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=300)
-                if res.status_code == 200:
-                    data = res.json()
-                    content = "".join([b.get("text", "") for b in data.get("content", [])])
-                    cls._last_mode = "anthropic_api"
-                    record_claude_usage(total_in, len(content), mode="anthropic_api", action=action)
-                    return content
-                else:
-                    logger.error(f"Anthropic API error: {res.status_code} {res.text}")
+                return cls._api_query(prompt, system_prompt, action, model)
             except Exception as e:
                 logger.error(f"Anthropic API request failed: {e}")
 
@@ -331,6 +344,13 @@ class ClaudeBridge:
         """
         import shutil
         import uuid as _uuid
+        if cls._api_mode():
+            from core import anthropic_api
+            alias = model or load_settings().get("claude", {}).get("model") or "sonnet"
+            text, usage = anthropic_api.complete_with_images(prompt, [str(p) for p in image_paths], alias, timeout=timeout)
+            record_claude_usage(len(prompt), len(text), mode="anthropic_api", action=action,
+                                canonical_model=anthropic_api.model_id(alias), **usage)
+            return text
         if not (USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH)):
             raise RuntimeError("Claude CLI indisponible pour l'analyse d'images.")
         c_cfg = load_settings().get("claude", {})
@@ -402,6 +422,17 @@ class ClaudeBridge:
         Streame la réponse de Claude CLI en direct (`text_delta`) pour une latence quasi-instantanée
         identique à l'app native.
         """
+        if cls._api_mode():
+            from core import anthropic_api
+            alias = model or load_settings().get("claude", {}).get("model") or "sonnet"
+            usage: Dict[str, int] = {}
+            parts = []
+            for chunk in anthropic_api.stream(prompt, system_prompt, alias, usage_out=usage):
+                parts.append(chunk)
+                yield chunk
+            record_claude_usage(len(prompt) + len(system_prompt or ""), len("".join(parts)), mode="anthropic_api",
+                                action=action, canonical_model=anthropic_api.model_id(alias), **usage)
+            return
         if not (USE_CLAUDE_CLI and os.path.exists(CLAUDE_CLI_PATH)):
             yield cls.query(prompt, system_prompt=system_prompt, action=action, model=model)
             return

@@ -1236,6 +1236,17 @@
                   </select>
                 </div>
                 <div id="claude-login-box" style="display:none; font-size:11.5px; color:var(--accent); margin-top:6px;"></div>
+                <!-- Clé API Anthropic de l'utilisateur (voie officielle pour une app tierce) -->
+                <div id="claude-apikey-row" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:8px; font-size:11.5px;">
+                  {% if claude_status.has_api_key %}
+                    <span style="color:var(--ok); font-weight:700;">Clé API enregistrée</span>
+                    <button type="button" class="btn btn-ghost btn-xs" onclick="removeClaudeApiKey()">Retirer la clé</button>
+                  {% else %}
+                    <input type="password" id="claude-apikey-input" class="input-sm" style="flex:1; min-width:180px;" placeholder="Ou colle ta clé API Anthropic (sk-ant-…)" autocomplete="off">
+                    <button type="button" class="btn btn-primary btn-xs" onclick="saveClaudeApiKey()">Tester et enregistrer</button>
+                    <a class="btn btn-ghost btn-xs" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Créer une clé ↗</a>
+                  {% endif %}
+                </div>
               </div>
             </div>
 
@@ -1975,6 +1986,22 @@
 
     const val = id => (document.getElementById(id)?.value || '').trim();
     const escHtml = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+
+    async function saveClaudeApiKey() {
+      const inp = document.getElementById('claude-apikey-input');
+      const key = (inp && inp.value || '').trim();
+      if (!key) return toast('Colle ta clé API Anthropic.');
+      toast('Test de la clé…');
+      const d = await apiJson('/api/claude/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key }) });
+      if (d.error) return toast('❌ ' + d.error);
+      toast('✓ Clé API Anthropic enregistrée');
+      location.reload();
+    }
+    async function removeClaudeApiKey() {
+      const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
+      if (d.error) return toast('❌ ' + d.error);
+      location.reload();
+    }
 
     async function apiJson(url, opts = {}) {
       try {

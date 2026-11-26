@@ -836,6 +836,24 @@ def api_claude_login():
     return jsonify(ClaudeBridge.start_login_cli())
 
 
+@app.route("/api/claude/api-key", methods=["POST", "DELETE"])
+def api_claude_api_key():
+    """Clé API Anthropic de l'utilisateur : testée (sans consommer de tokens) puis rangée chiffrée."""
+    from core import anthropic_api
+    if request.method == "DELETE":
+        save_settings({"anthropic_api_key": "", "claude": {"auth_mode": "cli"}})
+        return jsonify({"ok": True, "status": ClaudeBridge.check_status(live_probe=False)})
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("key") or "").strip()
+    if len(key) > 300:
+        return jsonify({"error": "Clé trop longue."}), 400
+    res = anthropic_api.test_key(key)
+    if not res.get("ok"):
+        return jsonify({"error": res.get("error") or "Clé refusée."}), 400
+    save_settings({"anthropic_api_key": key, "claude": {"auth_mode": "api"}})
+    return jsonify({"ok": True, "status": ClaudeBridge.check_status(live_probe=False)})
+
+
 @app.route("/api/claude/reset-quota", methods=["POST"])
 def api_claude_reset_quota():
     reset_claude_quota_counter()
