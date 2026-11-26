@@ -153,10 +153,10 @@ for name, (w, h) in sizes.items():
 "@
 
     $manifest = Get-Content -Raw -Encoding UTF8 (Join-Path $Root "packaging\windows\AppxManifest.xml")
-    $manifest = $manifest.Replace("{{IDENTITY_NAME}}", $IdentityName) `
-                         .Replace("{{PUBLISHER}}", $Publisher) `
-                         .Replace("{{PUBLISHER_DISPLAY_NAME}}", $PublisherDisplayName) `
-                         .Replace("{{VERSION}}", $MsixVersion)
+    $manifest = $manifest.Replace("{{IDENTITY_NAME}}", $IdentityName)
+    $manifest = $manifest.Replace("{{PUBLISHER_DISPLAY_NAME}}", $PublisherDisplayName)
+    $manifest = $manifest.Replace("{{PUBLISHER}}", $Publisher)
+    $manifest = $manifest.Replace("{{VERSION}}", $MsixVersion)
     Set-Content -Encoding UTF8 -Path (Join-Path $DistDir "AppxManifest.xml") -Value $manifest
 
     # Recherche de makeappx.exe dans le Windows SDK
