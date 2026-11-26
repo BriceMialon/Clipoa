@@ -125,7 +125,7 @@
     else if (screen === "video") drawVideo();
     else if (screen === "social") drawSocial();
     else {
-      frame("C'est prêt 🎉", "<p>L'accueil te dira toujours quoi faire ensuite.</p>", "Aller à l'accueil", "Fermer");
+      frame("C'est prêt", "<p>L'accueil te dira toujours quoi faire ensuite.</p>", "Aller à l'accueil", "Fermer");
       $("ob-pri").onclick = finish;
     }
   }
@@ -198,11 +198,11 @@
       .then(function (r) { return r.json(); })
       .then(function (d) {
         keyBusy = false;
-        if (d.error) return say("❌ " + d.error);
+        if (d.error) return say(d.error);
         keyFlow = false; say("✓ Claude est connecté");
         return api("GET").then(function () { if (screen === "claude") next(); });
       })
-      .catch(function () { keyBusy = false; say("❌ ClipRoll ne répond pas."); });
+      .catch(function () { keyBusy = false; say("ClipRoll ne répond pas."); });
   }
 
   window.addEventListener("focus", function () {
