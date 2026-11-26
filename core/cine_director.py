@@ -2,7 +2,7 @@
 Réalisateur « Roblox 3D Ciné » (qualité Docteur Shark / série d'horreur) pour n'importe quelle histoire.
 
 1. La narration (mots Whisper) devient timeline.json au format du moteur.
-2. L'IA choisie (Claude ou Antigravity) écrit les plans en code (shots.js) avec l'API du moteur : décors, acteurs,
+2. Claude écrit les plans en code (shots.js) avec l'API du moteur : décors, acteurs,
    expressions, caméras, éclairages, effets.
 3. Clipoa ouvre la scène, prend une image par plan et détecte les défauts (erreur JS, caméra dans un objet, tête coupée,
    personnages qui se traversent, image noire). L'IA corrige (2 tours max).
@@ -158,9 +158,6 @@ def _extract_js(raw: str) -> str:
 
 
 def _ask(prompt: str, engine: str, model: Optional[str]) -> str:
-    if engine == "antigravity":
-        from core.antigravity_bridge import AntigravityBridge
-        return AntigravityBridge.query(prompt, model=model, timeout=600)
     from core.claude_bridge import ClaudeBridge
     return ClaudeBridge.query(prompt, action="cine_shots")
 
@@ -184,7 +181,7 @@ def direct(session_id: str, script: Dict[str, Any], words: List[Dict[str, Any]],
     timeline = build_timeline(words, duration)
     (ep_dir / "audio" / "timeline.json").write_text(json.dumps(timeline, ensure_ascii=False, indent=1), encoding="utf-8")
     example = (ENGINE_DIR / "exemple_plans.js").read_text(encoding="utf-8") if (ENGINE_DIR / "exemple_plans.js").exists() else ""
-    eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
+    eng_lbl = "Claude"
 
     shots_js = ep_dir / "shots.js"
     if not shots_js.exists():

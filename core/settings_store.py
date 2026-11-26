@@ -54,9 +54,6 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "credit_budget_usd": 10.0,
         "credit_reset_ts": 0.0,
     },
-    "antigravity": {
-        "model": "",
-    },
     "elevenlabs": {
         "api_key": "",
         "enabled": True,

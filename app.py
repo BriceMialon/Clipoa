@@ -62,7 +62,6 @@ from core.style_plugins import (
     SHEET_ROLES,
 )
 from core.gemini_studio import GeminiStudio, GEMINI_MODELS
-from core.antigravity_bridge import AntigravityBridge
 from core.script_template import (
     build_script_generation_prompt,
     build_script_refinement_prompt,
@@ -144,9 +143,6 @@ _HEAVY_API_PATHS = frozenset({
     "/api/scan",
 })
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
-
-
-_AGY_OFF_STATUS = {"connected": False, "models": [], "quota": {"remaining_pct": 0, "exhausted": False}}
 
 
 def _is_safe_id(val: str) -> bool:
@@ -727,7 +723,6 @@ def index():
         claude_status=claude_status,
         claude_plans=CLAUDE_PLAN_BUDGETS,
         gemini_status=GeminiStudio.get_status(),
-        agy_status=(AntigravityBridge.check_status(live_probe=False) if not _edition.is_public() else _AGY_OFF_STATUS),
         el_status=el_status,
         drive_status=drive_status,
         social_accounts=social_accounts,
@@ -1202,16 +1197,12 @@ def api_plugin_upload_script(plugin_id):
 
 
 def _normalize_engine_params(params: dict) -> dict:
-    """
-    Anciennes pages (et tâches enregistrées avant le correctif) envoyaient « Claude » sous la forme
-    engine=antigravity + engine_model=claude-… : c'était exécuté par Antigravity et vidait son quota.
-    Sans choix explicite d'Antigravity par l'utilisateur (`engine_choice`), on repasse sur le Claude CLI.
-    """
+    """Seul Claude écrit les scripts : toute ancienne tâche enregistrée avec un autre moteur repasse sur Claude."""
     p = _edition.restrict_engine_params(dict(params or {}))
-    model = str(p.get("engine_model") or "").lower()
-    if p.get("engine") == "antigravity" and model.startswith("claude") and p.get("engine_choice") != "antigravity":
+    if str(p.get("engine") or "claude").lower() not in ("claude", "gemini"):
         p["engine"] = "claude"
         p["engine_model"] = None
+        p.pop("engine_choice", None)
     return p
 
 
@@ -2294,7 +2285,7 @@ def api_make():
         job_label = f"⚡ Short : {display_text}"
 
     is_3d_job = bool(use_blender_3d or (plugin and (plugin.get("render_mode") == "blender3d" or (plugin.get("production") or {}).get("visual_style"))))
-    eng_norm = engine if engine in ("claude", "antigravity") else "claude"
+    eng_norm = "claude"
     est_total_sec = estimate_job_seconds(eng_norm, "blender3d" if is_3d_job else "motion", target_duration_sec)
     params = {
         "topic": topic,
@@ -2347,7 +2338,7 @@ def api_make_like():
             custom_title = custom_title or extract_title_from_template(custom_script, fallback=topic or "Mon Short")
             custom_script = spoken
     engine = (data.get("engine") or "claude").strip().lower()
-    engine = engine if engine in ("claude", "antigravity") else "claude"
+    engine = "claude"
     try:
         target_duration_sec = max(15, min(180, int(data.get("target_duration_sec") or 60)))
     except (TypeError, ValueError):
@@ -2391,7 +2382,7 @@ def api_plugin_from_reference():
     except ValueError as ve:
         return jsonify({"error": str(ve)}), 400
     engine = (data.get("engine") or "claude").strip().lower()
-    params = {"url": url, "engine": engine if engine in ("claude", "antigravity") else "claude",
+    params = {"url": url, "engine": "claude",
               "engine_choice": engine, "engine_model": (data.get("engine_model") or "").strip() or None}
     job_id = _create_job("style_only", "🎨 Nouveau style depuis une vidéo", params=params)
     _launch_pipeline_job(job_id)
@@ -2556,7 +2547,7 @@ def api_fabrique_generate_script():
     """
     Étape 1 de la Fabrique : génère un script complet au format Template (6 sections :
     Fiche projet, Personnages, Le script plan par plan, Musiques à créer, Effets sonores)
-    avec Claude Opus 5.5 (Medium) ou Antigravity Gemini 4 Neon (Medium).
+    avec Claude.
     """
     data = request.json or {}
     topic = (data.get("topic") or "").strip()
@@ -2582,17 +2573,9 @@ def api_fabrique_generate_script():
 
     t0 = time.time()
     try:
-        agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-        use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
-        if use_agy:
-            chosen_model = model or "gemini-4-neon-medium"
-            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300)
-            engine_label = chosen_model
-            record_actual_timing("antigravity", "script", time.time() - t0, target_dur)
-        else:
-            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model))
-            engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
-            record_actual_timing("claude", "script", time.time() - t0, target_dur)
+        raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model))
+        engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+        record_actual_timing("claude", "script", time.time() - t0, target_dur)
 
         template_md = (raw or "").strip()
         title = extract_title_from_template(template_md, fallback=topic[:60])
@@ -2607,7 +2590,7 @@ def api_fabrique_generate_script():
             "engine_label": engine_label,
         })
     except ClaudeQuotaExceededError as qe:
-        return jsonify({"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"}), 429
+        return jsonify({"error": f"Quota Claude atteint ({qe}). Réessaie quand ton quota est revenu."}), 429
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -2660,27 +2643,15 @@ def api_fabrique_generate_script_stream():
         yield _sse("progress", {"pct": 6, "stage": "Connexion au modèle IA…"})
         t0 = time.time()
         try:
-            agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-            use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
             acc = []
-            if use_agy:
-                chosen_model = model or "gemini-4-neon-medium"
-                engine_label = chosen_model
-                for delta in AntigravityBridge.stream_query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=300):
-                    acc.append(delta)
-                    full_so_far = "".join(acc)
-                    pct, stage = _compute_progress(full_so_far)
-                    yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
-                record_actual_timing("antigravity", "script", time.time() - t0, target_dur)
-            else:
-                engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
-                yield _sse("progress", {"pct": 12, "stage": f"{engine_label} rédige en direct…"})
-                for delta in ClaudeBridge.stream_query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model), timeout=300):
-                    acc.append(delta)
-                    full_so_far = "".join(acc)
-                    pct, stage = _compute_progress(full_so_far)
-                    yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
-                record_actual_timing("claude", "script", time.time() - t0, target_dur)
+            engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+            yield _sse("progress", {"pct": 12, "stage": f"{engine_label} rédige en direct…"})
+            for delta in ClaudeBridge.stream_query(user_prompt, system_prompt=sys_prompt, action="script_template", model=_claude_family(model), timeout=300):
+                acc.append(delta)
+                full_so_far = "".join(acc)
+                pct, stage = _compute_progress(full_so_far)
+                yield _sse("chunk", {"delta": delta, "pct": pct, "stage": stage})
+            record_actual_timing("claude", "script", time.time() - t0, target_dur)
 
             template_md = "".join(acc).strip()
             title = extract_title_from_template(template_md, fallback=topic[:60])
@@ -2696,7 +2667,7 @@ def api_fabrique_generate_script_stream():
                 "engine_label": engine_label,
             })
         except ClaudeQuotaExceededError as qe:
-            yield _sse("error", {"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"})
+            yield _sse("error", {"error": f"Quota Claude atteint ({qe}). Réessaie quand ton quota est revenu."})
         except Exception as e:
             yield _sse("error", {"error": str(e)})
 
@@ -2735,15 +2706,8 @@ def api_fabrique_refine_script():
     )
 
     try:
-        agy_connected = bool(AntigravityBridge.check_status().get("connected"))
-        use_agy = (engine == "antigravity")  # « Claude » choisi = toujours le Claude CLI (jamais le quota Antigravity)
-        if use_agy:
-            chosen_model = model or "gemini-4-neon-medium"
-            raw = AntigravityBridge.query(user_prompt, system_prompt=sys_prompt, model=chosen_model, timeout=180)
-            engine_label = chosen_model
-        else:
-            raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template_refine", model=_claude_family(model))
-            engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
+        raw = ClaudeBridge.query(user_prompt, system_prompt=sys_prompt, action="script_template_refine", model=_claude_family(model))
+        engine_label = f"Claude {ClaudeBridge.check_status().get('model', 'opus').capitalize()}"
 
         template_md = (raw or "").strip()
         title = extract_title_from_template(template_md, fallback="Mon Short")
@@ -2757,55 +2721,9 @@ def api_fabrique_refine_script():
             "engine_label": engine_label,
         })
     except ClaudeQuotaExceededError as qe:
-        return jsonify({"error": f"Quota Claude atteint ({qe}). Bascule sur Antigravity Neon !"}), 429
+        return jsonify({"error": f"Quota Claude atteint ({qe}). Réessaie quand ton quota est revenu."}), 429
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/antigravity/status", methods=["GET"])
-def api_antigravity_status():
-    probe = request.args.get("probe", "0") in ("1", "true", "yes")
-    return jsonify(AntigravityBridge.check_status(live_probe=probe))
-
-
-@app.route("/api/antigravity/quota", methods=["POST"])
-def api_antigravity_quota():
-    """Calibrage : l'utilisateur recopie les % RESTANTS affichés dans l'app Antigravity."""
-    data = request.json or {}
-
-    def _num(key):
-        val = data.get(key)
-        if val is None or str(val).strip() == "":
-            return None
-        try:
-            return float(str(val).replace("%", "").replace(",", ".").strip())
-        except ValueError:
-            return None
-
-    rem_5h = _num("rem_5h")
-    rem_7d = _num("rem_7d")
-    if rem_5h is None and rem_7d is None:
-        return jsonify({"error": "Indique au moins un pourcentage restant (5h ou hebdo)."}), 400
-    return jsonify({"ok": True, "quota": AntigravityBridge.set_manual_quota(rem_5h, rem_7d)})
-
-
-@app.route("/api/antigravity/login", methods=["POST"])
-def api_antigravity_login():
-    return jsonify(AntigravityBridge.start_cli_login())
-
-
-@app.route("/api/antigravity/switch", methods=["POST"])
-def api_antigravity_switch():
-    return jsonify(AntigravityBridge.switch_account())
-
-
-@app.route("/api/antigravity/model", methods=["POST"])
-def api_antigravity_model():
-    data = request.json or {}
-    mid = (data.get("model") or "").strip()
-    if not mid:
-        return jsonify({"error": "Modèle manquant"}), 400
-    return jsonify(AntigravityBridge.set_model(mid))
 
 
 @app.route("/api/timings", methods=["GET"])
@@ -2846,7 +2764,7 @@ def api_delete_script_template(tid):
 def api_assistant_help():
     """
     Assistant d'aide IA intégré à la barre des tâches Clipoa.
-    Utilise le modèle Claude, Antigravity ou Gemini choisi par l'utilisateur s'il est connecté.
+    Utilise le modèle Claude ou Gemini choisi par l'utilisateur s'il est connecté.
     """
     data = request.json or {}
     message = (data.get("message") or "").strip()
@@ -2862,19 +2780,15 @@ def api_assistant_help():
 
     claude_st = ClaudeBridge.check_status()
     gemini_st = GeminiStudio.get_status()
-    agy_st = AntigravityBridge.check_status()
     claude_ok = bool(claude_st.get("connected"))
     gemini_ok = bool(gemini_st.get("connected"))
-    agy_ok = bool(agy_st.get("connected"))
-    conn_map = {"claude": claude_ok, "gemini": gemini_ok, "antigravity": agy_ok}
+    conn_map = {"claude": claude_ok, "gemini": gemini_ok}
 
     # Sélection du fournisseur
-    chosen_provider = provider_req
+    chosen_provider = provider_req if provider_req in ("claude", "gemini") else "auto"
     if chosen_provider == "auto":
         if claude_ok:
             chosen_provider = "claude"
-        elif agy_ok:
-            chosen_provider = "antigravity"
         elif gemini_ok:
             chosen_provider = "gemini"
         else:
@@ -2885,28 +2799,21 @@ def api_assistant_help():
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude." + (" Tu peux aussi choisir « Gemini Neon Medium » dans la barre." if agy_ok else ""),
-        }), 200
-    if chosen_provider == "antigravity" and not agy_ok:
-        return jsonify({
-            "ok": False,
-            "needs_connection": True,
-            "connected_providers": conn_map,
-            "reply": "Antigravity CLI n'est pas encore connecté. Clique sur « Connexions » → « Connecter Antigravity » pour te connecter une seule fois.",
+            "reply": "Ton compte Claude n'est pas encore connecté. Clique sur « Connexions » pour brancher Claude.",
         }), 200
     if chosen_provider == "gemini" and not gemini_ok:
         return jsonify({
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Ta clé Gemini n'est pas encore branchée. Clique sur « Connexions » pour coller ta clé gratuite Google AI Studio (ou choisis Claude / Antigravity).",
+            "reply": "Ta clé Gemini n'est pas encore branchée. Clique sur « Connexions » pour coller ta clé gratuite Google AI Studio (ou choisis Claude).",
         }), 200
     if chosen_provider == "none":
         return jsonify({
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Connecte Claude, Antigravity ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
+            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
         }), 200
 
     plugins = StylePluginStore.list_plugins(include_script_body=False)
@@ -2932,7 +2839,7 @@ def api_assistant_help():
         "- Mes vidéos : regarder, valider, retoucher, télécharger.\n"
         "- Publier : programmer et publier sur YouTube, TikTok, Instagram, Facebook.\n"
         "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec Clipoa ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
-        "- Connexions : brancher Claude, Antigravity, ElevenLabs et ses réseaux sociaux.\n"
+        "- Connexions : brancher Claude, ElevenLabs et ses réseaux sociaux.\n"
         "Les utilisateurs ne peuvent pas créer de nouveaux styles."
     )
 
@@ -2955,11 +2862,6 @@ def api_assistant_help():
             reply = ClaudeBridge.query(user_prompt, system_prompt=system_prompt, action="help_assistant", model=c_model)
             label = "Claude Opus 5.5" if c_model == "opus" else f"Claude {c_model.capitalize()}"
             used_model = c_model
-        elif chosen_provider == "antigravity":
-            a_model = model_req or agy_st.get("model") or ""
-            reply = AntigravityBridge.query(user_prompt, system_prompt=system_prompt, model=a_model or None, timeout=90)
-            label = "Gemini Neon Medium" if (a_model or "").startswith("gemini-4-neon") else (f"Antigravity ({a_model})" if a_model else "Antigravity")
-            used_model = a_model
         else:
             g_model = model_req or gemini_st.get("model") or "gemini-3-flash-preview"
             reply = GeminiStudio.chat_text(user_prompt, system_prompt=system_prompt, model=g_model)
@@ -2977,7 +2879,7 @@ def api_assistant_help():
     except ClaudeQuotaExceededError as qe:
         return jsonify({
             "ok": False,
-            "error": f"Quota Claude atteint ({qe})." + (" Choisis « Gemini Neon Medium » dans la barre pour continuer." if agy_ok else " Réessaie un peu plus tard."),
+            "error": f"Quota Claude atteint ({qe}). Réessaie un peu plus tard.",
             "connected_providers": conn_map,
         }), 429
     except Exception as e:

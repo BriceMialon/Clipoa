@@ -5,7 +5,7 @@ avec vues, likes, commentaires, un score /100 et le « pourquoi » (ce qui a mar
 
 Score /100 relatif à la chaîne (pour qu'une petite chaîne ait aussi des notes parlantes) :
 65 % = vues comparées à la médiane de la chaîne, 35 % = engagement (likes + commentaires / vues).
-L'IA (choisie toute seule : Claude, sinon Antigravity, sinon Gemini) explique chaque résultat.
+L'IA (choisie toute seule : Claude, sinon Gemini) explique chaque résultat.
 """
 import json
 import math

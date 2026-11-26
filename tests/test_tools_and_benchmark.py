@@ -7,7 +7,6 @@ class TestStyleBenchmark(unittest.TestCase):
     def test_styles_have_different_estimates(self):
         est = tt.style_estimates([])
         self.assertNotEqual(est["roblox_cine"]["claude"]["sec_60s"], est["explainer_2d"]["claude"]["sec_60s"])
-        self.assertLess(est["roblox_3d"]["antigravity"]["pct_60s"], est["roblox_3d"]["claude"]["pct_60s"])
         self.assertFalse(est["roblox_3d"]["claude"]["measured"])
 
     def test_measurements_move_the_estimate(self):

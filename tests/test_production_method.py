@@ -239,14 +239,12 @@ if __name__ == "__main__":
 
 
 class TestAIRoutingAndScriptPrompt(unittest.TestCase):
-    def test_claude_choice_never_uses_antigravity(self):
+    def test_script_routes_use_claude(self):
         from unittest.mock import patch
         import app as clipoa_app
         client = clipoa_app.app.test_client()
         fake_md = "## 1. Fiche projet\n| Champ | Valeur |\n|---|---|\n| Titre | Test |\n"
-        with patch("core.antigravity_bridge.AntigravityBridge.query", side_effect=AssertionError("agy appelé")), \
-             patch("core.antigravity_bridge.AntigravityBridge.stream_query", side_effect=AssertionError("agy appelé")), \
-             patch("core.claude_bridge.ClaudeBridge.query", return_value=fake_md) as cq, \
+        with patch("core.claude_bridge.ClaudeBridge.query", return_value=fake_md) as cq, \
              patch("core.claude_bridge.ClaudeBridge.stream_query", return_value=iter([fake_md])) as cs:
             r = client.post("/api/fabrique/generate-script", json={"topic": "Une idée", "engine": "claude", "model": "claude-opus-5-5-medium"})
             self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
@@ -258,10 +256,10 @@ class TestAIRoutingAndScriptPrompt(unittest.TestCase):
             r = client.post("/api/fabrique/refine-script", json={"current_script": fake_md, "instruction": "plus court", "engine": "claude", "model": "claude-opus-5-5-medium"})
             self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
 
-    def test_frontend_claude_engine_not_routed_to_agy(self):
+    def test_frontend_only_claude_engine(self):
         html = (ROOT / "templates" / "index.html").read_text(encoding="utf-8")
-        self.assertNotIn("reqEngine = 'antigravity';\n          reqModel = cm;", html)
-        self.assertIn("let reqEngine = createEngine === 'antigravity' ? 'antigravity' : 'claude';", html)
+        self.assertNotIn("antigravity", html.lower())
+        self.assertIn("let reqEngine = 'claude';", html)
 
     def test_script_prompt_originality_and_full_da(self):
         from core.script_template import build_script_generation_prompt
@@ -278,10 +276,10 @@ class TestLegacyEngineParams(unittest.TestCase):
     def test_old_page_claude_jobs_go_to_claude(self):
         import app as clipoa_app
         norm = clipoa_app._normalize_engine_params
-        self.assertEqual(norm({"engine": "antigravity", "engine_model": "claude-opus-5-5-medium"})["engine"], "claude")
-        kept = norm({"engine": "antigravity", "engine_model": "claude-opus-5-5-medium", "engine_choice": "antigravity"})
-        self.assertEqual(kept["engine"], "antigravity")
-        self.assertEqual(norm({"engine": "antigravity", "engine_model": "gemini-4-neon-medium"})["engine"], "antigravity")
+        # anciennes tâches enregistrées avec un moteur retiré : elles repassent toutes sur Claude
+        self.assertEqual(norm({"engine": "old_engine", "engine_model": "claude-opus-5-5-medium"})["engine"], "claude")
+        self.assertEqual(norm({"engine": "old_engine", "engine_choice": "old_engine"})["engine"], "claude")
+        self.assertEqual(norm({"engine": "claude"})["engine"], "claude")
 
     def test_build_endpoint_and_banner(self):
         import app as clipoa_app
@@ -338,8 +336,8 @@ class TestSceneDesignerAndKit(unittest.TestCase):
             spec = sd.design_scene(self.SCRIPT, self.PLAN, style="explainer2d", engine="claude")
         self.assertEqual(spec["_source"], "storyboard")
         self.assertEqual(len(spec["shots"]), 4)
-        with patch("core.antigravity_bridge.AntigravityBridge.query", return_value='```json\n{"characters":[{"id":"lea","model":"villageois_10"}],"locations":[{"id":"shop","type":"shop"}],"shots":[{"i":0,"location":"shop","camera":"wide","focus":"lea"}]}\n```') as aq:
-            spec = sd.design_scene(self.SCRIPT, self.PLAN, style="roblox", engine="antigravity", model="gemini-4-neon-medium")
+        with patch("core.claude_bridge.ClaudeBridge.query", return_value='```json\n{"characters":[{"id":"lea","model":"villageois_10"}],"locations":[{"id":"shop","type":"shop"}],"shots":[{"i":0,"location":"shop","camera":"wide","focus":"lea"}]}\n```') as aq:
+            spec = sd.design_scene(self.SCRIPT, self.PLAN, style="roblox", engine="claude")
         self.assertTrue(aq.called)
         self.assertEqual(spec["_source"], "ia")
         self.assertEqual(spec["characters"][0]["model"], "villageois_10")

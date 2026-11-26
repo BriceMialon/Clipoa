@@ -62,9 +62,6 @@ CONTRACT_BLENDER = """### Outil « blender » : un script Python Blender 5.x COM
 
 # ---------------------------------------------------------------- IA
 def _ask(prompt: str, engine: str = "claude", model: Optional[str] = None, images: Optional[List[str]] = None, timeout: int = 900) -> str:
-    if (engine or "claude") == "antigravity":
-        from core.antigravity_bridge import AntigravityBridge
-        return AntigravityBridge.query(prompt, model=model, timeout=timeout)
     from core.claude_bridge import ClaudeBridge
     if images:
         try:
@@ -85,9 +82,12 @@ def _extract(raw: str, tool: str) -> str:
         if not re.search(r"window\.renderFrame\s*=", code) or "__ready" not in code or not re.search(r"<(canvas|svg|div|html|body)", code, re.I):
             raise ValueError("le code reçu ne respecte pas le contrat (window.renderFrame, window.__ready)")
     else:
-        from core.antigravity_bridge import AntigravityBridge
-        if not AntigravityBridge.validate_blender_script(code):
-            raise ValueError("script Blender refusé (vide, invalide ou commande interdite)")
+        from core.code_guard import check_bpy_code
+        if "import bpy" not in code:
+            raise ValueError("script Blender refusé (pas de « import bpy »)")
+        unsafe = check_bpy_code(code)
+        if unsafe:
+            raise ValueError("script Blender refusé (sécurité) : " + " ; ".join(unsafe[:4]))
     return code
 
 
@@ -380,7 +380,7 @@ dans un seul bloc ```html … ``` (outil html) ou ```python … ``` (outil blend
         rep = _preview(tool, work, code, timeline)
         if attempt == 1:
             break
-        compare = engine != "antigravity" and rep["images"]
+        compare = bool(rep["images"])
         if not rep["problems"] and not compare:
             break
         fix = (f"Voici ton moteur ({tool}) :\n```{'html' if tool == 'html' else 'python'}\n{code}\n```\n\n"
@@ -460,7 +460,7 @@ Moteur du style :
 ```
 
 Réponds UNIQUEMENT avec le code COMPLET de la vidéo dans un seul bloc ```{lng} … ```."""
-        _p(56, f"🎬 [3/4] {'Antigravity' if engine == 'antigravity' else 'Claude'} anime ton histoire avec le moteur de ce style (2-5 min)…")
+        _p(56, f"🎬 [3/4] Claude anime ton histoire avec le moteur de ce style (2-5 min)…")
         code = _extract(_ask(prompt, engine, model), tool)
         code_file.write_text(code, encoding="utf-8")
     for attempt in range(2):

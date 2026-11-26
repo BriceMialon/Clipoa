@@ -83,7 +83,7 @@ class AnalyticsEngine:
         elif engine == "gemini":
             raw = GeminiStudio.query(prompt, system_prompt=system_prompt, model=GeminiStudio.get_best_available_model())
         else:
-            # IA choisie toute seule (Claude, sinon Antigravity, sinon Gemini) : plus de choix affiché
+            # IA choisie toute seule (Claude, sinon Gemini) : plus de choix affiché
             from core.inspiration_radar import _default_ai_query
             raw = _default_ai_query(prompt, system_prompt)
         return _clean_json_response(raw)

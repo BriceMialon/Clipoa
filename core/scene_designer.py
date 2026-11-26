@@ -1,5 +1,5 @@
 """
-Metteur en scène Clipoa : l'IA choisie (Claude ou Antigravity) lit le script et décrit, en JSON, le décor
+Metteur en scène Clipoa : Claude lit le script et décrit, en JSON, le décor
 de CETTE vidéo (lieux, objets, panneaux, personnages, et pour chaque plan : lieu, cadrage, action).
 Blender construit ensuite la scène dans le style choisi (core/blender_kit/scene_kit_bpy.py).
 
@@ -291,12 +291,8 @@ def design_scene(
     prompt = build_prompt(script, plan, style, words, da_hint)
     raw = ""
     try:
-        if (engine or "claude") == "antigravity":
-            from core.antigravity_bridge import AntigravityBridge
-            raw = AntigravityBridge.query(prompt, model=model, timeout=240)
-        else:
-            from core.claude_bridge import ClaudeBridge
-            raw = ClaudeBridge.query(prompt, action="scene_design")
+        from core.claude_bridge import ClaudeBridge
+        raw = ClaudeBridge.query(prompt, action="scene_design")
     except Exception as e:
         print(f"⚠️ Décor IA indisponible ({e}) : décor déduit du storyboard.")
     spec = _sanitize(_parse_json(raw) or {}, n) if raw else None

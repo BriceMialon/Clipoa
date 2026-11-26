@@ -92,7 +92,7 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         # 1. When neither provider is connected -> clean needs_connection response
         with patch("core.claude_bridge.ClaudeBridge.check_status", return_value={"connected": False, "model": "opus"}), patch(
             "core.gemini_studio.GeminiStudio.get_status", return_value={"connected": False, "model": "gemini-3-flash-preview"}
-        ), patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": False, "model": "", "models": []}):
+        ):
             r = self.client.post("/api/assistant/help", json={"message": "Comment créer un short ?", "provider": "auto"})
         self.assertEqual(r.status_code, 200)
         data = r.get_json()
@@ -130,34 +130,14 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("Plugins DA", data["reply"])
         mock_gq.assert_called_once()
 
-    def test_antigravity_bridge_blender_validation_and_routes(self):
-        from core.antigravity_bridge import AntigravityBridge
+    def test_blender_code_guard_and_no_antigravity_routes(self):
+        from core.code_guard import check_bpy_code
 
-        good_bpy = "import bpy\nimport math\nbpy.ops.wm.read_factory_settings(use_empty=True)\n"
+        good_bpy = "import bpy\nimport math\nbpy.ops.mesh.primitive_cube_add(size=2)\n"
         bad_bpy = "import bpy\nimport subprocess\nsubprocess.run(['id'])\n"
-        self.assertTrue(AntigravityBridge.validate_blender_script(good_bpy))
-        self.assertFalse(AntigravityBridge.validate_blender_script(bad_bpy))
-        self.assertFalse(AntigravityBridge.validate_blender_script("print('no bpy')"))
-
-        r_st = self.client.get("/api/antigravity/status")
-        self.assertEqual(r_st.status_code, 200)
-        st = r_st.get_json()
-        self.assertIn("models", st)
-        self.assertTrue(len(st["models"]) >= 1)
-
-        with patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": True, "model": "gemini-3.1-pro-preview", "models": []}), patch(
-            "core.antigravity_bridge.AntigravityBridge.query", return_value="Sélectionne Antigravity et 3D Blender dans la Fabrique."
-        ) as mock_aq:
-            r_help = self.client.post(
-                "/api/assistant/help",
-                json={"message": "Comment faire une scène Blender ?", "provider": "antigravity", "model": "gemini-3.1-pro-preview"},
-            )
-        self.assertEqual(r_help.status_code, 200)
-        hdata = r_help.get_json()
-        self.assertTrue(hdata["ok"])
-        self.assertEqual(hdata["provider"], "antigravity")
-        self.assertIn("Blender", hdata["reply"])
-        mock_aq.assert_called_once()
+        self.assertEqual(check_bpy_code(good_bpy), [])
+        self.assertTrue(check_bpy_code(bad_bpy))
+        self.assertEqual(self.client.get("/api/antigravity/status").status_code, 404)
 
     def test_video_script_template_extract_and_routes(self):
         from core.script_template import (
@@ -184,12 +164,12 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertNotIn("SFX-01", spoken)
         self.assertNotIn("|", spoken)
 
-        with patch("core.antigravity_bridge.AntigravityBridge.check_status", return_value={"connected": True, "model": "gemini-4-neon-medium", "models": []}), patch(
-            "core.antigravity_bridge.AntigravityBridge.query", return_value=sample_md
+        with patch("core.claude_bridge.ClaudeBridge.query", return_value=sample_md), patch(
+            "core.claude_bridge.ClaudeBridge.check_status", return_value={"connected": True, "model": "opus"}
         ):
             r_gen = self.client.post(
                 "/api/fabrique/generate-script",
-                json={"topic": "La tour des riches", "engine": "antigravity", "model": "gemini-4-neon-medium", "target_duration_sec": 60},
+                json={"topic": "La tour des riches", "engine": "claude", "target_duration_sec": 60},
             )
             self.assertEqual(r_gen.status_code, 200)
             g = r_gen.get_json()
@@ -199,7 +179,7 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
 
             r_ref = self.client.post(
                 "/api/fabrique/refine-script",
-                json={"current_script": sample_md, "instruction": "Rends la fin plus sombre", "engine": "antigravity", "model": "gemini-4-neon-medium"},
+                json={"current_script": sample_md, "instruction": "Rends la fin plus sombre", "engine": "claude"},
             )
             self.assertEqual(r_ref.status_code, 200)
             self.assertTrue(r_ref.get_json()["ok"])
@@ -274,10 +254,10 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             tfile = Path(td) / "timing_history.json"
             with patch("core.timing_tracker.TIMING_FILE", tfile):
-                record_actual_timing("antigravity", "blender3d", 95.0, 60)
+                record_actual_timing("claude", "blender3d", 95.0, 60)
                 est = get_learned_estimates()
-                self.assertIn("antigravity:blender3d", est["baselines_60s"])
-                sec = estimate_job_seconds("antigravity", "blender3d", 60)
+                self.assertIn("claude:blender3d", est["baselines_60s"])
+                sec = estimate_job_seconds("claude", "blender3d", 60)
                 self.assertGreater(sec, 20)
 
         # 2. Custom script templates CRUD (isolated)
@@ -322,9 +302,8 @@ class TestStylePluginsAndCleanRemoval(unittest.TestCase):
         self.assertIn("fab-enable-music", html)
         self.assertIn("fab-enable-sfx", html)
         self.assertIn("reg-quota-7d-right", html)
-        self.assertIn("reg-agy-quota-7d-right", html)
+        self.assertNotIn("Antigravity", html)
         self.assertIn("switchElevenLabsAccount()", html)
-        self.assertIn("switchAntigravityAccount()", html)
 
 
 if __name__ == "__main__":

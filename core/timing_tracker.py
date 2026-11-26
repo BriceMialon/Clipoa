@@ -12,16 +12,12 @@ _LOCK = threading.Lock()
 DEFAULT_BASELINES_SEC: Dict[str, float] = {
     "claude:motion": 55.0,
     "claude:blender3d": 115.0,
-    "antigravity:motion": 42.0,
-    "antigravity:blender3d": 95.0,
     "claude:script": 24.0,
-    "antigravity:script": 16.0,
 }
 
 # Coût quota estimé par vidéo 60s (% de fenêtre 5h) par moteur
 ENGINE_QUOTA_PCT_60S: Dict[str, float] = {
     "claude": 3.2,
-    "antigravity": 1.1,
 }
 
 
@@ -44,7 +40,7 @@ def record_actual_timing(
     """Enregistre la durée réelle d'une génération pour affiner automatiquement les estimations futures."""
     if elapsed_sec <= 1.0 or elapsed_sec > 1800.0:
         return
-    eng = "antigravity" if (engine or "").lower() == "antigravity" else "claude"
+    eng = "claude"
     rm = render_mode if render_mode in ("motion", "blender3d", "broll", "script") else "motion"
     scale = max(0.4, min(3.0, float(target_duration_sec or 60) / 60.0))
     normalized_60s = round(float(elapsed_sec) / (0.45 + 0.55 * scale), 1)
@@ -79,8 +75,6 @@ STYLE_DEFAULTS_60S: Dict[str, Dict[str, float]] = {
     "_copy":         {"sec": 900.0, "pct": 12.0},   # analyse + moteur sur mesure écrit par l'IA
     "_motion":       {"sec": 90.0, "pct": 2.5},
 }
-AGY_TIME_FACTOR = 0.85      # Antigravity un peu plus rapide
-AGY_QUOTA_FACTOR = 0.35     # et sa fenêtre de quota est plus large
 
 
 def _scale(target_duration_sec: int) -> float:
@@ -117,7 +111,7 @@ def record_style_run(style: str, engine: str, elapsed_sec: float, target_duratio
     """Mesure réelle d'une fabrication pour CE style : temps total et part de la fenêtre 5 h de Claude consommée."""
     if elapsed_sec <= 5.0 or elapsed_sec > 4 * 3600:
         return
-    eng = "antigravity" if (engine or "").lower() == "antigravity" else "claude"
+    eng = "claude"
     sc = _scale(target_duration_sec)
     entry = {
         "ts": time.time(),
@@ -155,12 +149,12 @@ def style_estimates(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for st, d in STYLE_DEFAULTS_60S.items():
         out[st] = {}
-        for eng in ("claude", "antigravity"):
+        for eng in ("claude",):
             rows = [x for x in items if x.get("key") == f"style:{st}:{eng}"]
             secs = [float(x["normalized_60s"]) for x in rows if x.get("normalized_60s")]
             pcts = [float(x["pct_60s"]) for x in rows if x.get("pct_60s")]
-            d_sec = d["sec"] * (AGY_TIME_FACTOR if eng == "antigravity" else 1.0)
-            d_pct = d["pct"] * (AGY_QUOTA_FACTOR if eng == "antigravity" else 1.0)
+            d_sec = d["sec"]
+            d_pct = d["pct"]
             out[st][eng] = {"sec_60s": _blend(d_sec, secs), "pct_60s": _blend(d_pct, pcts),
                             "samples": len(rows), "measured": bool(rows)}
     return out
@@ -196,7 +190,7 @@ def get_learned_estimates() -> Dict[str, Any]:
 
 
 def estimate_job_seconds(engine: str, render_mode: str, target_duration_sec: int = 60) -> int:
-    eng = "antigravity" if (engine or "").lower() == "antigravity" else "claude"
+    eng = "claude"
     rm = "blender3d" if render_mode == "blender3d" else "motion"
     est = get_learned_estimates()["baselines_60s"].get(f"{eng}:{rm}", 75.0)
     scale = max(0.4, min(3.0, float(target_duration_sec or 60) / 60.0))

@@ -176,19 +176,14 @@ def analyze_reference(
 
     vision = False
     raw = ""
-    if (engine or "claude") != "antigravity":
-        from core.claude_bridge import ClaudeBridge
-        _p(35, "👀 Claude regarde la vidéo image par image et décrit le style...")
-        try:
-            raw = ClaudeBridge.query_with_images(build_prompt(meta, stats, transcript_txt, wps, True), sheets, action="style_analysis")
-            vision = True
-        except Exception as e:
-            print(f"⚠️ Analyse d'images Claude impossible ({e}) : analyse sans images.")
-            raw = ClaudeBridge.query(build_prompt(meta, stats, transcript_txt, wps, False), action="style_analysis")
-    else:
-        from core.antigravity_bridge import AntigravityBridge
-        _p(35, "🧠 Antigravity analyse la vidéo (mesures + voix + description)...")
-        raw = AntigravityBridge.query(build_prompt(meta, stats, transcript_txt, wps, False), model=model, timeout=300)
+    from core.claude_bridge import ClaudeBridge
+    _p(35, "👀 Claude regarde la vidéo image par image et décrit le style...")
+    try:
+        raw = ClaudeBridge.query_with_images(build_prompt(meta, stats, transcript_txt, wps, True), sheets, action="style_analysis")
+        vision = True
+    except Exception as e:
+        print(f"⚠️ Analyse d'images Claude impossible ({e}) : analyse sans images.")
+        raw = ClaudeBridge.query(build_prompt(meta, stats, transcript_txt, wps, False), action="style_analysis")
     analysis = _parse(raw)
     if not analysis or not analysis.get("da_prompt"):
         raise RuntimeError("L'IA n'a pas pu décrire le style de cette vidéo. Réessaie ou choisis une autre vidéo.")

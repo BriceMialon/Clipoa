@@ -2,7 +2,6 @@
 Édition de Clipoa : « perso » (défaut, tout est actif) ou « public » (version vendue).
 
 La version publique coupe ce qui n'est pas autorisé ou pas prêt pour des clients :
-- Antigravity : Google interdit d'utiliser un compte Antigravity via un outil tiers (bannissements en 2026) ;
 - Gemini Studio (connexion Google perso) ;
 - Mode Nuit / Pilote auto, mode Ciné, moteurs sur mesure écrits par l'IA ;
 - radar S'inspirer, copie d'une vidéo de quelqu'un d'autre, scan de concurrents (CGU TikTok/Meta, droit d'auteur) ;
@@ -17,7 +16,6 @@ import os
 EDITION = (os.getenv("CLIPOA_EDITION", "perso") or "perso").strip().lower()
 
 PUBLIC_BLOCKED_PREFIXES = (
-    "/api/antigravity/",
     "/api/gemini/",
     "/api/night/",
     "/api/cine/",
@@ -31,7 +29,7 @@ PUBLIC_BLOCKED_PREFIXES = (
     "/api/social/portal-login/",
 )
 
-PUBLIC_DISABLED_ENGINES = ("antigravity", "gemini")
+PUBLIC_DISABLED_ENGINES = ("gemini",)
 
 
 def is_public() -> bool:
@@ -50,7 +48,7 @@ def is_blocked_path(path: str) -> bool:
 
 
 def restrict_engine_params(params: dict) -> dict:
-    """En version publique, une tâche ne part jamais sur Antigravity/Gemini : elle passe sur Claude."""
+    """En version publique, une tâche ne part jamais sur Gemini : elle passe sur Claude."""
     if not is_public():
         return params
     p = dict(params or {})

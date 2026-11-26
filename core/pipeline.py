@@ -15,7 +15,6 @@ from core.blender_engine import BlenderEngine
 from core.postiz_client import PostizClient
 from core.checkpoints import load_checkpoint, save_checkpoint, clear_checkpoint
 from core.style_plugins import StylePluginStore, duration_to_word_range
-from core.antigravity_bridge import AntigravityBridge
 from core.sound_designer import SoundDesigner, get_wav_duration
 from core.timing_tracker import record_actual_timing
 from core import production_method as pm
@@ -117,7 +116,7 @@ class ShortCrewPipeline:
         progress: Optional[Callable[[int, str], None]] = None,
     ) -> Optional[str]:
         """
-        Même processus pour tous les styles Blender : l'IA choisie (Claude ou Antigravity) décrit le décor de
+        Même processus pour tous les styles Blender : Claude décrit le décor de
         CETTE histoire, Blender le construit dans le style choisi. Repli sur l'ancienne scène si tout échoue.
         """
         from core.scene_designer import design_scene
@@ -127,7 +126,7 @@ class ShortCrewPipeline:
         style = cls.visual_style_for(plugin) or "roblox"
         from core.edition import restrict_visual_style
         style = restrict_visual_style(style, plugin)
-        eng_lbl = "Antigravity" if engine == "antigravity" else "Claude"
+        eng_lbl = "Claude"
         py_script = str(out_dir / f"{session_id}_scene_3d.py")
         bg_out = str(out_dir / f"{session_id}_blender_bg.mp4")
         if style == "custom":
@@ -354,7 +353,7 @@ class ShortCrewPipeline:
     ) -> Dict[str, Any]:
         """
         Creates a short directly from an idea OR a user's own script ('La Fabrique'),
-        optionally applying a Style Plugin's Art Direction (DA) via Claude or Antigravity,
+        optionally applying a Style Plugin's Art Direction (DA) via Claude,
         with multi-shot Blender 3D scenes, ambient music/SFX, and self-learning timings.
         """
         t_start_total = time.time()
@@ -363,17 +362,14 @@ class ShortCrewPipeline:
             if progress_cb:
                 progress_cb(pct, msg)
 
-        active_engine = (engine or "claude").strip().lower()
-        if active_engine not in ("claude", "antigravity"):
-            active_engine = "claude"
-        eng_name = "Antigravity" if active_engine == "antigravity" else "Claude"
+        active_engine = "claude"
+        eng_name = "Claude"
 
         plugin = StylePluginStore.get_plugin(plugin_id, include_script_body=True) if plugin_id else None
         if plugin:
             # qualité Blender choisie dans la Fabrique : « hq » (EEVEE, par défaut) ou « fast » (Workbench)
             plugin = dict(plugin, _render_quality="fast" if render_quality == "fast" else "hq")
         # Force automatiquement Blender 3D côté serveur dès que le style choisi requiert Blender (ex. 3D Roblox, 2D × Monde 3D),
-        # que l'IA soit Claude ou Antigravity.
         if plugin and (plugin.get("render_mode") == "blender3d" or cls.visual_style_for(plugin)):
             use_blender_3d = True
         is_custom_script = bool((custom_script or "").strip())
@@ -381,52 +377,11 @@ class ShortCrewPipeline:
         effective_theme = theme or (plugin.get("theme") if plugin else DEFAULT_THEME) or DEFAULT_THEME
         effective_sub = subtitle_style or (plugin.get("subtitle_style") if plugin else DEFAULT_SUBTITLE_STYLE) or DEFAULT_SUBTITLE_STYLE
 
-        session_id = resume_session_id or f"{'agy' if active_engine == 'antigravity' else ('plugin' if plugin else ('custom' if is_custom_script else 'direct'))}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+        session_id = resume_session_id or f"{'plugin' if plugin else ('custom' if is_custom_script else 'direct')}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
         cp = load_checkpoint(session_id)
 
         if "script" not in cp:
-            if active_engine == "antigravity":
-                dur_info = duration_to_word_range(target_duration_sec)
-                if is_custom_script:
-                    _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) prépare la mise en scène sur ton script...")
-                    ag_prompt = (
-                        f"Script exact de l'utilisateur à conserver MOT POUR MOT dans `full_spoken_script` :\n{custom_script}\n\n"
-                        f"Titre optionnel : {(custom_title or topic or '').strip()}\n"
-                        f"{da_ctx}\n"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard (liste de scènes), twist_text, caption_keywords, on_screen_notes, hud, social_caption."
-                    )
-                else:
-                    _prog(15, f"✨ [1/4] Antigravity ({engine_model or 'auto'}) écrit ton script (~{dur_info['duration_sec']}s)...")
-                    ag_prompt = (
-                        f"Sujet : {topic}\n"
-                        f"Durée cible : ~{dur_info['duration_sec']} secondes ({dur_info['min_words']} à {dur_info['max_words']} mots parlés, {dur_info['plans_min']} à {dur_info['plans_max']} plans).\n"
-                        f"{('Style demandé : ' + user_style + chr(10)) if user_style else ''}"
-                        f"{da_ctx}\n"
-                        f"{avoid_titles_block(recent_video_titles())}"
-                        "Réponds UNIQUEMENT en JSON valide avec les clés : title, hook_screen_text, full_spoken_script, visual_storyboard, twist_text, caption_keywords, on_screen_notes, hud, social_caption."
-                    )
-                raw_ag = AntigravityBridge.query(ag_prompt, system_prompt=PROMPT_SCENARISTE, model=engine_model)
-                parsed_ag = None
-                try:
-                    m = raw_ag.strip()
-                    if "```" in m:
-                        import re as _re
-                        blk = _re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", m)
-                        if blk:
-                            m = blk.group(1).strip()
-                    parsed_ag = json.loads(m[m.find("{") : m.rfind("}") + 1])
-                except Exception:
-                    parsed_ag = {
-                        "title": (custom_title or topic or "Mon Short")[:60],
-                        "hook_screen_text": (custom_title or topic or "Mon Short")[:45],
-                        "full_spoken_script": (custom_script or raw_ag).strip(),
-                        "visual_storyboard": [],
-                        "social_caption": f"{(custom_title or topic or 'Short')[:80]} #Shorts",
-                    }
-                if is_custom_script:
-                    parsed_ag["full_spoken_script"] = (custom_script or "").strip()
-                cp["script"] = parsed_ag
-            elif is_custom_script:
+            if is_custom_script:
                 if plugin:
                     _prog(15, f"🎨 [1/4] {eng_name} applique la DA « {plugin['name']} » sur ton script perso...")
                 else:

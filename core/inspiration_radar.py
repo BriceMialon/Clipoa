@@ -6,7 +6,7 @@ Pour chaque vidéo : vues, likes, commentaires, date de sortie, score viral /100
 le style IA détecté et pourquoi elle marche. L'utilisateur copie le lien ou l'envoie directement dans
 « Nouvelle vidéo » (champ « vidéo dont tu veux le style »).
 
-L'IA utilisée est choisie toute seule (Claude si branché, sinon Antigravity, sinon Gemini) ; sans IA,
+L'IA utilisée est choisie toute seule (Claude si branché, sinon Gemini) ; sans IA,
 le radar garde seulement le tri par mots-clés et par chiffres.
 """
 import json
@@ -146,19 +146,11 @@ def _looks_ai(v: Dict[str, Any]) -> bool:
 
 
 def _default_ai_query(prompt: str, system_prompt: str) -> str:
-    """IA choisie toute seule : Claude si branché, sinon Antigravity, sinon Gemini. Vide si aucune ne répond."""
+    """IA choisie toute seule : Claude si branché, sinon Gemini. Vide si aucune ne répond."""
     try:
         from core.claude_bridge import ClaudeBridge
         if (ClaudeBridge.check_status(live_probe=False) or {}).get("connected"):
             out = ClaudeBridge.query(prompt, system_prompt=system_prompt, action="analytics")
-            if out and out.strip():
-                return out
-    except Exception:
-        pass
-    try:
-        from core.antigravity_bridge import AntigravityBridge
-        if (AntigravityBridge.check_status(live_probe=False) or {}).get("connected"):
-            out = AntigravityBridge.query(prompt, system_prompt=system_prompt)
             if out and out.strip():
                 return out
     except Exception:
