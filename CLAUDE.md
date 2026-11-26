@@ -10,7 +10,6 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 - **URL locale** : `http://localhost:8080`
 - **Python (venv)** : `/Users/brice/.gemini/antigravity/scratch/shortcrew_clone/venv/bin/python` (**Python 3.9** — ne jamais mettre de backslash `\` dans une expression `{...}` de f-string).
 - **Blender CLI** : `/Applications/Blender.app/Contents/MacOS/Blender` (**Blender 5.3.0** — requiert `image_settings.media_type = 'VIDEO'` avant `file_format = 'FFMPEG'` et `BLENDER_WORKBENCH` en 540×960 @ 12 fps pour un rendu multi-plans 60s en ~45s sans timeout).
-- **Antigravity CLI (`agy`)** : `/Applications/Gemini.app/Contents/Helpers/agy` (modèle par défaut : `gemini-4-neon-medium`, bac à sable vide `storage/_agy_sandbox`).
 - **Claude CLI** : `~/.local/bin/claude` (bac à sable vide `storage/_claude_sandbox` + `--tools "" --strict-mcp-config` + streaming `stream-json`).
 - **Logs serveur** : `/tmp/clipoa_server.log`
 
@@ -22,7 +21,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 - **Produit** : app Flask locale qui fabrique des shorts (script IA → voix → plan de production → décor Blender → montage FFmpeg → publication). Styles livrés : Roblox 3D, Stickman, Explainer 2D, Fête en folie, Ciné (three.js).
 - **Mise en ligne décidée (26/11/2026)** : rendu en LOCAL chez chaque utilisateur (app installable Mac puis Windows), chaque utilisateur branche SA propre IA (clé API Anthropic par défaut, `core/anthropic_api.py`), abonnement vérifié par licence signée + relais OAuth réservé aux abonnés. Plan complet : https://claude.ai/artifact/5yjk1RkhEWqRjMJRFogR3E
-- **Version publique** : `CLIPOA_EDITION=public` (`core/edition.py`) coupe côté serveur Antigravity, Gemini, Mode Nuit/Pilote auto, Ciné, moteurs sur mesure, radar, copie de vidéo, connexion par cookies. Défaut `perso` = tout actif. Toute nouvelle fonction risquée (CGU, code exécuté, données de tiers) doit y être rattachée.
+- **Version publique** : `CLIPOA_EDITION=public` (`core/edition.py`) coupe côté serveur Gemini, Mode Nuit/Pilote auto, Ciné, moteurs sur mesure, radar, copie de vidéo, connexion par cookies. Défaut `perso` = tout actif. Toute nouvelle fonction risquée (CGU, code exécuté, données de tiers) doit y être rattachée.
 - **Code IA exécuté** : le code bpy écrit par l'IA passe par `core/code_guard.py` avant Blender. Ne jamais exécuter du code IA sans ce contrôle.
 - **Multi-utilisateur / portable** : pas de chemin ni de nom perso dans le code, chemins relatifs à `BASE_DIR`, tout s'installe par un bouton, pas de nouveau `.command` ni d'AppleScript (portage Windows prévu).
 - **Tests** : 111+ tests `unittest` ; lancer ceux du module touché avant de commiter.
@@ -34,12 +33,11 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 
 | Fichier | Rôle |
 |---|---|
-| `app.py` | Serveur Flask principal (routes UI, `/api/fabrique/*`, `/api/make`, `/api/script-templates`, `/api/timings`, `/api/antigravity/*`, `/api/elevenlabs/*`, `/api/plugins*`, `/api/assistant/help`). |
+| `app.py` | Serveur Flask principal (routes UI, `/api/fabrique/*`, `/api/make`, `/api/script-templates`, `/api/timings`, `/api/elevenlabs/*`, `/api/plugins*`, `/api/assistant/help`). |
 | `core/claude_bridge.py` | Pont Claude CLI (`query`, `stream_query`, bac à sable `_claude_sandbox`, quotas 5h/7j). |
 | `core/anthropic_api.py` | Claude par la clé API de l'utilisateur (test sans tokens, texte, streaming, images) ; choisi par `ClaudeBridge._api_mode()`. |
 | `core/edition.py` | Édition `perso` / `public` (fonctions coupées côté serveur). |
 | `core/code_guard.py` | Contrôle du code Blender écrit par l'IA avant exécution. |
-| `core/antigravity_bridge.py` | Pont Antigravity CLI (`query`, `stream_query`, `switch_account`, quotas 5h + hebdo 7j). |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
 | `core/blender_engine.py` | Rendu 3D Blender 5.3 multi-plans (`create_roblox_3d_scene` en Workbench rapide, `_patch_blender5_compat`, `render_script`). |
 | `core/scene_designer.py` + `core/blender_kit/` | Décor sur mesure décrit par l'IA + constructeurs Blender par style ; `assets/blender_kit/` = modèles GLB. |
