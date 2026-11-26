@@ -133,7 +133,7 @@ try {
     Write-Host "▸ Génération des assets MSIX + AppxManifest.xml" -ForegroundColor Magenta
     $AssetsDir = Join-Path $DistDir "Assets"
     New-Item -ItemType Directory -Force -Path $AssetsDir | Out-Null
-    $SrcIcon = Join-Path $Root "assets\menubar\clipoa_template.png"
+    $SrcIcon = Join-Path $Root "assets\brand\ClipRoll-Store-1024.png"
     & $PyExe -c @"
 from PIL import Image, ImageDraw
 from pathlib import Path
