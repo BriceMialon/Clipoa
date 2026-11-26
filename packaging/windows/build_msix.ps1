@@ -103,7 +103,6 @@ try {
         --include-data-dir="$Src\assets=assets" `
         --include-data-dir="$Src\core=core" `
         --include-data-dir="$Src\agents=agents" `
-        --include-data-files="$Src\*.pyd=." `
         --include-data-files="$Src\config.py=config.py" `
         --include-package=flask,jinja2,werkzeug,requests,faster_whisper,edge_tts,pystray,PIL,yaml,huggingface_hub,yt_dlp `
         --nofollow-import-to=imageio_ffmpeg `
@@ -114,6 +113,9 @@ try {
     if (-not (Test-Path (Join-Path $DistDir "Clipoa.exe"))) {
         throw "Clipoa.exe introuvable dans $DistDir"
     }
+    # Modules compilés (core, agents, clipoa_app) à côté de Clipoa.exe : Nuitka refuse
+    # un motif *.pyd en --include-data-files, on les copie après coup.
+    Copy-Item (Join-Path $Src "*.pyd") -Destination $DistDir
 
     # Métadonnées de release (edition + release.json)
     Set-Content -Encoding UTF8 -Path (Join-Path $DistDir "edition") -Value $Edition
