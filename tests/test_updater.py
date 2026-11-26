@@ -27,7 +27,7 @@ def _tar(path: Path, members):
 
 class UpdaterTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = Path(tempfile.mkdtemp()).resolve()  # macOS : /var -> /private/var
 
     def test_parse_version(self):
         self.assertGreater(updater.parse_version("0.10.0"), updater.parse_version("0.9.9"))
