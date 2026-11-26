@@ -122,6 +122,13 @@ try {
         Where-Object { $_.Name -notmatch '^(nuitka|Nuitka|ordered_set|zstandard|imageio_ffmpeg)' } |
         ForEach-Object { Copy-Item -Recurse -Force $_.FullName $SitePkgs }
     Get-ChildItem -Path $PyDist -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+    # Gabarits .exe de pip/setuptools/distlib (lanceurs de scripts, certains arm64 ou à données
+    # ajoutées) : inutiles à l'exécution et refusés par SignTool (0x800700C1, « bad PE »).
+    foreach ($pkg in @("pip", "setuptools", "distlib", "wheel")) {
+        $d = Join-Path $SitePkgs $pkg
+        if (Test-Path $d) { Get-ChildItem -Path $d -Recurse -File -Include "*.exe" | Remove-Item -Force }
+    }
+    Remove-Item -Recurse -Force (Join-Path $PyDist "Scripts") -ErrorAction SilentlyContinue
     if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
 
     Write-Host "▸ Code ClipRoll (modules compilés .pyd + fichiers)" -ForegroundColor Magenta
@@ -200,7 +207,8 @@ for name, (w, h) in sizes.items():
         $pfx = Join-Path $BuildDir "test.pfx"
         $pwd = ConvertTo-SecureString -String "clipoa-test" -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd | Out-Null
-        & $signtool.FullName sign /fd SHA256 /a /f $pfx /p "clipoa-test" $MsixOut
+        & $signtool.FullName sign /debug /v /fd SHA256 /f $pfx /p "clipoa-test" $MsixOut
+        if ($LASTEXITCODE -ne 0) { throw "Signature d'essai impossible (signtool code $LASTEXITCODE)." }
     }
 
     Write-Host "✓ Paquet prêt : $MsixOut" -ForegroundColor Green
