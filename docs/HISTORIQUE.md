@@ -139,3 +139,7 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `static/css/a11y.css` : anneau `:focus-visible`, `prefers-reduced-motion` étendu aux animations, `overscroll-behavior` des modales.
 - `templates/index.html` : focus des modales (entrée, retour, piège Tab, `role="dialog"`), blocs `div[onclick]` utilisables au clavier, confirmations avant 4 suppressions, `aria-label` sur les boutons ✕.
 - Constats visuels restants (transition: all, courbes) laissés à la nouvelle charte : voir `audit_ui/constats.md` des fichiers du projet.
+
+## 26/11/2026 — Notifications empilées (idée Sonner, sans React)
+- `static/js/cliproll_toast.js` + `static/css/toasts.css` : `toast(msg, type?)` empile jusqu'à 3 notifications (succès/erreur/info deviné si absent : « ✓ » = succès, mots « Erreur/Échec/impossible… » = erreur), durée selon la longueur (erreurs ≥ 6 s), pause au survol/focus, bouton Fermer, `role="alert"` pour les erreurs, doublons fusionnés.
+- `templates/index.html` : l'ancien `toast()` délègue au module ; `#toast` → `#toast-stack`. Les 190 appels existants ne changent pas.

@@ -19,6 +19,8 @@
   <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=2">
   <link rel="stylesheet" href="/static/css/cliproll.css?v=4">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
+  <link rel="stylesheet" href="/static/css/toasts.css?v=1">
+  <script src="/static/js/cliproll_toast.js?v=1"></script>
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
@@ -1920,7 +1922,7 @@
     </div>
   </div>
 
-  <div id="toast"></div>
+  <div id="toast-stack"></div>
 
   <!-- ==================== LOGIQUE CLIENT CLIPOA ==================== -->
   <script>
@@ -3408,14 +3410,8 @@
       return stripEmoji(t) || 'Vidéo';
     }
 
-    let toastTimer = null;
-    function toast(msg) {
-      const el = document.getElementById('toast');
-      if (!el) return;
-      el.textContent = msg; el.classList.add('show');
-      if (toastTimer) clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
-    }
+    // Notifications empilées : voir static/js/cliproll_toast.js (chargé dans <head>).
+    function toast(msg, type) { return window.__crToast ? window.__crToast(msg, type) : undefined; }
 
     // Focus des modales : on mémorise l'élément qui l'a ouverte, on met le focus dedans,
     // et on le rend à la fermeture (clavier et lecteurs d'écran).
