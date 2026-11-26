@@ -91,3 +91,11 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - `_oauth_base_url` (app.py) garde l'hôte réel (`127.0.0.1` ou `localhost`) : certains navigateurs résolvent `localhost` en ::1 et le retour OAuth se perdait.
 - `_publish_tiktok` : app non auditée + compte public → TikTok refuse la publication directe (`unaudited_client_can_only_post_to_private_accounts`) ; repli automatique en brouillon (`/v2/post/publish/inbox/video/init/`, scope `video.upload`), résultat `privacy: INBOX_DRAFT`. Publication directe publique = audit TikTok requis (domaine vérifié, vidéo de démo, UI de confidentialité exigée par TikTok).
 - Meta : inscription développeur bloquée (Facebook refuse les modifications depuis un « nouvel appareil ») ; à refaire depuis un appareil habituel.
+
+
+## Abonnement Stripe et licence (2026-11-26, mode test)
+- Choix de Brice : essai 7 jours carte demandée (géré par Stripe). Prix et nombre d'appareils en attente (proposé : une offre 12 €/mois ou 99 €/an, 2 appareils).
+- `license_worker/` : Worker Cloudflare `clipoa-license` + D1 (`schema.sql`). Routes `/checkout` (Checkout abonnement, `trial_period_days`, `payment_method_collection=always`), `/success` (affiche la clé), `/portal` (portail client Stripe), `/stripe/webhook` (signature HMAC vérifiée, événements dédoublonnés), `/license/activate|refresh|deactivate`. Refuse toute clé `sk_live` tant que `ALLOW_LIVE` ≠ `yes`. Paire Ed25519 : `python3 license_worker/gen_keys.py`.
+- `core/license.py` : clé `CLIPOA-XXXX-XXXX-XXXX-XXXX` → jeton signé Ed25519 lié à l'appareil (empreinte hachée), valable 7 j (jamais au-delà de fin de période + 3 j), vérifié hors ligne en Python pur. Statuts acceptés : active, trialing, past_due. Renouvellement en ligne au plus toutes les 12 h. Stockage `storage/license.json`.
+- `app.py` : `/api/license/status|activate|deactivate` ; en édition publique, les POST `/api/make` et `/api/fabrique/*` renvoient 402 sans licence valide (lecture seule, rien supprimé). Édition perso : licence non exigée.
+- Reste à faire : écran Licence dans l'UI, email avec la clé, relais OAuth réservé aux abonnés (en-tête `X-Clipoa-License`), déploiement du Worker, `DEFAULT_PUBKEY_HEX` à remplir.

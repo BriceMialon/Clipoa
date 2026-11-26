@@ -1,0 +1,22 @@
+# Copier en wrangler.toml, puis : npx wrangler d1 create clipoa-license
+name = "clipoa-license"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "clipoa-license"
+database_id = "A_REMPLIR"
+
+[vars]
+MAX_DEVICES = "2"
+TRIAL_DAYS = "7"
+TOKEN_DAYS = "7"
+PRICE_MONTHLY = "price_A_REMPLIR"   # prix Stripe (mode test d'abord)
+PRICE_YEARLY = "price_A_REMPLIR"
+PUBLIC_URL = "https://clipoa-license.clipoa-studio.workers.dev"
+
+# Secrets (npx wrangler secret put NOM) :
+#   STRIPE_SECRET_KEY        sk_test_... (jamais sk_live tant que Brice n'a pas validé)
+#   STRIPE_WEBHOOK_SECRET    whsec_...
+#   LICENSE_SIGNING_KEY      clé privée Ed25519 PKCS8 en base64 (python3 gen_keys.py)

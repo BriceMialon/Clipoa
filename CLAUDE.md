@@ -36,6 +36,7 @@ Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatemen
 | `app.py` | Serveur Flask principal (routes UI, `/api/fabrique/*`, `/api/make`, `/api/script-templates`, `/api/timings`, `/api/elevenlabs/*`, `/api/plugins*`, `/api/assistant/help`). |
 | `core/claude_bridge.py` | Pont Claude CLI (`query`, `stream_query`, bac à sable `_claude_sandbox`, quotas 5h/7j). |
 | `core/anthropic_api.py` | Claude par la clé API de l'utilisateur (test sans tokens, texte, streaming, images) ; choisi par `ClaudeBridge._api_mode()`. |
+| `core/license.py` + `license_worker/` | Abonnement Stripe (Worker Cloudflare + D1) et licence signée Ed25519 vérifiée hors ligne ; fabrication bloquée (402) sans licence en édition public. |
 | `core/edition.py` | Édition `perso` / `public` (fonctions coupées côté serveur). |
 | `core/code_guard.py` | Contrôle du code Blender écrit par l'IA avant exécution. |
 | `core/script_template.py` | Template 6 sections par défaut + CRUD templates personnalisés + extraction plans (`extract_shots_from_template`) & texte parlé. |
