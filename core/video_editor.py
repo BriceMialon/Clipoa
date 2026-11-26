@@ -112,6 +112,7 @@ class VideoEditor:
             "-map", "[aout]",
             "-c:v", "libx264",
             "-preset", "fast",
+            "-threads", "0",
             "-crf", "20",
             "-c:a", "aac",
             "-b:a", "192k",

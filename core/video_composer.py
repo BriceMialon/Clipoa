@@ -670,7 +670,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     # Encodage final : qualité supérieure (les plateformes ré-encodent, il faut leur donner une bonne source)
     VIDEO_ENCODE_ARGS = [
-        "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-profile:v", "high",
+        "-c:v", "libx264", "-preset", "fast", "-threads", "0", "-crf", "19", "-profile:v", "high",
         "-r", "30", "-g", "60", "-pix_fmt", "yuv420p",
         "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
     ]

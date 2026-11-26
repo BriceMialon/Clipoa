@@ -42,7 +42,7 @@ class OnboardingTest(unittest.TestCase):
 
     def test_texts_never_mention_hidden_features(self):
         blob = json.dumps(calc(), ensure_ascii=False).lower()
-        js = (Path(__file__).resolve().parent.parent / "static/js/clipoa_onboarding.js").read_text(encoding="utf-8").lower()
+        js = (Path(__file__).resolve().parent.parent / "static/js/cliproll_onboarding.js").read_text(encoding="utf-8").lower()
         for word in ("gemini", "ciné", "cine", "antigravity"):
             self.assertNotIn(word, blob)
             self.assertNotIn(word, js)
