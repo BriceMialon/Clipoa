@@ -1,10 +1,31 @@
 import os
 import shutil
+import sys
 from pathlib import Path
 
 # Base Paths
 BASE_DIR = Path(__file__).resolve().parent
-STORAGE_DIR = BASE_DIR / "storage"
+
+
+def _resolve_data_dir() -> Path:
+    """Dossier de données persistant (storage/, runtime/).
+
+    - Sur Mac / copie de dev : identique à BASE_DIR (aucun changement).
+    - Si CLIPOA_DATA_DIR est défini (installateur Windows ou MSIX) : utilise ce dossier.
+    - Sur Windows MSIX (WindowsApps en lecture seule) : %LOCALAPPDATA%\\Clipoa.
+    """
+    env_dir = os.getenv("CLIPOA_DATA_DIR", "").strip()
+    if env_dir:
+        return Path(env_dir).expanduser().resolve()
+    if sys.platform == "win32":
+        from core.platform_win import default_data_dir, is_store_app
+        if is_store_app(BASE_DIR):
+            return default_data_dir()
+    return BASE_DIR
+
+
+DATA_DIR = _resolve_data_dir()
+STORAGE_DIR = DATA_DIR / "storage"
 DOWNLOADS_DIR = STORAGE_DIR / "downloads"
 AUDIO_DIR = STORAGE_DIR / "audio"
 VIDEOS_DIR = STORAGE_DIR / "videos"
@@ -15,12 +36,13 @@ for p in [DOWNLOADS_DIR, AUDIO_DIR, VIDEOS_DIR, RENDERS_DIR, TRANSCRIPTS_DIR]:
     p.mkdir(parents=True, exist_ok=True)
 
 # Binaries (portable across machines — never hardcode a single user's home path)
-VENV_BIN = BASE_DIR / "venv" / "bin"
-RUNTIME_DIR = BASE_DIR / "runtime"
+_IS_WIN = sys.platform == "win32"
+VENV_BIN = BASE_DIR / "venv" / ("Scripts" if _IS_WIN else "bin")
+RUNTIME_DIR = DATA_DIR / "runtime"
 
 
 def _bundled_ffmpeg() -> str:
-    """ffmpeg livré par le paquet Python imageio-ffmpeg (aucune installation à faire pour un nouvel utilisateur)."""
+    """ffmpeg livré par le paquet Python imageio-ffmpeg (absent du MSIX Windows pour la GPL)."""
     try:
         import imageio_ffmpeg
         return imageio_ffmpeg.get_ffmpeg_exe()
@@ -28,15 +50,48 @@ def _bundled_ffmpeg() -> str:
         return "ffmpeg"
 
 
-FFMPEG_PATH = str(VENV_BIN / "ffmpeg") if (VENV_BIN / "ffmpeg").exists() else (shutil.which("ffmpeg") or _bundled_ffmpeg())
-YT_DLP_PATH = str(VENV_BIN / "yt-dlp") if (VENV_BIN / "yt-dlp").exists() else (shutil.which("yt-dlp") or "yt-dlp")
-_DEFAULT_CLAUDE_CLI = shutil.which("claude") or str(Path.home() / ".local" / "bin" / "claude")
+def resolve_ffmpeg_path() -> str:
+    """Chemin de ffmpeg : runtime Clipoa → venv → PATH → imageio-ffmpeg (si présent)."""
+    exe_name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    runtime_ff = RUNTIME_DIR / "ffmpeg" / exe_name
+    if runtime_ff.exists():
+        return str(runtime_ff)
+    venv_ff = VENV_BIN / exe_name
+    if venv_ff.exists():
+        return str(venv_ff)
+    return shutil.which("ffmpeg") or _bundled_ffmpeg()
+
+
+def resolve_blender_path() -> str:
+    """Chemin de Blender : env → runtime Clipoa → système (Mac / Windows)."""
+    env_bl = os.getenv("BLENDER_PATH")
+    if env_bl:
+        return env_bl
+    if sys.platform == "win32":
+        rt = RUNTIME_DIR / "blender" / "blender.exe"
+        if rt.exists():
+            return str(rt)
+        from core.platform_win import find_system_blender
+        return find_system_blender() or str(rt)
+    rt = RUNTIME_DIR / "Blender.app" / "Contents" / "MacOS" / "Blender"
+    if rt.exists():
+        return str(rt)
+    found = shutil.which("blender")
+    if found:
+        return found
+    mac_app = Path("/Applications/Blender.app/Contents/MacOS/Blender")
+    if mac_app.exists():
+        return str(mac_app)
+    return str(rt)  # Blender installé automatiquement par Clipoa (core/tools_setup.py)
+
+
+FFMPEG_PATH = resolve_ffmpeg_path()
+_YT_DLP_EXE = "yt-dlp.exe" if _IS_WIN else "yt-dlp"
+YT_DLP_PATH = str(VENV_BIN / _YT_DLP_EXE) if (VENV_BIN / _YT_DLP_EXE).exists() else (shutil.which("yt-dlp") or "yt-dlp")
+_DEFAULT_CLAUDE_CLI = shutil.which("claude") or str(Path.home() / ".local" / "bin" / ("claude.exe" if _IS_WIN else "claude"))
 CLAUDE_CLI_PATH = os.getenv("CLAUDE_CLI_PATH", _DEFAULT_CLAUDE_CLI)
-_RUNTIME_BLENDER = RUNTIME_DIR / "Blender.app" / "Contents" / "MacOS" / "Blender"
-BLENDER_PATH = os.getenv("BLENDER_PATH") or (str(_RUNTIME_BLENDER) if _RUNTIME_BLENDER.exists() else None) or shutil.which("blender") or (
-    "/Applications/Blender.app/Contents/MacOS/Blender" if Path("/Applications/Blender.app/Contents/MacOS/Blender").exists()
-    else str(_RUNTIME_BLENDER)  # Blender installé automatiquement par Clipoa (core/tools_setup.py)
-)
+_RUNTIME_BLENDER = (RUNTIME_DIR / "blender" / "blender.exe") if _IS_WIN else (RUNTIME_DIR / "Blender.app" / "Contents" / "MacOS" / "Blender")
+BLENDER_PATH = resolve_blender_path()
 
 # Security, Network & Resource Guardrails
 CLIPOA_ALLOW_LAN = os.getenv("CLIPOA_ALLOW_LAN", "false").lower() in ("1", "true", "yes")

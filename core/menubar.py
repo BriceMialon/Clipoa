@@ -1,10 +1,11 @@
 """
-Icône Clipoa dans la barre de menus macOS (processus séparé, lancé par `run_app`).
+Icône Clipoa dans la barre de menus macOS ou la zone de notification Windows
+(processus séparé, lancé par `run_app`).
 
 Affiche l'état (rendu en cours + %, vidéo prête) et propose « Ouvrir Clipoa » / « Quitter ».
 Lit l'état sur `/api/jobs` du serveur local ; se ferme tout seul quand le serveur s'arrête
 (donc une seule icône, même après le redémarrage d'une mise à jour).
-Optionnel : sans rumps (Windows, Linux, paquet absent) rien n'est lancé. Couper : CLIPOA_MENUBAR=0.
+Optionnel : sans rumps (macOS) ou pystray+Pillow (Windows), rien n'est lancé. Couper : CLIPOA_MENUBAR=0.
 """
 
 import importlib.util
@@ -20,23 +21,35 @@ ICON = Path(__file__).resolve().parent.parent / "assets" / "menubar" / "clipoa_t
 
 
 def available() -> bool:
-    return (
-        sys.platform == "darwin"
-        and os.getenv("CLIPOA_MENUBAR", "1") != "0"
-        and importlib.util.find_spec("rumps") is not None
-    )
+    if os.getenv("CLIPOA_MENUBAR", "1") == "0":
+        return False
+    if sys.platform == "darwin":
+        return importlib.util.find_spec("rumps") is not None
+    if sys.platform == "win32":
+        return (
+            importlib.util.find_spec("pystray") is not None
+            and importlib.util.find_spec("PIL") is not None
+        )
+    return False
 
 
 def launch(port: int = 8080):
     """Lance l'icône à côté du serveur. Renvoie le processus, ou None si indisponible."""
     if not available():
         return None
-    code = "from core.menubar import main; main()"
+    if sys.platform == "win32":
+        from core.platform_win import subprocess_kwargs
+        code = "from core.tray_win import main; main()"
+        extra = subprocess_kwargs()
+    else:
+        code = "from core.menubar import main; main()"
+        extra = {}
     try:
         return subprocess.Popen(
             [sys.executable, "-c", code, "--port", str(port), "--server-pid", str(os.getpid())],
             cwd=str(Path(__file__).resolve().parent.parent),
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            **extra,
         )
     except Exception:
         return None

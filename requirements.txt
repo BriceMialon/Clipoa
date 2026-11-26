@@ -40,6 +40,7 @@ multidict==6.7.1
 numpy==2.0.2
 onnxruntime==1.19.2
 packaging==26.3
+Pillow==11.2.1; sys_platform == "win32"
 playwright==1.60.0
 propcache==0.4.1
 protobuf==6.33.6
@@ -47,6 +48,7 @@ pyee==13.0.1
 Pygments==2.21.0
 pyobjc-core==11.1; sys_platform == "darwin"
 pyobjc-framework-Cocoa==11.1; sys_platform == "darwin"
+pystray==0.19.5; sys_platform == "win32"
 PyYAML==6.0.3
 requests==2.32.5
 rich==15.0.0

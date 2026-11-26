@@ -32,9 +32,11 @@ class NotifierTests(unittest.TestCase):
     def test_opt_out_and_other_os(self):
         notifier.activate()
         with mock.patch("subprocess.Popen") as popen:
-            with mock.patch.object(notifier.sys, "platform", "win32"):
+            with mock.patch.object(notifier.sys, "platform", "linux"):
                 self.assertFalse(notifier.notify("x"))
             with mock.patch.object(notifier.sys, "platform", "darwin"), mock.patch.dict(os.environ, {"CLIPOA_NOTIFY": "0"}):
+                self.assertFalse(notifier.notify("x"))
+            with mock.patch.object(notifier.sys, "platform", "win32"), mock.patch.dict(os.environ, {"CLIPOA_NOTIFY": "0"}):
                 self.assertFalse(notifier.notify("x"))
             popen.assert_not_called()
 
