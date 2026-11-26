@@ -866,7 +866,10 @@
                     <option value="5">5 shorts</option>
                     <option value="1">1 short</option>
                   </select>
-                  <input type="hidden" id="cut-crop" value="center">
+                  <select id="cut-crop" class="input-sm" style="width:auto;" title="Cadrage 9:16">
+                    <option value="center">Recadrage 9:16 plein</option>
+                    <option value="blurred_bg">Cinéma fond flou</option>
+                  </select>
                   <input type="checkbox" id="cut-jumpcuts" checked style="display:none;">
                   <button type="button" class="btn btn-coral btn-sm" onclick="runCut()">Extraire les Shorts →</button>
                 </div>
@@ -3272,27 +3275,6 @@
       if (inp) { inp.value = url; syncRefUrlLock(); inp.scrollIntoView({ block: 'center' }); }
       toast('Lien ajouté : écris ton idée ou ton script, ClipRoll copie le style de cette vidéo.');
     }
-    async function cloneInspirationVideo(url, title) {
-      if (!url) return;
-      toast('Clonage lancé : direction Fabrique…');
-      try {
-        const res = await apiJson('/api/make-like', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            topic: title ? ('Clone en améliorant le hook et la rétention : ' + title) : 'Clone cette vidéo virale avec un hook 1.5s',
-            target_duration_sec: (typeof targetDurationSec !== 'undefined' ? targetDurationSec : 45) || 45,
-            engine: 'claude',
-            voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null,
-          }),
-        });
-        if (res.error) return toast(res.error);
-        showView('fabrique');
-        if (typeof trackJob === 'function') trackJob();
-      } catch (e) {
-        useInspirationLink(url);
-      }
-    }
     async function runMontageShort(inputEl) {
       const file = inputEl?.files?.[0];
       if (!file) return;
@@ -3350,7 +3332,7 @@
           ${v.why ? `<div style="font-size:12px; line-height:1.4; color:var(--ink); padding:8px 10px 0;"><b style="color:${scoreCol};">Pourquoi ça marche :</b> ${escHtml(v.why)}</div>` : ''}
           <div class="wall-actions">
             <button type="button" class="btn btn-ghost btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="copyInspirationLink(this.dataset.url)">Copier le lien</button>
-            <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" data-title="${escHtml(v.title || '')}" onclick="cloneInspirationVideo(this.dataset.url, this.dataset.title)">Cloner la vidéo</button>
+            <button type="button" class="btn btn-coral btn-xs" style="flex:1;" data-url="${escHtml(v.url)}" onclick="useInspirationLink(this.dataset.url)">S’inspirer du style →</button>
           </div>
           <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="display:block; text-align:center; font-size:12px; color:var(--muted); padding:0 0 8px;">Voir la vidéo ↗</a>
         </div>`;
@@ -5575,9 +5557,10 @@
       askAiHelp();
     }
 
-    let aiBarMode = localStorage.getItem('cliproll_ai_bar_mode') || 'team';
+    const AGENT_TEAM_ENABLED = {{ 'false' if clipoa_edition == 'public' else 'true' }};
+    let aiBarMode = AGENT_TEAM_ENABLED ? (localStorage.getItem('cliproll_ai_bar_mode') || 'team') : 'help';
     function setAiBarMode(mode) {
-      aiBarMode = (mode === 'help') ? 'help' : 'team';
+      aiBarMode = (mode === 'help' || !AGENT_TEAM_ENABLED) ? 'help' : 'team';
       try { localStorage.setItem('cliproll_ai_bar_mode', aiBarMode); } catch(e) {}
       document.getElementById('ai-mode-team')?.classList.toggle('actif', aiBarMode === 'team');
       document.getElementById('ai-mode-help')?.classList.toggle('actif', aiBarMode === 'help');
@@ -5604,6 +5587,39 @@
       }
     }
 
+    async function runAgentTeamMission(msg, opts) {
+      opts = opts || {};
+      const provider = opts.provider || ((document.getElementById('ai-tb-model')?.value || 'claude').split(':')[0]);
+      const thinkingEl = appendAiHelpMessage('assistant', opts.confirmed ? 'Lancement en cours…' : 'L’équipe mobilise les agents…', 'Équipe IA ClipRoll');
+      try {
+        const res = await apiJson('/api/agent-team/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            confirmed: opts.confirmed === true,
+            topics: opts.topics || null,
+            engine: provider === 'gemini' ? 'gemini' : 'claude',
+            plugin_id: (typeof activePluginId !== 'undefined' ? activePluginId : '') || '',
+            duration_sec: (typeof targetDurationSec !== 'undefined' ? targetDurationSec : 60) || 60,
+            voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null,
+          }),
+        });
+        if (thinkingEl) thinkingEl.remove();
+        if (res.error) { appendAiHelpMessage('assistant', res.error, 'Équipe IA'); return; }
+        appendTeamTrace(res.steps, []);
+        appendAiHelpMessage('assistant', res.reply || 'Mission terminée.', 'Équipe IA ClipRoll');
+        appendTeamTrace([], res.actions);
+        if (res.data && res.data.audit) renderChannelAudit(res.data.audit);
+        if (res.action === 'make_video' || res.action === 'remake_worst') {
+          if (typeof trackJob === 'function') trackJob();
+        }
+      } catch (e) {
+        if (thinkingEl) thinkingEl.remove();
+        appendAiHelpMessage('assistant', 'Erreur de connexion locale au serveur ClipRoll.', 'Erreur');
+      }
+    }
+
     function appendTeamTrace(steps, actions) {
       const body = document.getElementById('ai-tb-messages');
       if (!body) return;
@@ -5622,6 +5638,12 @@
           b.className = 'btn btn-coral btn-xs';
           b.textContent = a.label || 'Ouvrir';
           b.onclick = () => {
+            if (a.confirm) {
+              // Confirmation explicite : seule façon pour l'équipe de lancer des fabrications.
+              row.querySelectorAll('button').forEach(x => { x.disabled = true; });
+              runAgentTeamMission(a.message || '', { confirmed: true, topics: a.topics || null });
+              return;
+            }
             toggleAiTaskbarDrawer(false);
             if (a.view) showView(a.view);
             else if (a.open_modal) openModal(a.open_modal);
@@ -5765,29 +5787,8 @@
 
       try {
         if (aiBarMode === 'team') {
-          const res = await apiJson('/api/agent-team/run', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: msg,
-              engine: provider === 'gemini' ? 'gemini' : 'claude',
-              plugin_id: (typeof activePluginId !== 'undefined' ? activePluginId : '') || '',
-              duration_sec: (typeof targetDurationSec !== 'undefined' ? targetDurationSec : 60) || 60,
-              voice: (typeof getSelectedVoiceValue === 'function') ? getSelectedVoiceValue() : null,
-            }),
-          });
           if (thinkingEl) thinkingEl.remove();
-          if (res.error) {
-            appendAiHelpMessage('assistant', res.error, 'Équipe IA');
-            return;
-          }
-          appendTeamTrace(res.steps, []);
-          appendAiHelpMessage('assistant', res.reply || 'Mission terminée.', 'Équipe IA ClipRoll');
-          appendTeamTrace([], res.actions);
-          if (res.data && res.data.audit) renderChannelAudit(res.data.audit);
-          if (res.action === 'make_video' || res.action === 'remake_worst') {
-            if (typeof trackJob === 'function') trackJob();
-          }
+          await runAgentTeamMission(msg, { provider });
           return;
         }
 
@@ -5898,7 +5899,8 @@
 <!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
 <style>
   [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe,
-    div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn { display: none !important; }
+    div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn,
+    .ai-mode-seg, #ai-roster-strip, #ai-quick-team, div:has(> #cs-tiktok-handle) { display: none !important; }
 </style>
 {% endif %}
 <script src="/static/js/cliproll_update.js" defer></script>

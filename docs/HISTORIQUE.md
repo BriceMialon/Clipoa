@@ -152,3 +152,11 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Halos colorés retirés sauf sur le bouton principal (`--cr-shadow-coral` adouci) ; 2 bordures latérales remplacées par une bordure fine teintée.
 - Titres des modales `h3` → `h2` (hiérarchie après le `h1` de la vue).
 - Faux positifs ignorés : `animation: var(--spring)` (courbe ease-out malgré son nom), polices Inter/Plus Jakarta (choix de marque).
+
+## 26/11/2026 — Équipe d'agents IA, audit rétention, stats TikTok (travail Antigravity, PR #6)
+- `core/agent_team.py` + `/api/agent-team/*` : barre IA « Équipe IA ». Aucune fabrication sans confirmation : la mission renvoie `needs_confirmation` et un bouton qui renvoie `confirmed: true` (+ les sujets affichés pour la semaine). Aucun chemin ne publie ni ne supprime.
+- `core/retention_audit.py` : audit 12 Shorts, hooks 1.5s, optimisation de script, audit anti-swipe.
+- `core/channel_stats.py` : cache par compte actif, TikTok par l'API officielle ; repli yt-dlp sur profil public seulement en édition perso.
+- Édition public : `/api/agent-team/` et `/api/channel-stats/tiktok-handle` coupés, mode Équipe IA masqué.
+- S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
+- `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.

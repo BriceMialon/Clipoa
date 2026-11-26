@@ -97,6 +97,8 @@ def run_mission(
     enqueue_week_fn=None,
     make_video_fn=None,
     remake_video_fn=None,
+    confirmed: bool = False,
+    topics: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Exécute une mission complète via l'équipe d'agents IA ClipRoll et retourne :
@@ -104,6 +106,9 @@ def run_mission(
     - steps : trace des agents mobilisés [{agent, status, detail}]
     - actions : boutons rapides côté UI [{label, view, ...}]
     - data : données structurées éventuelles (plan semaine, audit, hooks…)
+
+    Règle : aucune fabrication n'est lancée sans `confirmed=True`. Sans confirmation, la mission
+    renvoie `needs_confirmation` avec un bouton « confirm » que l'interface renvoie tel quel.
     """
     mission = _classify_mission(message)
     action = mission["action"]
@@ -128,15 +133,31 @@ def run_mission(
         }
 
     if action == "generate_week":
-        from core.agents import LeStratege
-        niche = params.get("niche") or _infer_channel_niche()
-        steps.append({"agent": "Orchestrateur", "status": "done", "detail": f"Mission semaine reçue (niche : {niche[:80]})."})
-        plan = LeStratege.plan_weekly_shorts(niche, engine=engine) or []
-        topics = [str(it.get("titre") or it.get("sujet") or it.get("title") or "").strip() for it in plan if isinstance(it, dict)]
-        topics = [t for t in topics if t][:5]
-        steps.append({"agent": "Stratège Rétention", "status": "done", "detail": f"{len(topics)} sujets calibrés (Lun → Ven) générés."})
+        from agents.team import LeStratege
+        given = [str(t).strip()[:200] for t in (topics or []) if str(t).strip()][:5]
+        if confirmed and given:
+            # Confirmation de l'utilisateur : on reprend exactement les sujets qu'il a vus.
+            plan, topics = [], given
+            steps.append({"agent": "Orchestrateur", "status": "done", "detail": "Lancement confirmé par toi."})
+        else:
+            niche = params.get("niche") or _infer_channel_niche()
+            steps.append({"agent": "Orchestrateur", "status": "done", "detail": f"Mission semaine reçue (niche : {niche[:80]})."})
+            plan = LeStratege.plan_weekly_shorts(niche, engine=engine) or []
+            topics = [str(it.get("titre") or it.get("sujet") or it.get("title") or "").strip() for it in plan if isinstance(it, dict)]
+            topics = [t for t in topics if t][:5]
+            steps.append({"agent": "Stratège Rétention", "status": "done", "detail": f"{len(topics)} sujets calibrés (Lun → Ven) générés."})
 
         created = 0
+        if topics and params.get("auto_enqueue") and not confirmed:
+            steps.append({"agent": "Vérificateur", "status": "blocked", "detail": "Confirmation requise avant de lancer les fabrications."})
+            bullet = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(topics))
+            return {
+                "ok": True, "action": "needs_confirmation", "mission": "generate_week", "steps": steps,
+                "reply": f"Voici les {len(topics)} sujets proposés pour ta semaine :\n{bullet}\n\nJe lance les {len(topics)} fabrications ?",
+                "actions": [{"label": f"Lancer ces {len(topics)} fabrications", "confirm": True, "message": message, "topics": topics},
+                            {"label": "Ouvrir Ma semaine", "open_modal": "modal-week"}],
+                "data": {"plan": plan, "topics": topics, "created": 0},
+            }
         if topics and params.get("auto_enqueue") and callable(enqueue_week_fn):
             created = int(enqueue_week_fn(topics, plugin_id=plugin_id, duration_sec=duration_sec, engine=engine, voice=voice) or 0)
             steps.append({"agent": "Producteur", "status": "done", "detail": f"{created} vidéos mises en file de fabrication automatique."})
@@ -218,6 +239,13 @@ def run_mission(
             }
         worst = vids[0]
         steps.append({"agent": "Stratège Rétention", "status": "done", "detail": f"Vidéo ciblée : « {worst.get('title', '')[:50]} » ({worst.get('score', 0)}/100)."})
+        if not confirmed:
+            steps.append({"agent": "Vérificateur", "status": "blocked", "detail": "Confirmation requise avant de lancer la fabrication."})
+            return {
+                "ok": True, "action": "needs_confirmation", "mission": "remake_worst", "steps": steps,
+                "reply": f"Ta vidéo la moins performante est « {worst.get('title', '')} » ({worst.get('score', 0)}/100). Je lance sa nouvelle version ?",
+                "actions": [{"label": "Refaire cette vidéo", "confirm": True, "message": message}],
+            }
         if callable(remake_video_fn):
             remake_video_fn(worst["id"], engine=engine, voice=voice)
             steps.append({"agent": "Producteur", "status": "done", "detail": "Nouvelle version optimisée (hook 1.5s + boucle) mise en fabrication."})
@@ -257,6 +285,14 @@ def run_mission(
 
     if action == "make_video":
         topic = params.get("topic") or message.strip()
+        if not confirmed:
+            return {
+                "ok": True, "action": "needs_confirmation", "mission": "make_video",
+                "steps": [{"agent": "Orchestrateur", "status": "done", "detail": f"Vidéo demandée : « {topic[:60]} »."},
+                          {"agent": "Vérificateur", "status": "blocked", "detail": "Confirmation requise avant de lancer la fabrication."}],
+                "reply": f"Je lance la fabrication de la vidéo « {topic} » ?",
+                "actions": [{"label": "Lancer la fabrication", "confirm": True, "message": message}],
+            }
         steps.append({"agent": "Orchestrateur", "status": "done", "detail": f"Fabrication lancée pour « {topic[:60]} »."})
         if callable(make_video_fn):
             make_video_fn(topic=topic, plugin_id=plugin_id, duration_sec=duration_sec, engine=engine, voice=voice)
