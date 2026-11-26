@@ -204,7 +204,7 @@ def _edition_ctx():
 def _security_guard():
     # Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
     if _edition.is_blocked_path(request.path):
-        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de Clipoa."}), 403
+        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de ClipRoll."}), 403
     # 0. Anti-DNS-Rebinding guard (blocks malicious domains pointing to 127.0.0.1)
     lan_ip_allowed = get_lan_ip() if CLIPOA_ALLOW_LAN else ""
     if not is_allowed_host_header(request.host, allow_lan=CLIPOA_ALLOW_LAN, lan_ip=lan_ip_allowed):
@@ -234,9 +234,9 @@ def _security_guard():
         )
         if not hmac.compare_digest(str(provided), _LAN_ACCESS_TOKEN):
             if path.startswith("/api/"):
-                return jsonify({"error": "Accès LAN non autorisé — ouvre l'URL avec ton jeton Clipoa."}), 401
+                return jsonify({"error": "Accès LAN non autorisé — ouvre l'URL avec ton jeton ClipRoll."}), 401
             return Response(
-                "Accès LAN protégé — ouvre l'URL complète avec ?token=... affichée au démarrage de Clipoa.",
+                "Accès LAN protégé — ouvre l'URL complète avec ?token=... affichée au démarrage de ClipRoll.",
                 status=401,
                 mimetype="text/plain; charset=utf-8",
             )
@@ -368,7 +368,7 @@ def _load_persisted_jobs():
         for j in items:
             if j.get("status") == "running":
                 if j.get("kind") in RESUMABLE_KINDS and int(j.get("auto_resumes") or 0) < MAX_AUTO_RESUMES:
-                    # coupé par un arrêt de Clipoa / du Mac : on reprend tout seul à la dernière étape sauvegardée
+                    # coupé par un arrêt de ClipRoll / du Mac : on reprend tout seul à la dernière étape sauvegardée
                     j["status"] = "paused_restart"
                     j["step"] = "⏸️ Coupé par un arrêt — reprise automatique à la dernière étape sauvegardée…"
                 else:
@@ -758,26 +758,24 @@ def index():
 @app.route("/manifest.json")
 def pwa_manifest():
     return jsonify({
-        "name": "Clipoa",
-        "short_name": "Clipoa",
+        "name": "ClipRoll",
+        "short_name": "ClipRoll",
         "start_url": "/",
         "display": "standalone",
-        "background_color": "#0E0E11",
-        "theme_color": "#0E0E11",
+        "background_color": "#0B0B16",
+        "theme_color": "#0B0B16",
         "orientation": "portrait-primary",
-        "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}],
+        "icons": [
+            {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"},
+            {"src": "/static/brand/web/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/static/brand/web/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ],
     })
 
 
 @app.route("/icon.svg")
 def pwa_icon():
-    svg = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="120" fill="#E11D48"/>
-  <rect x="200" y="80" width="184" height="288" rx="48" fill="#FFFFFF" fill-opacity="0.42"/>
-  <rect x="120" y="128" width="216" height="320" rx="52" fill="#FFFFFF" stroke="#E11D48" stroke-width="20"/>
-  <path d="M202 234L290 288L202 342V234Z" fill="#E11D48"/>
-</svg>"""
-    return Response(svg, mimetype="image/svg+xml")
+    return send_file(str(BASE_DIR / "static" / "brand" / "cliproll-icon.svg"), mimetype="image/svg+xml")
 
 
 @app.route("/stream/<render_id>")
@@ -797,7 +795,7 @@ def download_video(render_id):
     video_path = RENDERS_DIR / render_id / "final_short.mp4"
     if not video_path.exists():
         return "Video not found", 404
-    return send_file(str(video_path), mimetype="video/mp4", as_attachment=True, download_name=f"clipoa_{render_id}.mp4")
+    return send_file(str(video_path), mimetype="video/mp4", as_attachment=True, download_name=f"cliproll_{render_id}.mp4")
 
 
 # ---------- Claude Account & Quota APIs ----------
@@ -1192,7 +1190,7 @@ def api_plugin_preview(plugin_id):
 
 @app.route("/api/plugins/<plugin_id>/reference-video", methods=["GET"])
 def api_plugin_reference_video(plugin_id):
-    # Lecture seule : les vidéos de référence sont fournies avec Clipoa (assets/style_refs/<id>.mp4)
+    # Lecture seule : les vidéos de référence sont fournies avec ClipRoll (assets/style_refs/<id>.mp4)
     fpath = StylePluginStore.get_reference_video_path(plugin_id)
     if not fpath:
         return "Video not found", 404
@@ -1464,7 +1462,7 @@ def oauth_start(provider):
 
 @app.route("/oauth/<provider>/relay-done", methods=["GET", "POST"])
 def oauth_relay_done(provider):
-    """Réceptionne le retour 1-clic sécurisé (POST/GET) du relais OAuth Clipoa et enregistre le compte."""
+    """Réceptionne le retour 1-clic sécurisé (POST/GET) du relais OAuth ClipRoll et enregistre le compte."""
     src = request.form if request.method == "POST" else request.args
     nonce = (src.get("nonce") or "").strip()
     state_entry = FreeSocialPublisher.consume_oauth_state(nonce) if nonce else None
@@ -1556,7 +1554,7 @@ def api_social_publish():
     data = request.json or {}
     render_id = (data.get("render_id") or "").strip()
     platforms = data.get("platforms") or []
-    title = data.get("title") or "Clipoa Short"
+    title = data.get("title") or "ClipRoll Short"
     caption = data.get("caption") or ""
     scheduled_at = (data.get("scheduled_at") or "").strip() or None
     publish_now = bool(data.get("publish_now", not scheduled_at))
@@ -1873,7 +1871,7 @@ def api_videos():
 
 @app.route("/api/videos/upload", methods=["POST"])
 def api_upload_short_video():
-    """Importe un Short existant (.mp4 / .mov / .webm) directement dans Clipoa pour publication ou programmation."""
+    """Importe un Short existant (.mp4 / .mov / .webm) directement dans ClipRoll pour publication ou programmation."""
     uploaded = request.files.get("video")
     if not uploaded or not uploaded.filename:
         return jsonify({"error": "Sélectionne un fichier vidéo (.mp4 ou .mov)."}), 400
@@ -2036,7 +2034,7 @@ def api_voice_preview():
     voice = (data.get("voice") or "").strip() or None
     try:
         res = VoiceEngine.generate_voice(
-            text="Salut, ici ton studio Clipoa. Prêt à fabriquer tes prochains shorts viraux.",
+            text="Salut, ici ton studio ClipRoll. Prêt à fabriquer tes prochains shorts viraux.",
             output_name="studio_voice_preview",
             voice=voice,
         )
@@ -2846,7 +2844,7 @@ def api_delete_script_template(tid):
 @app.route("/api/assistant/help", methods=["POST"])
 def api_assistant_help():
     """
-    Assistant d'aide IA intégré à la barre des tâches Clipoa.
+    Assistant d'aide IA intégré à la barre des tâches ClipRoll.
     Utilise le modèle Claude ou Gemini choisi par l'utilisateur s'il est connecté.
     """
     data = request.json or {}
@@ -2896,17 +2894,17 @@ def api_assistant_help():
             "ok": False,
             "needs_connection": True,
             "connected_providers": conn_map,
-            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur Clipoa.",
+            "reply": "Connecte Claude ou Gemini dans « Connexions » pour activer l'aide IA en direct sur ClipRoll.",
         }), 200
 
     plugins = StylePluginStore.list_plugins(include_script_body=False)
     styles_str = ", ".join(f"{p['name']} ({p.get('est_time_label', '~1 min')})" for p in plugins) or "aucun"
 
     system_prompt = (
-        "Tu es l'assistant d'aide intégré de Clipoa, une application de création de vidéos courtes faites à l'IA (Shorts, TikTok, Reels).\n"
+        "Tu es l'assistant d'aide intégré de ClipRoll, une application de création de vidéos courtes faites à l'IA (Shorts, TikTok, Reels).\n"
         "Réponds en français, clair, concret et court (3 à 7 lignes, étapes numérotées si utile). "
         "Donne toujours le nom exact de l'onglet et du bouton. Ne parle jamais d'une fonction qui n'existe pas.\n"
-        "Fonctions de Clipoa :\n"
+        "Fonctions de ClipRoll :\n"
         "- Accueil : vue rapide, vidéos à valider, création rapide.\n"
         "- Créer > Nouvelle vidéo : un seul champ où l'on écrit une idée en quelques mots OU colle son script complet ; "
         "durée (30 s à 2 min) ; bouton « ✨ Générer le script avec l'IA » (facultatif : le script s'écrit en direct puis se modifie à la main "
@@ -2921,7 +2919,7 @@ def api_assistant_help():
         "- Créer > Pilote auto : préparer les vidéos de la semaine.\n"
         "- Mes vidéos : regarder, valider, retoucher, télécharger.\n"
         "- Publier : programmer et publier sur YouTube, TikTok, Instagram, Facebook.\n"
-        "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec Clipoa ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
+        "- Statistiques : toutes les vidéos de la chaîne YouTube connectée (faites avec ClipRoll ou non), score /100 et pourquoi elles ont marché ou pas, bouton « Mettre à jour ».\n"
         "- Connexions : brancher Claude, ElevenLabs et ses réseaux sociaux.\n"
         "Les utilisateurs ne peuvent pas créer de nouveaux styles."
     )
@@ -3016,7 +3014,7 @@ def run_app(port=8080):
     except Exception as _e:
         print(f"⚠️ Barre de menus : {_e}")
     bind_host = CLIPOA_HOST
-    print(f"\n🚀 Clipoa démarré (sécurisé · Pulse & Gemini/Veo intégrés) !")
+    print(f"\n🚀 ClipRoll démarré (sécurisé · Pulse & Gemini/Veo intégrés) !")
     print(f"   💻 Sur ton Mac       : http://localhost:{port}")
     if bind_host == "0.0.0.0":
         lan_ip = get_lan_ip()

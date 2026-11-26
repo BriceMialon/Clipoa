@@ -16,7 +16,7 @@ DRIVE_SYNC_DIR.mkdir(parents=True, exist_ok=True)
 
 class DriveClient:
     """
-    Connects Clipoa Studio to any local synced Google Drive or creative workspace folder, loading:
+    Connects ClipRoll Studio to any local synced Google Drive or creative workspace folder, loading:
     - Creative Guides & Narrative Rules (guide_retention.md, SKILL.md, bible.md)
     - Asset & Voice Registry (bibliotheque.json)
     - Optional CSV Ideas Bank (idees.csv)

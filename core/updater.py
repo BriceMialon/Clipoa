@@ -1,5 +1,5 @@
 """
-Mises à jour automatiques de Clipoa installé par packaging/install.sh.
+Mises à jour automatiques de ClipRoll installé par packaging/install.sh.
 
 Disposition d'une installation (dossier CLIPOA_HOME, par défaut ~/Library/Clipoa) :
   app -> versions/<v>                 lien symbolique basculé à chaque mise à jour
@@ -253,7 +253,7 @@ def _apply(info: Dict[str, Any]) -> None:
 
 def start_update() -> Dict[str, Any]:
     if not enabled():
-        return {"ok": False, "error": "Mises à jour indisponibles sur cette copie de Clipoa."}
+        return {"ok": False, "error": "Mises à jour indisponibles sur cette copie de ClipRoll."}
     with _LOCK:
         if _STATE["running"]:
             return {"ok": True, "already": True}
@@ -265,7 +265,7 @@ def start_update() -> Dict[str, Any]:
             if os.getenv("CLIPOA_LAUNCHER") == "1":
                 threading.Timer(1.5, lambda: os._exit(RESTART_EXIT_CODE)).start()
             else:
-                _STATE["step"] = "Mise à jour installée. Relance Clipoa pour l'utiliser."
+                _STATE["step"] = "Mise à jour installée. Relance ClipRoll pour l'utiliser."
         except Exception as e:
             _STATE["error"] = f"Mise à jour impossible : {str(e)[:200]}"
             home = install_home()

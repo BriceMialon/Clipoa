@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Constructeur de scène Blender (exécuté DANS Blender). Lit SPEC (décor décrit en JSON pour CETTE vidéo)
 # et SHOTS (plans calés sur la voix), puis construit lieux, objets, personnages et caméra multi-plans.
-# Ne pas importer depuis Clipoa : ce fichier est concaténé au script Blender par BlenderEngine.
+# Ne pas importer depuis ClipRoll : ce fichier est concaténé au script Blender par BlenderEngine.
 import bpy
 import math
 import os

@@ -414,7 +414,7 @@ class TestSceneDesignerAndKit(unittest.TestCase):
                 pv = store.style_preview("roblox_3d", tdp / "renders")
                 self.assertEqual((pv["kind"], pv["url"]), ("video", "/stream/make_1"))
                 self.assertNotIn("source_url", pv)
-                # la vidéo livrée avec Clipoa passe avant tout
+                # la vidéo livrée avec ClipRoll passe avant tout
                 (refs / "roblox_3d.mp4").write_bytes(b"0")
                 pv = store.style_preview("roblox_3d", tdp / "renders")
                 self.assertEqual(pv["url"], "/api/plugins/roblox_3d/reference-video")

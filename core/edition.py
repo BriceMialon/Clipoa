@@ -1,5 +1,5 @@
 """
-Édition de Clipoa : « perso » (défaut, tout est actif) ou « public » (version vendue).
+Édition de ClipRoll : « perso » (défaut, tout est actif) ou « public » (version vendue).
 
 La version publique coupe ce qui n'est pas autorisé ou pas prêt pour des clients :
 - Gemini Studio (connexion Google perso) ;

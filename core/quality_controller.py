@@ -12,7 +12,7 @@ class QualityController:
     """
     Automated verification engine ('Le Contrôle').
     Audits the generated video and script for hook power, vertical safety zones, and retention mechanics,
-    plus objective technical checks of the Clipoa method (loudness, rhythm of shots, SFX count, twist).
+    plus objective technical checks of the ClipRoll method (loudness, rhythm of shots, SFX count, twist).
     """
 
     @classmethod

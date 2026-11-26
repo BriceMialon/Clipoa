@@ -33,7 +33,7 @@ class TestClipoaSecurityAndRoutes(unittest.TestCase):
         r = self.client.get("/")
         self.assertEqual(r.status_code, 200)
         html = r.get_data(as_text=True)
-        self.assertIn("Clipoa", html)
+        self.assertIn("ClipRoll", html)
         self.assertIn("Créer", html)
         # Verify security headers
         self.assertEqual(r.headers.get("X-Content-Type-Options"), "nosniff")
@@ -159,12 +159,12 @@ class TestClipoaCoreFixes(unittest.TestCase):
             ass_file = os.path.join(td, "sub.ass")
             words = [
                 {"word": "Bonjour", "start": 0.1, "end": 0.5},
-                {"word": "Clipoa!", "start": 0.5, "end": 1.0},
+                {"word": "ClipRoll!", "start": 0.5, "end": 1.0},
             ]
             VideoComposer.generate_ass_subtitles(words, ass_file, hook_text="ACCROCHE ÉLÉGANTE")
             content = Path(ass_file).read_text(encoding="utf-8")
             self.assertIn("ACCROCHE ÉLÉGANTE", content)
-            self.assertIn("CLIPOA!", content)
+            self.assertIn("CLIPROLL!", content)
 
     def test_voice_engine_rejects_empty_text(self):
         with self.assertRaises(ValueError):
@@ -213,7 +213,7 @@ class TestClipoaCoreFixes(unittest.TestCase):
                 mp4 = VideoComposer.compose_short(
                     output_name=sess_name,
                     audio_path=wav_path,
-                    script_data={"title": "Test", "hook_screen_text": "TEST HOOK", "full_spoken_script": "Bonjour Clipoa"},
+                    script_data={"title": "Test", "hook_screen_text": "TEST HOOK", "full_spoken_script": "Bonjour ClipRoll"},
                     transcript_data=None,
                     theme="dark_luxury",
                     subtitle_style="submagic_yellow",

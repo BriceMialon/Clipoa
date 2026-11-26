@@ -24,7 +24,7 @@ class TestWorkspace(unittest.TestCase):
         self.assertIn('id="ws-switch"', html)
         self.assertIn('class="brand-logo"', html)
         self.assertNotIn("touche / pour écrire", html)
-        self.assertNotIn("Clipoa installe et prépare", html)
+        self.assertNotIn("ClipRoll installe et prépare", html)
 
 
 class TestRemake(unittest.TestCase):

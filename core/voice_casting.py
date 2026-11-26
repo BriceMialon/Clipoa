@@ -301,7 +301,7 @@ def resolve_voice_id(key: str, v: Dict[str, Any]) -> str:
         res = requests.post(
             f"{API}/voices/add/{v.get('public_owner_id')}/{v['voice_id']}",
             headers={"xi-api-key": key, "Content-Type": "application/json"},
-            json={"new_name": f"Clipoa · {v.get('name') or 'voix'}"[:60]},
+            json={"new_name": f"ClipRoll · {v.get('name') or 'voix'}"[:60]},
             timeout=15,
         )
         if res.status_code == 200 and res.json().get("voice_id"):

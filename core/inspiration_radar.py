@@ -25,7 +25,7 @@ RADAR_FILE = STORAGE_DIR / "inspiration_radar.json"
 _LOCK = threading.Lock()
 _STATE = {"scanning": False, "progress": "", "error": ""}
 
-# Recherches orientées contenu IA (le style des vidéos que Clipoa sait refaire)
+# Recherches orientées contenu IA (le style des vidéos que ClipRoll sait refaire)
 AI_QUERIES = {
     "fr": [
         "histoire ia animation", "dans ma ville roblox histoire", "vidéo ia dessin animé", "conte ia 3d",

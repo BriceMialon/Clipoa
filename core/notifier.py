@@ -32,7 +32,7 @@ def _short(text, limit: int) -> str:
     return t if len(t) <= limit else t[: limit - 1].rstrip() + "…"
 
 
-def notify(message: str, title: str = "Clipoa") -> bool:
+def notify(message: str, title: str = "ClipRoll") -> bool:
     if not enabled() or not message:
         return False
     try:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installation de Clipoa sur Mac (Apple Silicon) :
+# Installation de ClipRoll sur Mac (Apple Silicon) :
 #   curl -fsSL <adresse>/install.sh | bash
 # Désinstaller : curl -fsSL <adresse>/install.sh | bash -s -- --uninstall   (garde tes vidéos ; --purge efface tout)
 #
@@ -12,7 +12,7 @@ main() {
 
   UPDATE_URL="${CLIPOA_UPDATE_URL:-__CLIPOA_UPDATE_URL__}"
   H="${CLIPOA_HOME:-$HOME/Library/Clipoa}"
-  APP_BUNDLE="$HOME/Applications/Clipoa.app"
+  APP_BUNDLE="$HOME/Applications/ClipRoll.app"
   UV_VERSION="0.13.10"
   PY_VERSION="3.9"
 
@@ -20,31 +20,31 @@ main() {
   html_esc() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
   progress_page() {   # $1 = balises <head> en plus, $2 = corps (déjà échappé)
     [ -n "${CLIPOA_PROGRESS_HTML:-}" ] || return 0
-    printf '<meta charset="utf-8">%s<title>Clipoa</title><body style="font:16px -apple-system;padding:40px">%s</body>\n' "$1" "$2" > "$CLIPOA_PROGRESS_HTML" 2>/dev/null || true
+    printf '<meta charset="utf-8">%s<title>ClipRoll</title><body style="font:16px -apple-system;padding:40px">%s</body>\n' "$1" "$2" > "$CLIPOA_PROGRESS_HTML" 2>/dev/null || true
   }
   say() {
     printf '\033[1;35m▸\033[0m %s\n' "$*"
-    progress_page '<meta http-equiv="refresh" content="2">' "<h2>Installation de Clipoa</h2><p>$(html_esc "$*")</p>"
+    progress_page '<meta http-equiv="refresh" content="2">' "<h2>Installation de ClipRoll</h2><p>$(html_esc "$*")</p>"
   }
   die() {
     printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
-    progress_page '' "<h2>Installation de Clipoa</h2><p style=\"color:#c00\">✗ $(html_esc "$*")</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
+    progress_page '' "<h2>Installation de ClipRoll</h2><p style=\"color:#c00\">✗ $(html_esc "$*")</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
     DIED=1; exit 1
   }
 
   if [ "${1:-}" = "--uninstall" ]; then
-    say "Désinstallation de Clipoa…"
+    say "Désinstallation de ClipRoll…"
     pkill -f "$H/bin/clipoa-server" 2>/dev/null || true
-    rm -rf "$APP_BUNDLE" "$H/app" "$H/app.new" "$H/versions" "$H/venv" "$H/python" "$H/tools" "$H/bin"
-    if [ "${2:-}" = "--purge" ]; then rm -rf "$H"; say "Tout est effacé."; else say "Clipoa est retiré. Tes vidéos et réglages restent dans $H/data."; fi
+    rm -rf "$APP_BUNDLE" "$HOME/Applications/Clipoa.app" "$H/app" "$H/app.new" "$H/versions" "$H/venv" "$H/python" "$H/tools" "$H/bin"
+    if [ "${2:-}" = "--purge" ]; then rm -rf "$H"; say "Tout est effacé."; else say "ClipRoll est retiré. Tes vidéos et réglages restent dans $H/data."; fi
     exit 0
   fi
 
-  [ "$(uname -s)" = "Darwin" ] || die "Clipoa s'installe sur Mac pour l'instant."
+  [ "$(uname -s)" = "Darwin" ] || die "ClipRoll s'installe sur Mac pour l'instant."
   [ "$(uname -m)" = "arm64" ] || die "Cette version demande un Mac Apple Silicon (M1 ou plus récent). Les Mac Intel viendront plus tard."
   case "$UPDATE_URL" in
     https://*|http://127.0.0.1*|http://localhost*) ;;
-    *) die "Adresse du serveur Clipoa manquante ou non sécurisée ($UPDATE_URL)." ;;
+    *) die "Adresse du serveur ClipRoll manquante ou non sécurisée ($UPDATE_URL)." ;;
   esac
   UPDATE_URL="${UPDATE_URL%/}"
 
@@ -55,7 +55,7 @@ main() {
     local rc=$?
     rm -rf "$TMP"
     if [ "$rc" -ne 0 ] && [ -z "${DIED:-}" ]; then
-      progress_page '' "<h2>Installation de Clipoa</h2><p style=\"color:#c00\">✗ L'installation s'est arrêtée (code $rc).</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
+      progress_page '' "<h2>Installation de ClipRoll</h2><p style=\"color:#c00\">✗ L'installation s'est arrêtée (code $rc).</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
     fi
   }
   trap on_exit EXIT
@@ -75,25 +75,25 @@ main() {
   fi
   export UV_PYTHON_INSTALL_DIR="$H/python" UV_CACHE_DIR="$H/data/cache/uv" UV_PYTHON_PREFERENCE=only-managed
 
-  # 2. Python (même version mineure que celle qui a compilé Clipoa)
+  # 2. Python (même version mineure que celle qui a compilé ClipRoll)
   if [ ! -x "$H/venv/bin/python" ]; then
     say "Installation de Python $PY_VERSION (dans $H, rien n'est modifié ailleurs)…"
     "$UV" python install --no-bin "$PY_VERSION" >/dev/null
     "$UV" venv --seed --python "$PY_VERSION" "$H/venv" >/dev/null
   fi
 
-  # 3. Dernière version de Clipoa
-  say "Recherche de la dernière version de Clipoa…"
-  curl -fsSL "$UPDATE_URL/latest.json" -o "$TMP/latest.json" || die "Serveur Clipoa injoignable ($UPDATE_URL)."
+  # 3. Dernière version de ClipRoll
+  say "Recherche de la dernière version de ClipRoll…"
+  curl -fsSL "$UPDATE_URL/latest.json" -o "$TMP/latest.json" || die "Serveur ClipRoll injoignable ($UPDATE_URL)."
   read_json() { "$H/venv/bin/python" -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "$TMP/latest.json" "$1"; }
   VERSION="$(read_json version)"; PKG="$(read_json url)"; SHA="$(read_json sha256)"
   case "$VERSION" in *[!0-9.]*|"") die "Numéro de version invalide." ;; esac
   case "$PKG" in http*) ;; *) PKG="$UPDATE_URL/$PKG" ;; esac
 
   if [ -e "$H/versions/$VERSION/release.json" ]; then
-    say "Clipoa $VERSION est déjà installé."
+    say "ClipRoll $VERSION est déjà installé."
   else
-    say "Téléchargement de Clipoa $VERSION…"
+    say "Téléchargement de ClipRoll $VERSION…"
     curl -fL --progress-bar "$PKG" -o "$TMP/clipoa.tgz"
     [ "$(shasum -a 256 "$TMP/clipoa.tgz" | cut -d' ' -f1)" = "$SHA" ] || die "Le paquet téléchargé est corrompu."
     D="$H/versions/.tmp-$VERSION"
@@ -105,7 +105,7 @@ main() {
     ln -sfn ../../data/runtime "$D/runtime"
     ln -sfn ../../venv "$D/venv"
     ln -sfn ../../data/venv_tts "$D/venv_tts"
-    say "Installation des outils de Clipoa (quelques minutes la première fois)…"
+    say "Installation des outils de ClipRoll (quelques minutes la première fois)…"
     if [ -f "$D/requirements.lock" ]; then   # versions et empreintes figées au moment du build
       "$UV" pip install -q --require-hashes --python "$H/venv/bin/python" -r "$D/requirements.lock"
     else
@@ -113,7 +113,7 @@ main() {
     fi
     rm -rf "$H/versions/$VERSION"; mv "$D" "$H/versions/$VERSION"
   fi
-  # 3b. Blender (version fixée par Clipoa, téléchargé sur blender.org, gardé dans data/runtime : jamais re-téléchargé aux mises à jour)
+  # 3b. Blender (version fixée par ClipRoll, téléchargé sur blender.org, gardé dans data/runtime : jamais re-téléchargé aux mises à jour)
   BL_VER="$(read_json blender_version 2>/dev/null || true)"
   if [ -n "$BL_VER" ] && [ "$(cat "$H/data/runtime/blender_version" 2>/dev/null)" != "$BL_VER" ]; then
     BL_URL="$(read_json blender_url)"; BL_SHA="$(read_json blender_sha256)"
@@ -149,12 +149,12 @@ main() {
   # 4. Lanceurs
   cat > "$H/bin/clipoa-server" <<'EOS'
 #!/bin/bash
-# Serveur Clipoa ; relancé tout seul après une mise à jour (code de sortie 42).
+# Serveur ClipRoll ; relancé tout seul après une mise à jour (code de sortie 42).
 H="$(cd "$(dirname "$0")/.." && pwd)"
 LOG="$H/data/logs/clipoa.log"
 [ -f "$LOG" ] && [ "$(stat -f%z "$LOG")" -gt 20000000 ] && mv -f "$LOG" "$LOG.1"
 export CLIPOA_LAUNCHER=1 CLIPOA_PORT="${CLIPOA_PORT:-8080}"
-# tout ce que l'app télécharge reste dans le dossier Clipoa et survit aux mises à jour
+# tout ce que l'app télécharge reste dans le dossier ClipRoll et survit aux mises à jour
 export HF_HOME="$H/data/runtime/huggingface" HF_HUB_DISABLE_TELEMETRY=1
 export PLAYWRIGHT_BROWSERS_PATH="$H/data/runtime/ms-playwright"
 export CLIPOA_WHISPER_DIR="$H/data/runtime/models/faster-whisper-base"
@@ -168,7 +168,7 @@ done
 EOS
   cat > "$H/bin/clipoa" <<'EOS'
 #!/bin/bash
-# Ouvre Clipoa (démarre le serveur s'il ne tourne pas).
+# Ouvre ClipRoll (démarre le serveur s'il ne tourne pas).
 H="$(cd "$(dirname "$0")/.." && pwd)"
 URL="http://localhost:${CLIPOA_PORT:-8080}"
 if ! curl -fs -o /dev/null --max-time 2 "$URL/api/update/status"; then
@@ -179,20 +179,21 @@ fi
 EOS
   chmod +x "$H/bin/clipoa" "$H/bin/clipoa-server"
 
-  # 5. Application « Clipoa » dans ~/Applications (créée ici, donc pas bloquée par Gatekeeper)
+  # 5. Application « ClipRoll » dans ~/Applications (créée ici, donc pas bloquée par Gatekeeper)
   if [ -z "${CLIPOA_NO_APP:-}" ]; then
+    rm -rf "$HOME/Applications/Clipoa.app"   # ancien nom de l'app (avant ClipRoll)
     mkdir -p "$APP_BUNDLE/Contents/MacOS" "$APP_BUNDLE/Contents/Resources"
-    printf '#!/bin/bash\nexec "%s/bin/clipoa"\n' "$H" > "$APP_BUNDLE/Contents/MacOS/Clipoa"
-    chmod +x "$APP_BUNDLE/Contents/MacOS/Clipoa"
-    [ -f "$H/app/assets/clipoa.icns" ] && cp "$H/app/assets/clipoa.icns" "$APP_BUNDLE/Contents/Resources/clipoa.icns"
+    printf '#!/bin/bash\nexec "%s/bin/clipoa"\n' "$H" > "$APP_BUNDLE/Contents/MacOS/ClipRoll"
+    chmod +x "$APP_BUNDLE/Contents/MacOS/ClipRoll"
+    [ -f "$H/app/assets/cliproll.icns" ] && cp "$H/app/assets/cliproll.icns" "$APP_BUNDLE/Contents/Resources/cliproll.icns"
     cat > "$APP_BUNDLE/Contents/Info.plist" <<EOS
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleName</key><string>Clipoa</string>
-  <key>CFBundleIdentifier</key><string>app.clipoa.launcher</string>
-  <key>CFBundleExecutable</key><string>Clipoa</string>
-  <key>CFBundleIconFile</key><string>clipoa</string>
+  <key>CFBundleName</key><string>ClipRoll</string>
+  <key>CFBundleIdentifier</key><string>app.cliproll.launcher</string>
+  <key>CFBundleExecutable</key><string>ClipRoll</string>
+  <key>CFBundleIconFile</key><string>cliproll</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>LSUIElement</key><true/>
@@ -200,13 +201,13 @@ EOS
 EOS
   fi
 
-  say "Clipoa $VERSION est installé. Ouverture…"
-  [ -n "${CLIPOA_NO_APP:-}" ] || say "Pour le rouvrir plus tard : application « Clipoa » dans le dossier Applications de ton compte."
+  say "ClipRoll $VERSION est installé. Ouverture…"
+  [ -n "${CLIPOA_NO_APP:-}" ] || say "Pour le rouvrir plus tard : application « ClipRoll » dans le dossier Applications de ton compte."
   if pgrep -f "$H/bin/clipoa-server" >/dev/null 2>&1; then
     pkill -f "$H/bin/clipoa-server" || true; pkill -f "$H/venv/bin/python app.py" || true; sleep 1
   fi
   P="${CLIPOA_PORT:-8080}"
-  progress_page "<meta http-equiv=\"refresh\" content=\"3;url=http://localhost:$P\">" "<h2>Clipoa est prêt</h2><p>Ouverture de <a href=\"http://localhost:$P\">http://localhost:$P</a>…</p>"
+  progress_page "<meta http-equiv=\"refresh\" content=\"3;url=http://localhost:$P\">" "<h2>ClipRoll est prêt</h2><p>Ouverture de <a href=\"http://localhost:$P\">http://localhost:$P</a>…</p>"
   "$H/bin/clipoa"
 }
 

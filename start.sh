@@ -6,7 +6,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "$DIR"
 
 echo "========================================================"
-echo "🎬 Lancement de Clipoa..."
+echo "🎬 Lancement de ClipRoll..."
 echo "========================================================"
 
 # Environnement Python + tous les outils (ffmpeg via imageio-ffmpeg, yt-dlp, Whisper, voix…) : rien à installer à la main
@@ -17,7 +17,7 @@ fi
 REQ="$DIR/requirements.txt"
 STAMP="$DIR/venv/.clipoa_requirements"
 if [ -f "$REQ" ] && ! cmp -s "$REQ" "$STAMP" 2>/dev/null; then
-    echo "Installation / mise à jour des outils de Clipoa..."
+    echo "Installation / mise à jour des outils de ClipRoll..."
     if "$DIR/venv/bin/pip" install -q -r "$REQ"; then
         cp "$REQ" "$STAMP"
     else

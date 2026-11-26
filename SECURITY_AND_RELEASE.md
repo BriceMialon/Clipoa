@@ -1,9 +1,9 @@
-# Clipoa — Sécurité, Anti-DDoS & Checklist avant sortie publique
+# ClipRoll — Sécurité, Anti-DDoS & Checklist avant sortie publique
 
 ## 1. Protections intégrées dans le code
 
 ### Application locale (`app.py`, `core/security.py`, `config.py`, `core/scraper.py`)
-- **Écoute locale stricte par défaut (`127.0.0.1`)** : Clipoa n'est plus exposé sur tout le Wi-Fi public (café, hôtel, fac).
+- **Écoute locale stricte par défaut (`127.0.0.1`)** : ClipRoll n'est plus exposé sur tout le Wi-Fi public (café, hôtel, fac).
   - Pour autoriser l'accès depuis son téléphone sur son Wi-Fi privé : lancer avec `CLIPOA_ALLOW_LAN=1`. Un jeton aléatoire est automatiquement généré (`http://<IP>:8080/?token=...`) et stocké en cookie `HttpOnly; SameSite=Lax`.
 - **Anti-SSRF & Anti-injection d'arguments** :
   - Validation stricte de toutes les URLs publiques (`/api/scan`, `/api/clone`, `/api/cut`, `/api/analyze-short`, `yt-dlp`) : blocage de `file://`, `localhost`, IP privées (`10.x`, `192.168.x`, `169.254.169.254`), résolution DNS privée et flags commençant par `-`.

@@ -1,5 +1,5 @@
 """
-Metteur en scène Clipoa : Claude lit le script et décrit, en JSON, le décor
+Metteur en scène ClipRoll : Claude lit le script et décrit, en JSON, le décor
 de CETTE vidéo (lieux, objets, panneaux, personnages, et pour chaque plan : lieu, cadrage, action).
 Blender construit ensuite la scène dans le style choisi (core/blender_kit/scene_kit_bpy.py).
 

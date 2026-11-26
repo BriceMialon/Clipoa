@@ -19,7 +19,7 @@ const EP = q.get('ep'), FPS = +(q.get('fps') || 30);
 const WW = +q.get('w') || 1080, HH = +q.get('h') || 1920;
 // v3.4 qualite : ss = super-echantillonnage (rendu a ss x la taille puis reduction), fx=0 coupe les effets
 const SS = +(q.get('ss') || 1), FX = q.get('fx') !== '0';
-// Clipoa : ne jamais bloquer si une police manque (repli Arial)
+// ClipRoll : ne jamais bloquer si une police manque (repli Arial)
 await Promise.race([Promise.all(['900 80px Montserrat', '700 40px Montserrat', '80px "Luckiest Guy"'].map((f) => document.fonts.load(f).catch(() => null))), new Promise((r) => setTimeout(r, 6000))]);
 const timeline = await (await fetch(`/episodes/${EP}/audio/timeline.json`)).json();
 window.__errors = [];
@@ -119,10 +119,10 @@ const ctx = {
   THREE, W, S, world, scene, cam, lamps, ease, lerp, lerpV, timeline, preset, shadowFocus,
   camera(a, b = null, e = 'inOut') { camA = a; camB = b || a; camEase = ease[e]; },
   shake(v) { shake = v; },
-  // Clipoa : tourne l'acteur vers la caméra (à appeler APRÈS c.camera) ; k < 1 = trois-quarts
+  // ClipRoll : tourne l'acteur vers la caméra (à appeler APRÈS c.camera) ; k < 1 = trois-quarts
   faceCam(a, k = 1) { if (!camA) return; const r = Math.atan2(camA.pos[0] - a.position.x, camA.pos[2] - a.position.z); a.rotation.y = a.rotation.y + (r - a.rotation.y) * k; },
   talk(a) { world.talk && world.talk(a); },
-  // Clipoa : objets / personnages créés pour CETTE vidéo. Cachés et remis en place au début de chaque plan.
+  // ClipRoll : objets / personnages créés pour CETTE vidéo. Cachés et remis en place au début de chaque plan.
   own(o) { scene.add(o); OWN.push({ o, p: o.position.clone(), r: o.rotation.clone(), s: o.scale.clone() }); o.visible = false; return o; },   // v3.4 : ce personnage bouge la bouche sur les mots prononces pendant le plan
   wordTime(word, after = 0) {
     const w0 = shot.start + after;
@@ -140,7 +140,7 @@ window.__shots = shots.map((s) => ({ name: s.name, start: s.start, end: s.end, p
 window.__setupShot = (i) => {
   shot = shots[i]; shake = 0;
   world.reset(); preset(shot.preset || 'day');
-  if (q.get('neutral') !== '0' && world.banner) world.banner.visible = false;   // Clipoa : pas de bannière Docteur Shark
+  if (q.get('neutral') !== '0' && world.banner) world.banner.visible = false;   // ClipRoll : pas de bannière Docteur Shark
   for (const d of OWN) { d.o.visible = false; d.o.position.copy(d.p); d.o.rotation.copy(d.r); d.o.scale.copy(d.s); if (d.o.userData.setExpr) d.o.userData.setExpr('neutral'); }
   shot.setup && shot.setup(ctx, shot);
   return Math.round(shot.end * FPS) - Math.round(shot.start * FPS);   // arrondi cumule : pas de derive audio/video
@@ -192,7 +192,7 @@ function issuesNow() {
       const mid = new THREE.Vector3((hb.min.x + hb.max.x) / 2, (hb.min.y + hb.max.y) / 2, (hb.min.z + hb.max.z) / 2).project(cam);
       if (top.z < 1 && mid.z < 1 && Math.abs(mid.x) < 1 && mid.y < 0.9 && top.y > 1.04) out.push('tete coupee en haut : ' + a.name);
       if (mid.z < 1 && Math.abs(mid.x) < 1.0 && Math.abs(mid.y) < 1.0 && (mid.x > 0.92 || mid.x < -0.92)) out.push('visage colle au bord : ' + a.name);
-      // Clipoa : gros plan sur l'arrière de la tête (le personnage tourne le dos à la caméra alors que sa tête remplit le cadre)
+      // ClipRoll : gros plan sur l'arrière de la tête (le personnage tourne le dos à la caméra alors que sa tête remplit le cadre)
       if (mid.z < 1 && Math.abs(mid.x) < 0.9 && Math.abs(mid.y) < 0.9) {
         const bot = new THREE.Vector3((hb.min.x + hb.max.x) / 2, hb.min.y, (hb.min.z + hb.max.z) / 2).project(cam);
         const ry = a.rotation.y, fx = Math.sin(ry), fz = Math.cos(ry);
@@ -210,7 +210,7 @@ function issuesNow() {
 }
 window.__check = (i) => {
   const n = window.__setupShot(i), found = new Set();
-  for (const k of [0, 0.2, 0.4, 0.6, 0.8, 0.97]) {   // Clipoa : 6 instants (un passant peut boucher la caméra)
+  for (const k of [0, 0.2, 0.4, 0.6, 0.8, 0.97]) {   // ClipRoll : 6 instants (un passant peut boucher la caméra)
     const f = Math.min(n - 1, Math.floor(n * k)), dur = shot.end - shot.start, t = f / FPS, p = Math.min(1, t / Math.max(0.001, dur));
     shot.update && shot.update(ctx, t, p, shot);
     const e = camEase(p); cam.position.set(...lerpV(camA.pos, camB.pos, e)); cam.lookAt(...lerpV(camA.target, camB.target, e));

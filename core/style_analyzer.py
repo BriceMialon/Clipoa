@@ -1,5 +1,5 @@
 """
-Analyse d'une vidéo de référence (YouTube, Shorts, Reels, TikTok, X) pour en faire un STYLE Clipoa :
+Analyse d'une vidéo de référence (YouTube, Shorts, Reels, TikTok, X) pour en faire un STYLE ClipRoll :
 l'agent télécharge la vidéo, mesure son rythme (coupes, durée des plans, débit de parole), en tire des
 planches d'images, transcrit la voix, puis l'IA choisie rédige la Direction Artistique (DA), les règles
 narratives et les réglages de production, et choisit le moteur de rendu Blender le plus proche.
@@ -71,7 +71,7 @@ Mesures : durée {stats.get('duration_s')} s ; {stats.get('shots')} plans ; plan
 Texte parlé (horodaté) :
 {transcript_txt[:2500]}
 
-Clipoa rend les vidéos avec Blender. Moteurs disponibles :
+ClipRoll rend les vidéos avec Blender. Moteurs disponibles :
 {renderers}
 Pour CHAQUE moteur, donne une note de ressemblance de 0 à 10 avec les images (« renderer_scores ») en regardant d'abord les PERSONNAGES
 (cubiques ? traits bâtons ? dessin animé à contours ?) puis le décor ; « renderer » = le mieux noté.
@@ -208,7 +208,7 @@ def create_style_from_reference(
     progress: Optional[Callable[[int, str], None]] = None,
     hidden: bool = False,
 ) -> Dict[str, Any]:
-    """Analyse la vidéo et enregistre un nouveau style (plugin) prêt à l'emploi dans Clipoa.
+    """Analyse la vidéo et enregistre un nouveau style (plugin) prêt à l'emploi dans ClipRoll.
     hidden=True (lien collé dans la Fabrique) : style interne à cette vidéo, absent de la liste des styles."""
     from core.style_plugins import StylePluginStore, sanitize_production
     res = analyze_reference(url, engine=engine, model=model, progress=progress)
@@ -237,7 +237,7 @@ def create_style_from_reference(
     tool = str(a.get("tool_guess") or "")
     da = str(a.get("da_prompt") or "")
     da += (
-        f"\n\n## Origine de ce style\nAnalysé automatiquement par Clipoa depuis une vidéo d'exemple ({res['meta'].get('uploader') or 'source externe'}). "
+        f"\n\n## Origine de ce style\nAnalysé automatiquement par ClipRoll depuis une vidéo d'exemple ({res['meta'].get('uploader') or 'source externe'}). "
         f"Mesures : {stats.get('duration_s')} s, {stats.get('shots')} plans, plan moyen {stats.get('avg_shot_s')} s, {res['words_per_s']} mots/s."
         + (f"\nOutil probable du créateur : {tool}" if tool else "")
     )

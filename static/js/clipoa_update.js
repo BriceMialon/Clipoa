@@ -14,7 +14,7 @@
     if (bar) return;
     bar = el("div", "position:fixed;right:16px;bottom:16px;z-index:99999;max-width:340px;padding:14px 16px;border-radius:14px;" +
       "background:rgba(20,20,28,.92);color:#fff;font:14px/1.4 -apple-system,system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.35)");
-    var title = el("div", "font-weight:600;margin-bottom:4px", "Nouvelle version de Clipoa : " + info.latest);
+    var title = el("div", "font-weight:600;margin-bottom:4px", "Nouvelle version de ClipRoll : " + info.latest);
     var notes = el("div", "opacity:.8;font-size:13px;margin-bottom:10px", info.notes || "Tu as la version " + info.current + ".");
     var msg = el("div", "font-size:13px;margin-top:8px;display:none");
     var btn = el("button", "background:#7c5cff;color:#fff;border:0;border-radius:10px;padding:8px 14px;font-weight:600;cursor:pointer", "Mettre à jour");
@@ -44,7 +44,7 @@
         msg.textContent = (st.step || "Mise à jour…") + (st.progress ? " " + st.progress + " %" : "");
         setTimeout(function () { poll(msg, btn, target); }, 1000);
       })
-      .catch(function () { msg.textContent = "Redémarrage de Clipoa…"; setTimeout(function () { poll(msg, btn, target); }, 1500); });
+      .catch(function () { msg.textContent = "Redémarrage de ClipRoll…"; setTimeout(function () { poll(msg, btn, target); }, 1500); });
   }
 
   function check() {
