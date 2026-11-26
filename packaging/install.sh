@@ -16,8 +16,21 @@ main() {
   UV_VERSION="0.13.10"
   PY_VERSION="3.9"
 
-  say() { printf '\033[1;35m▸\033[0m %s\n' "$*"; }
-  die() { printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+  # Page de progression (app du DMG) : CLIPOA_PROGRESS_HTML, rafraîchie par le navigateur toutes les 2 s.
+  html_esc() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'; }
+  progress_page() {   # $1 = balises <head> en plus, $2 = corps (déjà échappé)
+    [ -n "${CLIPOA_PROGRESS_HTML:-}" ] || return 0
+    printf '<meta charset="utf-8">%s<title>Clipoa</title><body style="font:16px -apple-system;padding:40px">%s</body>\n' "$1" "$2" > "$CLIPOA_PROGRESS_HTML" 2>/dev/null || true
+  }
+  say() {
+    printf '\033[1;35m▸\033[0m %s\n' "$*"
+    progress_page '<meta http-equiv="refresh" content="2">' "<h2>Installation de Clipoa</h2><p>$(html_esc "$*")</p>"
+  }
+  die() {
+    printf '\033[1;31m✗ %s\033[0m\n' "$*" >&2
+    progress_page '' "<h2>Installation de Clipoa</h2><p style=\"color:#c00\">✗ $(html_esc "$*")</p><p>Détails : ~/Library/Clipoa/data/logs/installation.log</p>"
+    exit 1
+  }
 
   if [ "${1:-}" = "--uninstall" ]; then
     say "Désinstallation de Clipoa…"
@@ -121,6 +134,8 @@ main() {
     printf '%s\n' "$WH_REV" > "$WH_DIR/.clipoa_revision"
   fi
 
+  "$UV" cache clean >/dev/null 2>&1 || true   # le cache de uv ne sert plus (≈ 490 Mo)
+
   ln -sfn "versions/$VERSION" "$H/app.new" && mv -fh "$H/app.new" "$H/app"
 
   # 4. Lanceurs
@@ -178,10 +193,12 @@ EOS
   fi
 
   say "Clipoa $VERSION est installé. Ouverture…"
-  say "Pour le rouvrir plus tard : application « Clipoa » dans le dossier Applications de ton compte."
+  [ -n "${CLIPOA_NO_APP:-}" ] || say "Pour le rouvrir plus tard : application « Clipoa » dans le dossier Applications de ton compte."
   if pgrep -f "$H/bin/clipoa-server" >/dev/null 2>&1; then
     pkill -f "$H/bin/clipoa-server" || true; pkill -f "$H/venv/bin/python app.py" || true; sleep 1
   fi
+  P="${CLIPOA_PORT:-8080}"
+  progress_page "<meta http-equiv=\"refresh\" content=\"3;url=http://localhost:$P\">" "<h2>Clipoa est prêt</h2><p>Ouverture de <a href=\"http://localhost:$P\">http://localhost:$P</a>…</p>"
   "$H/bin/clipoa"
 }
 
