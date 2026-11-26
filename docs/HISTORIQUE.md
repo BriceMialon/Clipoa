@@ -85,3 +85,10 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Logos : macro Jinja `brand(key, label, color, size)` → `/static/logos/<key>.svg` (ou .png), sinon pastille avec l'initiale. Les fichiers officiels sont à déposer à la main (voir `static/logos/README.md`) — ne pas redessiner les logos de marque.
 - Fin de vidéo : titre sans emoji + « Voir dans mes vidéos » / « Télécharger » / « Fermer ». Accueil : gros « Bonsoir/Bonjour, <nom du compte> ». Textes explicatifs retirés partout.
 
+
+## Réseaux sociaux : TikTok via le relais OAuth (2026-11-25)
+- Relais Cloudflare `clipoa-oauth` : secrets `TT_CLIENT_KEY` / `TT_CLIENT_SECRET` (Sandbox TikTok) posés par Brice → `/oauth/status` tiktok:true. YouTube et Meta : pas encore de clés sur le relais. Le code déployé est une version plus ancienne (mêmes routes) que `oauth_relay_worker.js` local (durci, pas encore déployé).
+- TikTok : compte Docteur Shark (`docsharkinvest`, seul compte test de la Sandbox) branché par le vrai parcours OAuth (relais → `/oauth/tiktok/relay-done`).
+- `_oauth_base_url` (app.py) garde l'hôte réel (`127.0.0.1` ou `localhost`) : certains navigateurs résolvent `localhost` en ::1 et le retour OAuth se perdait.
+- `_publish_tiktok` : app non auditée + compte public → TikTok refuse la publication directe (`unaudited_client_can_only_post_to_private_accounts`) ; repli automatique en brouillon (`/v2/post/publish/inbox/video/init/`, scope `video.upload`), résultat `privacy: INBOX_DRAFT`. Publication directe publique = audit TikTok requis (domaine vérifié, vidéo de démo, UI de confidentialité exigée par TikTok).
+- Meta : inscription développeur bloquée (Facebook refuse les modifications depuis un « nouvel appareil ») ; à refaire depuis un appareil habituel.
