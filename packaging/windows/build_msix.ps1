@@ -119,7 +119,7 @@ try {
     $SitePkgs = Join-Path $PyDist "Lib\site-packages"
     New-Item -ItemType Directory -Force -Path $SitePkgs | Out-Null
     Get-ChildItem -Path (Join-Path $BuildVenv "Lib\site-packages") |
-        Where-Object { $_.Name -notmatch '^(nuitka|Nuitka|ordered_set|zstandard)' } |
+        Where-Object { $_.Name -notmatch '^(nuitka|Nuitka|ordered_set|zstandard|imageio_ffmpeg)' } |
         ForEach-Object { Copy-Item -Recurse -Force $_.FullName $SitePkgs }
     Get-ChildItem -Path $PyDist -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
     if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
