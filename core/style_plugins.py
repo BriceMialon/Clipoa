@@ -338,6 +338,40 @@ NARRATIVE_RULES_COMPTEUR_TOON = r"""Structure « règle + compteur » (tutoiemen
 6. La chute (dernières secondes) : une phrase courte et absurde, le compteur à une valeur marquante."""
 
 
+STYLE_BIBLE_PARABOLE = r"""# STYLE BIBLE — « Parabole à 3 destins » (dessin vectoriel plat, Shorts / Reels / TikTok 9:16)
+
+> **À l'IA qui lit ce fichier :** reprends ce FORMAT avec le sujet de l'utilisateur. Ne copie jamais les personnages, objets, noms ou textes des vidéos de référence.
+
+## 1. L'ADN
+Une idée abstraite (argent, habitudes, études, sport…) expliquée par une petite fable : MÊME DÉPART, TROIS CHOIX, TROIS DESTINS.
+Trois personnages reçoivent exactement la même chose (un objet simple et concret). Le n°1 la consomme, le n°2 la garde,
+le n°3 la fait grandir (ou toute autre opposition claire). On suit chaque destin, puis la morale tombe, puis « Et toi ? ».
+
+## 2. FORMAT
+- 9:16, 1080×1920, 45 à 70 s. UNE image calme par phrase (4 à 6 s), léger zoom lent, 1 ou 2 objets qui apparaissent pendant la phrase.
+- Bandeau-pastille en haut qui dit où on en est (« N°1 : IL LE DÉPENSE »), la question de départ pendant l'introduction.
+- Sous-titres d'UN mot à la fois, blancs à contour sombre, le mot prononcé en jaune, au centre.
+- Dernière image : carton « ET TOI ? » sur fond nuit avec les choix en icônes, pour faire commenter.
+
+## 3. DESSIN
+- Vectoriel plat, contours sombres, aucune texture. Trois personnages très reconnaissables (couleurs de haut différentes).
+- Décors simples (rue, maison, champ, salle de classe). Objets explicatifs : tableau, courbe qui monte ou descend, pièces, tirelire, plante.
+- L'objet commun du départ revient dans chaque destin : mangé, rangé, multiplié.
+
+## 4. VOIX & SON
+- Narration au « tu » ou conte (« Imagine… »), posée (~2,5 mots/s), phrases courtes. Musique calme et basse, peu de bruitages.
+"""
+
+NARRATIVE_RULES_PARABOLE = r"""Structure « parabole à 3 destins » (phrases de 5 à 12 mots, ~2,5 mots/s, 45 à 70 s) :
+1. Accroche (0-4 s) : la question que tout le monde se pose (« Pourquoi certains s'enrichissent et d'autres non ? »).
+2. Le départ commun (4-12 s) : « Imagine… » une situation où tout le monde repart de zéro et reçoit la MÊME chose, concrète et visuelle.
+3. Destin n°1 (12-22 s) : il la consomme tout de suite. Plaisir immédiat, puis plus rien.
+4. Destin n°2 (22-32 s) : il la garde. En sécurité, mais rien ne bouge.
+5. Destin n°3 (32-45 s) : il la fait grandir. Lent au début, puis ça se multiplie. Annonce chaque destin par « Le premier… », « Le deuxième… », « Le troisième… ».
+6. La morale (45-55 s) : même départ, trois destins ; relie la fable au vrai sujet en une ou deux phrases simples.
+7. « Et toi ? » (dernières secondes) : rappelle les 3 choix en un mot chacun et demande lequel est le tien, en commentaire."""
+
+
 STARTER_PLUGINS: List[Dict[str, Any]] = [
     {
         "id": "roblox_3d",
@@ -475,6 +509,33 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "starter": True,
     },
     {
+        "id": "parabole_3_destins",
+        "name": "Parabole à 3 destins",
+        "category": "2D",
+        "icon": "🔱",
+        "gradient": "cartoon",
+        "tagline": "Une fable dessinée : même départ, trois choix, trois destins, puis « Et toi ? ».",
+        "da_prompt": STYLE_BIBLE_PARABOLE,
+        "narrative_rules": NARRATIVE_RULES_PARABOLE,
+        "render_mode": "motion",
+        "theme": "pop_flat",
+        "subtitle_style": "toon_yellow",
+        "est_time_sec": 90,
+        "est_time_label": "~1 à 2 min",
+        "script_language": "python",
+        "script_filename": "",
+        "script_content": "",
+        "model_sheets": [
+            {
+                "filename": "parabole_3_destins.jpg",
+                "original_name": "parabole_3_destins.jpg",
+                "role": "reference",
+                "uploaded_at": "2026-11-27 14:00",
+            }
+        ],
+        "starter": True,
+    },
+    {
         "id": "roblox_cine",
         "name": "Roblox 3D Ciné (haute qualité)",
         "category": "3D",
@@ -522,6 +583,11 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     # le moteur), plans « temps forts » 1-3 s pour les bruitages, sous-titres 3 mots blancs + mot prononcé rose
     "compteur_toon": {"shot_min_s": 1.0, "shot_max_s": 3.0, "caption_mode": "chunk", "keyword_colors": False, "music_db": -20.0,
                       "mood": "upbeat", "visual_style": "toon_svg", "sfx_max": 30, "whoosh_min_gap_s": 3.0, "sfx_repeat_gap_s": 1.5},
+    # Parabole à 3 destins : même moteur dessiné, mais une image calme par phrase (4-6 s), un mot de sous-titre à la fois,
+    # bandeau de chapitre et carton final « Et toi ? » ; musique calme, peu de bruitages
+    "parabole_3_destins": {"shot_min_s": 3.0, "shot_max_s": 6.5, "caption_mode": "one_word", "keyword_colors": False, "music_db": -21.0,
+                           "mood": "calm", "visual_style": "toon_svg", "toon_mode": "parable", "sfx_max": 12,
+                           "whoosh_min_gap_s": 6.0, "sfx_repeat_gap_s": 3.0},
     # Qualité cinéma : moteur three.js ciné (rendu long, plus de tokens), un mot à la fois, mots-clés colorés
     "roblox_cine": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "one_word", "music_db": -17.0, "character_style": "r6", "visual_style": "cine3d"},
 }
@@ -548,6 +614,8 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "hud": ("bool", None),
     "hud_color": ("hex", None),
     "caption_look": ("enum", ("", "cine", "toon")),
+    # moteur dessiné (toon_svg) : « compteur » (une image / 0,8 s) ou « parable » (Parabole à 3 destins)
+    "toon_mode": ("enum", ("compteur", "parable")),
     # narration dense : voix accélérée (sans changer la hauteur) et silences raccourcis avant le calage des mots
     "voice_tempo": ("float", (0.8, 1.4)),
     "trim_silence": ("bool", None),
