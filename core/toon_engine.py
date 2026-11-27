@@ -26,6 +26,8 @@ FONTS_DIR = BASE_DIR / "assets" / "fonts"
 PANEL_TARGET_S = 0.7
 PANEL_MIN_S = 0.45
 PANEL_MAX_S = 1.4
+# Mode « Rapide » choisi dans la Fabrique : environ 2x moins d'images à décrire (moins de tokens) et à dessiner
+FAST_PANEL_TIMING = {"target": 1.4, "min_len": 0.8, "max_len": 2.4}
 
 
 # ───────────────────────────── Découpe en images ─────────────────────────────
@@ -428,10 +430,11 @@ def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: f
 
 def render_story(session_id: str, script: Dict[str, Any], plan: Dict[str, Any], words: List[Dict[str, Any]],
                  duration: float, out_dir: Path, model: Optional[str] = None, da_hint: str = "",
-                 progress: Optional[Callable[[int, str], None]] = None) -> str:
-    """Point d'entrée du pipeline : renvoie la vidéo de fond (mp4 sans son)."""
+                 progress: Optional[Callable[[int, str], None]] = None, quality: str = "hq") -> str:
+    """Point d'entrée du pipeline : renvoie la vidéo de fond (mp4 sans son).
+    quality « fast » = images plus longues (~1,4 s) donc moins nombreuses ; « hq » = une image toutes les ~0,7 s."""
     beats = [float(s.get("start", 0)) for s in (plan.get("shots") or [])[1:]]
-    panels = build_panels(words, duration, beats)
+    panels = build_panels(words, duration, beats, **(FAST_PANEL_TIMING if quality == "fast" else {}))
     if progress:
         progress(55, f"🖍️ [3/4] Claude met en scène {len(panels)} images dessinées…")
     spec = design(script, panels, model=model, da_hint=da_hint)
