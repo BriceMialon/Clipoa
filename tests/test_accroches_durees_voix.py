@@ -127,6 +127,16 @@ class TestCasting(unittest.TestCase):
         self.assertEqual(c[0]["voice_id"], "orionID")
         self.assertIn("VALIDÉE", voice_casting._describe(c[0]))
 
+    def test_roster_voice_from_library_keeps_owner(self):
+        with patch.object(voice_casting, "load_roster", return_value=[{"voice_id": "nico", "name": "Nicolas", "roles": ["narrateur_energique"]}]), \
+                patch.object(voice_casting, "account_voices", return_value=[]), \
+                patch.object(voice_casting, "library_voices", return_value=[
+                    {"voice_id": "nico", "name": "Nicolas", "public_owner_id": "own", "language": "fr", "source": "library"}]):
+            c = voice_casting.build_candidates("k", "fr")
+        self.assertEqual(c[0]["source"], "library")
+        self.assertEqual(c[0]["public_owner_id"], "own")
+        self.assertTrue(c[0]["validated"])
+
     def test_heuristic_uses_role_not_always_orion(self):
         c = self._cands()
         story = voice_casting.heuristic_pick(c, "fr", "Une nuit, un secret.", role=voice_casting.narrator_role("Une nuit, un secret."))

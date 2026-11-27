@@ -272,14 +272,17 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
 def build_candidates(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
     acc = account_voices(key)
     by_id = {v["voice_id"]: v for v in acc}
+    lib = library_voices(key, language, free_only=free_only)
+    lib_by_id = {v["voice_id"]: v for v in lib}
     roster = []
     for r in load_roster():
-        base = dict(by_id.get(r["voice_id"]) or {"voice_id": r["voice_id"], "name": r["name"], "source": "account"})
+        # voix validée pas encore ajoutée au compte : si elle vient de la bibliothèque, elle sera ajoutée au 1er usage
+        base = dict(by_id.get(r["voice_id"]) or lib_by_id.get(r["voice_id"])
+                    or {"voice_id": r["voice_id"], "name": r["name"], "source": "account"})
         base.update({"roles": r["roles"], "validated": True, "note": r.get("note", "")})
         base["name"] = base.get("name") or r["name"]
         roster.append(base)
     own = [v for v in acc if v.get("category") in ("cloned", "professional", "generated")]
-    lib = library_voices(key, language, free_only=free_only)
     premade = [v for v in acc if v.get("category") == "premade"]
     seen = set()
     out: List[Dict[str, Any]] = []
