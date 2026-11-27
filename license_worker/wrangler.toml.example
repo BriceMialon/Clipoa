@@ -15,8 +15,11 @@ TOKEN_DAYS = "7"
 PRICE_MONTHLY = "price_A_REMPLIR"   # 19 €/mois (mode test d'abord)
 PRICE_YEARLY = "price_A_REMPLIR"    # 149 €/an, présélectionné sur le site
 PUBLIC_URL = "https://clipoa-license.clipoa-studio.workers.dev"
+ALLOWED_ORIGINS = "https://cliproll.app,https://www.cliproll.app,http://localhost:8080,http://127.0.0.1:8080"
+MAIL_FROM = "ClipRoll <licence@cliproll.app>"
 
 # Secrets (npx wrangler secret put NOM) :
 #   STRIPE_SECRET_KEY        sk_test_... (jamais sk_live tant que Brice n'a pas validé)
 #   STRIPE_WEBHOOK_SECRET    whsec_...
 #   LICENSE_SIGNING_KEY      clé privée Ed25519 PKCS8 en base64 (python3 gen_keys.py)
+#   RESEND_API_KEY           (optionnel) clé Resend pour envoyer automatiquement la clé de licence par email
