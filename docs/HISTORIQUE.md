@@ -12,6 +12,13 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - TikTok : le nom du compte est redemandé à TikTok avec `display_name` seul si `username` est refusé (il exige le scope `user.info.profile`, non demandé) ; `FreeSocialPublisher.refresh_tiktok_names()` renomme au démarrage les comptes restés « Compte TikTok » (jetons intacts) ; l'ancienne fiche « TikTok (Connecté) » sans `open_id` n'est plus affichée (elle reste dans le fichier). Même correctif dans `oauth_relay_worker.js` (à redéployer).
 - Styles livrés (`STARTER_PLUGINS`) en lecture seule : boutons Éditer / ✕ masqués, et l'API refuse PUT, DELETE, planches et script (403, `_builtin_style_locked`).
 
+## Pilote auto refait (27/11/2026)
+
+- `core/night_factory.py` ne fabrique plus lui-même : chaque sujet passe par `/api/make` (lanceur `_night_launch` dans `app.py`, branché par `NightFactory.configure`). Donc Claude seul, mêmes réglages que Créer, protection CPU `JOB_GUARD`, pause/reprise quota, notification, vidéo rattachée au compte actif au moment de la programmation.
+- Une seule fabrication à la fois : la tâche suit son job (`running` → `waiting_validation` / `done` / `error`). Écriture du fichier sous un seul verrou (`_mutate`), plus de mise à jour perdue.
+- Publication : créneaux Lun→Ven de la semaine suivante à l'heure choisie (`week_slots`). Une vidéo n'est programmée (`create_post(scheduled_at=…)`) qu'une fois VALIDÉE ; si le créneau est passé, jour de semaine suivant (`next_free_slot`) ; pas de doublon si elle a déjà été programmée à la main. L'ancien `auto_publish_platforms` (publication immédiate sans validation) est supprimé.
+- UI : fenêtre « Ma semaine » sans Gemini, choix « maintenant / ce soir 22 h », réseaux branchés + heure ; écran « Suivi du Pilote auto » (progression, Regarder, Valider, Annuler). Raccourci accueil masqué en édition public. Tests : `tests/test_night_factory.py`.
+
 ## Marque ClipRoll (26/11/2026)
 
 - Nom visible « ClipRoll » → « ClipRoll » partout (UI, notifications, barre de menus, installateur, DMG `ClipRoll.app` / `ClipRoll-<v>.dmg`, site public, docs) par `tools/rebrand_cliproll.py` (rejouable sur les branches windows / PR en cours).
