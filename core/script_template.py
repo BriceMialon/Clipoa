@@ -62,14 +62,80 @@ def recent_video_titles(limit: int = 12) -> List[str]:
     return titles
 
 
-def avoid_titles_block(titles: Optional[List[str]]) -> str:
-    recent = [t.strip() for t in (titles or []) if t and t.strip()][:12]
-    if not recent:
+def first_sentence(text: str) -> str:
+    t = re.sub(r"\s+", " ", str(text or "")).strip()
+    m = re.match(r"(.+?[.!?…])(\s|$)", t)
+    return (m.group(1) if m else t)[:140]
+
+
+def opening_signature(text: str, n_words: int = 3) -> str:
+    """Les premiers mots d'une accroche, normalisés (« Dans mon village, une… » → « dans mon village »)."""
+    words = re.findall(r"[a-zà-ÿœæ0-9]+", str(text or "").lower())
+    return " ".join(words[:n_words])
+
+
+def recent_video_openings(limit: int = 10) -> List[str]:
+    """Premières phrases des dernières vidéos rendues (pour ne pas recommencer toujours de la même façon)."""
+    from config import RENDERS_DIR
+    out: List[str] = []
+    try:
+        metas = sorted(RENDERS_DIR.glob("*/metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for mf in metas[: limit * 2]:
+            try:
+                sc = json.loads(mf.read_text(encoding="utf-8")).get("script") or {}
+            except Exception:
+                continue
+            if not isinstance(sc, dict):
+                continue
+            o = first_sentence(sc.get("hook_spoken") or sc.get("full_spoken_script") or "")
+            if o and o not in out:
+                out.append(o)
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
+def repeated_opening(text: str, openings: Optional[List[str]] = None) -> str:
+    """Renvoie l'accroche récente dont `text` reprend le début (mêmes 3 premiers mots, ou la même tournure
+    « dans ma/mon ville/village… ») ; vide si l'accroche est neuve."""
+    sig = opening_signature(first_sentence(text))
+    if not sig:
         return ""
-    return (
-        "\nHistoires déjà faites récemment (NE PAS les refaire, ni leur objet central, ni leur retournement) :\n- "
-        + "\n- ".join(recent) + "\n"
-    )
+    openings = recent_video_openings() if openings is None else openings
+    fam = _opening_family(sig)
+    for o in openings:
+        osig = opening_signature(o)
+        if osig and (osig == sig or (fam and fam == _opening_family(osig))):
+            return o
+    return ""
+
+
+def _opening_family(sig: str) -> str:
+    """Tournures voisines comptées comme une seule : « dans ma ville », « dans mon village », « dans cette ville »…"""
+    m = re.match(r"(dans|in) (ma|mon|cette|notre|this|my|our) (ville|village|quartier|famille|école|town|city|village|family)", sig)
+    return "dans_mon_lieu" if m else ""
+
+
+def avoid_titles_block(titles: Optional[List[str]], openings: Optional[List[str]] = None) -> str:
+    recent = [t.strip() for t in (titles or []) if t and t.strip()][:12]
+    if openings is None:
+        openings = recent_video_openings()
+    opens = [o for o in openings if o][:10]
+    out = ""
+    if recent:
+        out += (
+            "\nHistoires déjà faites récemment (NE PAS les refaire, ni leur objet central, ni leur retournement) :\n- "
+            + "\n- ".join(recent) + "\n"
+        )
+    if opens:
+        out += (
+            "\nPremières phrases des dernières vidéos. La nouvelle accroche ne doit commencer ni par les mêmes mots ni par la même "
+            "tournure (pas de « Dans ma ville / mon village… » si c'est déjà là) : elle naît de CE sujet.\n- "
+            + "\n- ".join(opens) + "\n"
+        )
+    return out
 
 
 def _format_mmss(seconds: int) -> str:
@@ -184,7 +250,8 @@ def build_script_generation_prompt(
         "personnages (un narrateur seul, un dialogue, une petite troupe) et la personne (je, tu, il). "
         "Ce que l'utilisateur précise (durée, ton, personnages, langue, structure, fin) passe avant tout le reste.\n"
         "Aucune recette imposée : pas de twist, de morale, de question finale ni d'appel à s'abonner si l'idée ne s'y prête pas. "
-        "Seules exigences : accrocher dès la première phrase, parler comme à l'oral, une idée claire par phrase, "
+        "Seules exigences : accrocher dès la première phrase avec ce que la demande a de plus fort (jamais une formule toute "
+        "faite comme « Dans ma ville… » : chaque vidéo a sa propre première phrase), parler comme à l'oral, une idée claire par phrase, "
         "et des répliques jouables à l'image.\n"
         "Écris dans la langue de la demande (français par défaut). Rends le document dans le format ci-dessous, sans rien autour.\n"
         "ORIGINALITÉ : l'histoire part de l'idée de l'utilisateur et rien d'autre. Les objets, décors, structures et exemples cités "
@@ -201,8 +268,9 @@ def build_script_generation_prompt(
     )
     user_prompt = (
         f"Idée de l'utilisateur :\n{topic.strip()}\n\n"
-        f"Durée maximale : {mmss} ({dur['duration_sec']} secondes, au plus ~{dur['max_words']} mots parlés, un plan toutes les 2 à 4 s). "
-        "Si l'idée est plus forte en plus court, fais plus court.\n"
+        f"Durée demandée : {mmss} ({dur['duration_sec']} secondes). La voix lit environ {dur['target_words']} mots dans ce temps : "
+        f"écris entre {dur['min_words']} et {dur['max_words']} mots parlés (compte-les), un plan toutes les 2 à 4 s. "
+        "La vidéo doit durer ce qui est demandé, ni beaucoup plus court ni plus long.\n"
         f"{da_block}{avoid_block}\n"
         f"{extra_note}"
     )
