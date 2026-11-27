@@ -54,7 +54,12 @@ def next_free_slot(wanted: str, now: Optional[datetime] = None) -> str:
     """Si le créneau prévu est passé (vidéo validée en retard) : prochain jour de semaine, même heure."""
     now = now or datetime.now()
     try:
-        dt = datetime.fromisoformat(wanted)
+        iso = str(wanted or "").strip()
+        if iso.endswith("Z"):
+            iso = iso[:-1] + "+00:00"
+        dt = datetime.fromisoformat(iso)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone().replace(tzinfo=None)
     except (TypeError, ValueError):
         return wanted
     while dt <= now + timedelta(minutes=5) or dt.weekday() >= 5:
@@ -341,6 +346,9 @@ class NightFactory:
 
     @classmethod
     def start_worker(cls):
+        from core import edition as _edition
+        if _edition.is_public():
+            return
         if cls._worker_started:
             return
         cls._worker_started = True

@@ -1227,8 +1227,12 @@ class FreeSocialPublisher:
                     cls._update_queue_post(post_id, results=dict(results))
                     continue
                 elif tok.startswith("browser_session:"):
-                    from core.browser_auth import BrowserPortalAuth
-                    results[plat] = BrowserPortalAuth.publish_with_session(plat, video_path, target["title"], target["caption"])
+                    from core import edition as _edition
+                    if _edition.is_public():
+                        results[plat] = {"ok": False, "message": "Connexion navigateur désactivée dans cette version — utilise l'OAuth officiel."}
+                    else:
+                        from core.browser_auth import BrowserPortalAuth
+                        results[plat] = BrowserPortalAuth.publish_with_session(plat, video_path, target["title"], target["caption"])
                 elif plat == "youtube":
                     results[plat] = cls._publish_youtube(cfg, video_path, target["title"], target["caption"])
                 elif plat == "tiktok":

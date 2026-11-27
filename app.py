@@ -48,7 +48,7 @@ from core.security import (
     is_allowed_host_header,
 )
 from core import edition as _edition
-from core.license import LicenseManager, LICENSED_PREFIXES
+from core.license import LicenseManager, LICENSED_PREFIXES, requires_license
 from core.scraper import CompetitorScraper
 from core.pipeline import ShortCrewPipeline
 from core.claude_bridge import ClaudeBridge, ClaudeQuotaExceededError
@@ -242,7 +242,11 @@ def api_license_link():
 
 @app.route("/api/license/deactivate", methods=["POST"])
 def api_license_deactivate():
-    return jsonify(LICENSE.deactivate())
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(LICENSE.deactivate(force=bool(body.get("force"))))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
 
 
 @app.context_processor
@@ -327,9 +331,9 @@ def _security_guard():
     # 5. Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
     if _edition.is_blocked_path(path):
         return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de ClipRoll."}), 403
-    # Version publique : fabrication réservée aux abonnés (lecture seule sinon, rien n'est supprimé)
+    # Version publique : fabrication / IA / publication réservées aux abonnés (lecture seule sinon)
     if (_edition.is_public() and request.method == "POST"
-            and path.startswith(LICENSED_PREFIXES) and not LICENSE.can_fabricate()):
+            and requires_license(path) and not LICENSE.can_fabricate()):
         return jsonify({"error": "Abonnement inactif : activez votre licence ClipRoll pour fabriquer des vidéos.",
                         "license_required": True}), 402
 
@@ -1200,7 +1204,10 @@ def api_drive_sync():
 @app.route("/api/plugins", methods=["GET", "POST"])
 def api_plugins():
     if request.method == "GET":
-        return jsonify({"plugins": StylePluginStore.list_plugins(include_script_body=False)})
+        plugins = StylePluginStore.list_plugins(include_script_body=False)
+        if _edition.is_public():
+            plugins = [p for p in plugins if not p.get("heavy")]
+        return jsonify({"plugins": plugins})
     # Les utilisateurs ne créent plus leurs propres styles : seuls les styles livrés sont proposés
     return jsonify({"error": "La création de styles n'est pas disponible."}), 403
     data = request.json or {}
@@ -1443,6 +1450,9 @@ def api_social_accounts():
 def api_social_connect():
     data = request.json or {}
     platform = data.get("platform")
+    tok = str(data.get("access_token") or "")
+    if _edition.is_public() and tok.startswith("browser_session:"):
+        return jsonify({"error": "Connexion navigateur désactivée dans cette version — utilise l'OAuth officiel."}), 403
     try:
         updated = FreeSocialPublisher.save_account(platform, data)
         return jsonify({"account": updated})
@@ -2543,6 +2553,9 @@ def api_script_lab_from_competitors():
 def api_script_lab_generate():
     """Agent Expert Script (Claude ou Gemini) : part de 0, applique un Plugin DA, ou s'inspire d'un concurrent."""
     data = request.json or {}
+    if _edition.is_public() and (data.get("competitor_url") or "").strip():
+        return jsonify({"error": "L'analyse d'un lien concurrent n'est pas disponible dans cette version."}), 403
+    engine = "claude" if _edition.is_public() else (data.get("engine") or "claude").strip().lower()
     try:
         try:
             target_dur = max(15, min(180, int(data.get("target_duration_sec") or 60)))
@@ -2551,12 +2564,12 @@ def api_script_lab_generate():
         res = ScriptExpertAgent.generate(
             topic=data.get("topic", ""),
             niche=data.get("niche", ""),
-            competitor_url=data.get("competitor_url", ""),
+            competitor_url="" if _edition.is_public() else data.get("competitor_url", ""),
             plugin_id=(data.get("plugin_id") or "").strip() or None,
             target_duration_sec=target_dur,
-            engine=(data.get("engine") or "claude").strip().lower(),
+            engine=engine,
         )
-        return jsonify({"engine": data.get("engine", "claude"), "data": res})
+        return jsonify({"engine": engine, "data": res})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

@@ -15,12 +15,12 @@ Modèle :
 
 ---
 
-## 2026-11-27 18:32 — Antigravity — Lot 3 Workers (sans waitlist)
-- Branche / PR : `gemini/workers-hardening` — PR brouillon (prête à relire)
-- En cours : durcissement des Workers Cloudflare (`license_worker/` + `oauth_relay_worker.js`) sans waitlist, en conservant 100 % du `licenseGate` et du fix TikTok de `main`.
-- Fichiers touchés : `license_worker/worker.js`, `license_worker/schema.sql`, `license_worker/wrangler.toml.example`, `oauth_relay_worker.js`, `docs/HANDOFF.md`
-- Prochaine étape : Lot 2 (`app.py` sécurité) puis Lots 4, 5 (UI carrousels), 6 (Personnalités + 5 concurrents).
-- Attention : aucune route ni table waitlist incluse dans cette PR.
+## 2026-11-27 21:06 — Antigravity — Lot 4 Édition public
+- Branche / PR : `gemini/public-edition` — PR brouillon (prête à relire)
+- En cours : renforcement édition `public` par-dessus #11 et #14 (`requires_license()` élargi, `license.json` `0o600`, `deactivate(force=False)`, `NightFactory.start_worker()` coupé en `public` + fix ISO `"Z"`, `browser_session:` coupé en `public`, filtrage plugins `heavy`, `competitor_url` / Gemini coupés sur `/api/script-lab/generate`), sans toucher à `static/js/cliproll_license.js` (#11 déjà complet).
+- Fichiers touchés : `app.py`, `core/license.py`, `core/night_factory.py`, `core/social_publisher.py`, `tests/test_public_edition.py`, `docs/HANDOFF.md`
+- Prochaine étape : Lot 5 (UI animations vidéos / KPIs / onboarding / nettoyage ShortCrew) puis Lot 6 (Personnalités + 5 comptes concurrents dans l'onglet Concurrents de #12).
+- Attention : PR 1 (`gemini/security-core`), PR 2 (`gemini/security-app`) et PR 3 (`gemini/workers-hardening`) déjà poussées.
 
 ## 2026-11-27 — Claude — Règles de relais
 - Branche / PR : claude/project-thread-15q7fh (PR à fusionner)
