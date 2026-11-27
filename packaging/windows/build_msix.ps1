@@ -220,6 +220,8 @@ for name, (w, h) in sizes.items():
         $pfx = Join-Path $BuildDir "test.pfx"
         $pwd = ConvertTo-SecureString -String "clipoa-test" -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd | Out-Null
+        # Certificat public (sans clé) à importer sur la VM d'essai avant d'installer le .msix
+        Export-Certificate -Cert $cert -FilePath (Join-Path $Dist "ClipRoll-test-certificate.cer") | Out-Null
         & $signtool.FullName sign /fd SHA256 /f $pfx /p "clipoa-test" $MsixOut
         if ($LASTEXITCODE -ne 0) {
             # Diagnostic : quels binaires du paquet SignTool refuse-t-il ? (« bad PE »)
