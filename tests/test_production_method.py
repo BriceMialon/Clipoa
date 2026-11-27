@@ -438,6 +438,18 @@ class TestSceneDesignerAndKit(unittest.TestCase):
         self.assertNotIn('data-splaque="3d"', html)
         self.assertNotIn('data-splaque="broll"', html)
         self.assertNotIn("ap-ref-file", html)
+        # « Schéma animé » retiré : il n'affichait aucun schéma
+        self.assertNotIn('data-splaque="schema"', html)
+
+    def test_every_starter_has_description_and_shipped_example(self):
+        import core.style_plugins as sp
+        for st in sp.STARTER_PLUGINS:
+            pid = st["id"]
+            self.assertTrue(sp.STYLE_DESCRIPTIONS.get(pid), pid)
+            self.assertTrue(any((sp.STYLE_REFS_DIR / f"{pid}{e}").is_file() for e in (".mp4", ".webm")), f"exemple manquant : {pid}")
+            pv = sp.StylePluginStore.style_preview(pid)
+            self.assertEqual(pv["kind"], "video", pid)
+            self.assertEqual(pv["description"], sp.STYLE_DESCRIPTIONS[pid])
 
     def test_starter_updates_only_replace_untouched_values(self):
         import json as _json
