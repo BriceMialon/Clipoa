@@ -2,6 +2,10 @@
 
 Ce fichier permet à **Claude** (ou tout autre agent IA) de savoir immédiatement **où se trouve le code**, **où on en est**, **comment modifier le projet**, **tester** et **redémarrer l'application**.
 
+> **Relais avec Antigravity** : Brice alterne Claude et Antigravity, qui modifient tous deux toute l'app. Suivre les règles communes de **`AGENTS.md`** (pull de `main`, petite PR par sujet, commits fréquents, `docs/HANDOFF.md` à jour avant de s'arrêter).
+
+@AGENTS.md
+
 ---
 
 ## 1. Emplacement & Accès

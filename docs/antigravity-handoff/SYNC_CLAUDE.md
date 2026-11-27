@@ -1,5 +1,7 @@
 # SYNC_CLAUDE.md — Journal natif Antigravity → Claude (auto-mis à jour)
 
+> **Remplacé le 27/11/2026 par `docs/HANDOFF.md`** (journal unique Claude ↔ Antigravity, règles dans `AGENTS.md`). Conservé pour l'historique.
+
 > **Usage** : Ce fichier est mis à jour automatiquement par Antigravity après chaque bloc de modifications, pour que Claude puisse lire directement l'état exact du repo sans relais manuel de Brice.
 
 - **Dernière mise à jour** : 2026-11-26 14:46 CET
