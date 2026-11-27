@@ -190,3 +190,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Fiche de fabrication : les 4 pastilles calées sur de faux seuils (40/65/90) sont remplacées par une piste d'étapes (Script, Voix & son, Décor & montage, Contrôle ; 5 étapes pour la copie de short). L'étape vient du marqueur « [n/N] » envoyé par le pipeline, sinon des bornes de progression ; l'étape en cours se remplit.
 - Les 7 `confirm()` de suppression/retrait passent par `ClipRollMoments.holdConfirm()` (fenêtre « Maintenir pour supprimer », 0,9 s, Échap/clic dehors = annuler, Espace/Entrée maintenus au clavier). « Publier maintenant » devient « Maintenir pour publier » (`holdify`). Le `confirm()` du mode Rapide reste (pas destructif).
 - Mouvements coupés avec `prefers-reduced-motion`. Tests : `tests/test_ui_moments.py`.
+
+## 27/11/2026 — Vidéo d'exemple et « type de vidéo » pour chaque style
+- Chaque style livré a une vidéo d'exemple courte dans `assets/style_refs/<id>.mp4` (Fête en folie, Dessin à compteur, Roblox Ciné ajoutés ; 720×1280, CRF 27, ~16-20 s) et une phrase « Type de vidéo » (`STYLE_DESCRIPTIONS` dans `core/style_plugins.py`) affichée sous la vidéo dans Créer. Un style perso affiche sa propre accroche.
+- Test `test_every_starter_has_description_and_shipped_example` : un nouveau style livré doit fournir les deux.
+- Tuile « Schéma animé » retirée (décision de Brice) : elle ne dessinait aucun schéma, juste un fond dégradé et des sous-titres.

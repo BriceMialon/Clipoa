@@ -533,12 +533,6 @@
               </button>
               {% endfor %}
 
-              <button type="button" class="style-plaque" data-splaque="schema" onclick="selectStylePlaque('schema', this)">
-                <div class="sp-art sp-schema">
-                  <div style="margin:auto 0; font-weight:800; font-size:15px; color:#34D399;">+312%</div>
-                </div>
-                <span class="sp-name">Schéma animé</span>
-              </button>
 
 
             </div>
@@ -2786,9 +2780,16 @@
       try { pv = await apiJson('/api/plugins/' + encodeURIComponent(pluginId) + '/preview'); } catch (e) { pv = {}; }
       if (stylePreviewFor !== pluginId) return;
       // Seulement la vidéo : pas de lien vers le site d'origine, pas d'ajout ni de changement (c'est l'éditeur de ClipRoll qui fournit les références)
-      if (pv.kind !== 'video' || !pv.url) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      const descHtml = pv.description
+        ? `<span style="display:block; margin-top:6px; font-size:12.5px; font-weight:400; line-height:1.45; color:var(--muted);"><b style="color:var(--ink);">Type de vidéo :</b> ${escHtml(pv.description)}</span>`
+        : '';
+      if (pv.kind !== 'video' || !pv.url) {
+        if (!descHtml) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.innerHTML = `<div style="flex:1; min-width:180px;">${descHtml}</div>`;
+        return;
+      }
       box.innerHTML = `<video src="${escHtml(pv.url)}" muted autoplay loop playsinline controls controlslist="nodownload noplaybackrate" disablepictureinpicture preload="metadata" style="width:180px; aspect-ratio:9/16; border-radius:14px; background:#000; object-fit:cover;"></video>
-        <span style="font-size:12px; font-weight:700; color:var(--ink);">À quoi ressemble ce style</span>`;
+        <div style="flex:1; min-width:180px; font-size:12px; font-weight:700; color:var(--ink);">À quoi ressemble ce style${descHtml}</div>`;
     }
 
 
@@ -2948,12 +2949,6 @@
           selectRenderType('blender3d');
           if (!BLENDER_AVAILABLE) toggleAdvancedStudio(true);
           hintTxt = 'Scène 3D calculée avec Blender sur ton Mac';
-        } else if (key === 'schema') {
-          labelName = 'Schéma animé';
-          if (th) th.value = 'cyber_grid';
-          if (sb) sb.value = 'cyber_cyan';
-          selectRenderType('motion');
-          hintTxt = 'Schéma & Data · Grille Cyber + Sous-titres Cyan';
         } else if (key === 'broll') {
           labelName = 'Ta vidéo B-roll';
           selectRenderType('broll');
@@ -3891,15 +3886,8 @@
         </button>`;
       }).join('');
 
-      const builtinsHtml = `
-        <button type="button" class="style-plaque ${selectedStylePlaque === 'schema' ? 'actif' : ''}" data-splaque="schema" onclick="selectStylePlaque('schema', this)">
-          <div class="sp-art sp-schema">
-            <span class="sp-pill-top">Tech & Data</span>
-            <div style="margin:auto 0; font-weight:800; font-size:15px; color:#34D399;">+312%</div>
-            
-          </div>
-          <span class="sp-name">Schéma animé</span>
-        </button>`;
+      // « Schéma animé » retiré le 27/11/2026 : il n'affichait aucun schéma (fond flou + sous-titres)
+      const builtinsHtml = '';
 
       strip.innerHTML = autoHtml + pluginsHtml + builtinsHtml;
     }
