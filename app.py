@@ -657,6 +657,7 @@ def _load_renders():
 
 
 def _build_week_overview(renders, publish_queue, night_tasks):
+    active_night = [t for t in (night_tasks or []) if t.get("status") in ("pending", "running")]
     today = datetime.now().date()
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
@@ -707,10 +708,10 @@ def _build_week_overview(renders, publish_queue, night_tasks):
                 tone = "warn"
             title = (r_item.get("script") or {}).get("title") or r_item.get("id", "")
             title_prefix = "Vidéo prête : "
-        elif d == today and night_tasks:
-            status_txt = f"{len(night_tasks)} en Mode Nuit"
+        elif d == today and active_night:
+            status_txt = f"{len(active_night)} en Pilote auto"
             tone = "indigo"
-            title = night_tasks[0].get("topic", "Fabrication nocturne")
+            title = active_night[0].get("topic", "Pilote auto")
         else:
             status_txt = "Libre"
             tone = "muted"
@@ -2066,6 +2067,42 @@ def api_inspiration_scan():
 
 # ---------- Night Factory (Créer des vidéos pendant que je dors) ----------
 
+def _night_launch(task: dict) -> str:
+    """Pilote auto : lance une vidéo par le circuit normal de Créer (/api/make) et renvoie le job."""
+    with app.test_client() as c:
+        r = c.post("/api/make", json={
+            "topic": task.get("topic", ""),
+            "plugin_id": task.get("plugin_id") or None,
+            "target_duration_sec": int(task.get("target_duration_sec") or 60),
+            "theme": task.get("theme") or DEFAULT_THEME,
+            "subtitle_style": task.get("subtitle_style") or DEFAULT_SUBTITLE_STYLE,
+            "voice": task.get("voice") or None,
+            "retention_boost": True,
+            "enable_music": True,
+            "enable_sfx": True,
+        })
+        d = r.get_json(silent=True) or {}
+    if r.status_code >= 400 or not d.get("job_id"):
+        raise RuntimeError(d.get("error") or f"Fabrication refusée (HTTP {r.status_code})")
+    job_id = d["job_id"]
+    if task.get("account"):  # la vidéo reste rattachée au compte actif au moment de la programmation
+        with JOBS_LOCK:
+            if job_id in JOBS:
+                JOBS[job_id].setdefault("params", {})["account"] = task["account"]
+                JOBS[job_id]["label"] = "🗓️ Pilote auto : " + str(task.get("topic", ""))[:40]
+                _persist_jobs()
+    return job_id
+
+
+def _night_job(job_id: str):
+    with JOBS_LOCK:
+        j = JOBS.get(job_id)
+        return dict(j) if j else None
+
+
+NightFactory.configure(launcher=_night_launch, job_reader=_night_job)
+
+
 @app.route("/api/night/tasks", methods=["GET"])
 def api_night_tasks():
     return jsonify({"tasks": NightFactory.load_tasks()})
@@ -2085,18 +2122,26 @@ def api_night_enqueue():
     except (TypeError, ValueError):
         target_dur = 60
 
+    plats = data.get("publish_platforms") or []
+    if not isinstance(plats, list):
+        plats = []
+    try:
+        from core import workspace as _ws
+        account = _ws.owner_tag()
+    except Exception:
+        account = None
     created = NightFactory.enqueue_batch(
         topics=topics,
         plugin_id=(data.get("plugin_id") or "").strip() or None,
         target_duration_sec=target_dur,
-        engine=data.get("engine", "claude"),
-        model=data.get("model") or None,
-        start_at=data.get("start_at", ""),
+        start_at=str(data.get("start_at") or ""),
         theme=data.get("theme", DEFAULT_THEME),
         subtitle_style=data.get("subtitle_style", DEFAULT_SUBTITLE_STYLE),
         voice=data.get("voice") or None,
         keep_awake=bool(data.get("keep_awake", True)),
-        auto_publish_platforms=data.get("auto_publish_platforms") or [],
+        publish_platforms=[p for p in plats if p in PLATFORMS],
+        publish_time=str(data.get("publish_time") or "18:00"),
+        account=account,
     )
     return jsonify({"created": len(created), "tasks": NightFactory.load_tasks()})
 
@@ -2366,7 +2411,9 @@ def api_delete_preset(preset_id):
 def api_week():
     data = request.json or {}
     niche = (data.get("niche") or "").strip()
-    engine = (data.get("engine") or "gemini").strip().lower()
+    engine = (data.get("engine") or "claude").strip().lower()
+    if _edition.is_public():
+        engine = "claude"
     if not niche:
         return jsonify({"error": "Indique ta niche"}), 400
     try:
