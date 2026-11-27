@@ -30,6 +30,7 @@ PUBLIC_BLOCKED_PREFIXES = (
     "/api/social/portal-login/",
     "/api/agent-team/",
     "/api/channel-stats/tiktok-handle",
+    "/api/competitors",
 )
 
 PUBLIC_DISABLED_ENGINES = ("gemini",)

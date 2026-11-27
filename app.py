@@ -233,6 +233,94 @@ def api_license_deactivate():
     return jsonify(LICENSE.deactivate())
 
 
+@app.route("/api/personality", methods=["GET", "POST"])
+def api_personality():
+    from core import personality as _pers
+    if request.method == "GET":
+        prof = _pers.get_personality()
+        return jsonify({
+            "personality": prof,
+            "angles": _pers.suggest_active_angles(prof),
+            "examples": _pers.BUSINESS_EXAMPLES,
+            "custom_personalities": _pers.list_custom_personalities(),
+            "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+        })
+    body = request.get_json(silent=True) or {}
+    prof = _pers.save_personality(body)
+    return jsonify({
+        "ok": True,
+        "personality": prof,
+        "angles": _pers.suggest_active_angles(prof),
+        "examples": _pers.BUSINESS_EXAMPLES,
+        "custom_personalities": _pers.list_custom_personalities(),
+        "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+    })
+
+
+@app.route("/api/personalities", methods=["GET", "POST"])
+def api_custom_personalities():
+    from core import personality as _pers
+    if request.method == "GET":
+        return jsonify({"custom_personalities": _pers.list_custom_personalities()})
+    body = request.get_json(silent=True) or {}
+    try:
+        entry = _pers.save_custom_personality(body, activate=bool(body.get("activate", True)))
+        prof = _pers.get_personality()
+        return jsonify({
+            "ok": True,
+            "item": entry,
+            "personality": prof,
+            "angles": _pers.suggest_active_angles(prof),
+            "custom_personalities": _pers.list_custom_personalities(),
+            "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+        })
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+
+@app.route("/api/personalities/<pid>", methods=["DELETE"])
+def api_delete_custom_personality(pid):
+    from core import personality as _pers
+    ok = _pers.delete_custom_personality(pid)
+    prof = _pers.get_personality()
+    return jsonify({
+        "ok": ok,
+        "personality": prof,
+        "angles": _pers.suggest_active_angles(prof),
+        "custom_personalities": _pers.list_custom_personalities(),
+        "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+    }), (200 if ok else 404)
+
+
+@app.route("/api/competitors", methods=["GET", "POST"])
+def api_competitors():
+    from core import personality as _pers
+    if request.method == "GET":
+        return jsonify({"competitors": _pers.list_competitors(), "max": _pers.MAX_COMPETITORS})
+    body = request.get_json(silent=True) or {}
+    saved = _pers.save_competitors(body.get("competitors") or [])
+    return jsonify({"ok": True, "competitors": saved, "max": _pers.MAX_COMPETITORS})
+
+
+@app.route("/api/competitors/scan", methods=["POST"])
+def api_competitors_scan():
+    from core import personality as _pers
+    body = request.get_json(silent=True) or {}
+    if isinstance(body.get("competitors"), list):
+        _pers.save_competitors(body.get("competitors"))
+    try:
+        threshold = max(1.2, min(20.0, float(body.get("threshold", 2.0))))
+        limit = max(5, min(40, int(body.get("limit", 20))))
+    except (TypeError, ValueError):
+        threshold, limit = 2.0, 20
+    try:
+        return jsonify(_pers.scan_competitors(threshold=threshold, limit=limit))
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.context_processor
 def _edition_ctx():
     return {"clipoa_edition": _edition.EDITION}
