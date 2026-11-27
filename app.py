@@ -1113,6 +1113,30 @@ def api_el_voices():
     return jsonify({"voices": VoiceEngine.list_elevenlabs_voices()})
 
 
+@app.route("/api/elevenlabs/roster", methods=["GET", "POST"])
+def api_el_roster():
+    """Voix validées à l'oreille par l'utilisateur, chacune avec ses emplois (narrateur d'histoire, tuto, enfant…),
+    + vitesse de la voix. Le casting les prend en priorité, seulement pour l'emploi qui leur correspond."""
+    from core import voice_casting
+    from core.speech_rate import DEFAULT_EL_SPEED
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        upd = {"voice_roster": voice_casting.sanitize_roster(data.get("roster"))}
+        if data.get("speed") is not None:
+            try:
+                upd["speed"] = round(max(0.95, min(1.15, float(data.get("speed")))), 2)
+            except (TypeError, ValueError):
+                return jsonify({"error": "Vitesse invalide."}), 400
+        save_settings({"elevenlabs": upd})
+    el = load_settings().get("elevenlabs") or {}
+    return jsonify({
+        "roster": voice_casting.load_roster(),
+        "roles": voice_casting.ROLES,
+        "speed": float(el.get("speed") or DEFAULT_EL_SPEED),
+        "library_blocked": voice_casting.library_blocked(),
+    })
+
+
 @app.route("/api/elevenlabs/disconnect", methods=["POST"])
 def api_el_disconnect():
     """Déconnecte la clé ElevenLabs actuelle pour permettre de changer facilement de compte."""
