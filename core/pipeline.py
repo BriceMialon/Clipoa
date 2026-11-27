@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import uuid
 import time
@@ -342,6 +343,66 @@ class ShortCrewPipeline:
         _prog(100, "✅ Short cloné et prêt !")
         return result
 
+    @staticmethod
+    def _casting_summary(voice_res: Dict[str, Any]) -> Dict[str, Any]:
+        cast = (voice_res or {}).get("casting") or {}
+        if not isinstance(cast, dict) or not cast.get("narrator"):
+            return {"provider": (voice_res or {}).get("provider", "")}
+        def _one(c):
+            return {k: c.get(k) for k in ("name", "voice_id", "settings", "why", "source") if c.get(k) is not None}
+        out = {"provider": voice_res.get("provider", ""), "by_ai": bool(cast.get("by_ai")), "language": cast.get("language", ""),
+               "narrator": _one(cast["narrator"]),
+               "characters": {k: _one(c) for k, c in (cast.get("characters") or {}).items() if isinstance(c, dict)}}
+        if cast.get("accent_warning"):
+            out["accent_warning"] = cast["accent_warning"]
+        return out
+
+    @classmethod
+    def _fit_voice_to_target(cls, voice_res: Dict[str, Any], spoken: str, target_duration_sec: Optional[int],
+                             prod: Optional[Dict[str, Any]] = None, progress=None) -> None:
+        """
+        1. Rythme du style (Stickman : accélération + silences coupés), plafonné pour ne pas cumuler avec la vitesse
+           ElevenLabs (×1,08 × ×1,12 donnait une voix pressée).
+        2. Si la voix dépasse la durée demandée, elle est resserrée (dans la limite d'une accélération totale de ×1,15).
+        3. Le débit réel est enregistré : le prochain script aura le bon nombre de mots.
+        """
+        from core import speech_rate
+        prod = prod or {}
+        wav = voice_res.get("audio_wav") or ""
+        if not wav or not os.path.exists(wav):
+            return
+        speedup = float(voice_res.get("el_speed") or 1.0)
+        style_tempo = speech_rate.cap_style_tempo(float(prod.get("voice_tempo") or 1.0), speedup)
+        if abs(style_tempo - 1.0) > 0.01 or prod.get("trim_silence"):
+            try:
+                if progress:
+                    progress(46, "🎙️ [2/4] Voix resserrée (rythme du style)…")
+                if SoundDesigner.tighten_voice(wav, style_tempo, bool(prod.get("trim_silence"))):
+                    speedup *= style_tempo
+            except Exception as e:
+                print(f"⚠️ Voix non accélérée ({e})")
+        dur = get_wav_duration(wav)
+        dur_before_fit = dur
+        if target_duration_sec:
+            extra = speech_rate.fit_tempo(dur, float(target_duration_sec), speedup)
+            if extra > 1.0:
+                try:
+                    if SoundDesigner.tighten_voice(wav, extra, trim_silence=False):
+                        print(f"⏱️ Voix de {dur:.1f} s pour {target_duration_sec} s demandées : resserrée ×{extra:.2f}.")
+                        speedup *= extra
+                        dur = get_wav_duration(wav)
+                except Exception as e:
+                    print(f"⚠️ Durée de la voix non ajustée ({e})")
+            if dur < float(target_duration_sec) * 0.85:
+                print(f"⏱️ Voix de {dur:.1f} s pour {target_duration_sec} s demandées : le prochain script sera plus long.")
+        n_words = len(re.findall(r"[\wÀ-ÿ'’-]+", spoken or ""))
+        # débit mesuré AVANT le recalage sur la cible (sinon chaque recalage gonflerait le débit et rallongerait le script suivant)
+        learned = speech_rate.record(voice_res.get("provider", ""), n_words, dur_before_fit)
+        voice_res["final_duration_s"] = round(dur, 2)
+        voice_res["total_speedup"] = round(speedup, 3)
+        if learned:
+            voice_res["measured_wps"] = learned
+
     @classmethod
     def create_direct_short(
         cls,
@@ -436,14 +497,10 @@ class ShortCrewPipeline:
                     style_hint=" · ".join(x for x in ((plugin or {}).get("name"), (plugin or {}).get("tagline"), (topic or "")[:120]) if x),
                     voices_hint=script.get("voices") if isinstance(script.get("voices"), list) else None,
                 )
-            # Style à narration dense (Stickman) : voix accélérée + silences raccourcis AVANT le calage mot à mot
+            # Style à narration dense (Stickman) : voix accélérée + silences raccourcis, puis durée calée sur la cible,
+            # AVANT le calage mot à mot
             _prod = (plugin or {}).get("production") or {}
-            if _prod.get("voice_tempo") or _prod.get("trim_silence"):
-                try:
-                    _prog(46, "🎙️ [2/4] Voix resserrée (rythme du style)…")
-                    SoundDesigner.tighten_voice(cp["voice_res"]["audio_wav"], float(_prod.get("voice_tempo") or 1.0), bool(_prod.get("trim_silence")))
-                except Exception as _e:
-                    print(f"⚠️ Voix non accélérée ({_e})")
+            cls._fit_voice_to_target(cp["voice_res"], script.get("full_spoken_script", ""), target_duration_sec, _prod, _prog)
             with ticking(_mono, 46, 50, 40, "🎙️ [2/4] Calage des sous-titres mot à mot"):
                 cp["voice_transcript"] = AudioTranscriber.transcribe(cp["voice_res"]["audio_wav"])
             save_checkpoint(session_id, cp)
@@ -530,6 +587,9 @@ class ShortCrewPipeline:
             "blender_bg": cp.get("blender_bg", ""),
             "storyboard_shots": template_shots if (isinstance(template_shots, list) and len(template_shots) >= 2) else (script.get("visual_storyboard") or []),
             "retention_boost": retention_boost,
+            # voix réellement utilisée (pour relier plus tard la voix aux vues, et varier d'une vidéo à l'autre)
+            "voice_casting": cls._casting_summary(voice_res),
+            "voice_timing": {k: voice_res.get(k) for k in ("provider", "el_speed", "total_speedup", "final_duration_s", "measured_wps") if voice_res.get(k) is not None},
         }
         if cp.get("plan"):
             cls._finalize_outputs(video_path, cp["plan"], result)

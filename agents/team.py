@@ -62,7 +62,7 @@ class LeScenariste:
         prompt = (
             f"Sujet à traiter : {topic}\n"
             f"DURÉE CIBLE DE LA VIDÉO : environ {dur['duration_sec']} secondes "
-            f"(entre {dur['min_words']} et {dur['max_words']} mots parlés dans `full_spoken_script`, "
+            f"(vise {dur.get('target_words', dur['max_words'])} mots parlés, entre {dur['min_words']} et {dur['max_words']} dans `full_spoken_script` : compte-les, "
             f"environ {dur['plans_min']} à {dur['plans_max']} plans dans `visual_storyboard`). "
             "Respecte impérativement cette durée cible.\n"
         )
@@ -81,7 +81,34 @@ class LeScenariste:
         prompt += "\nRédige le script final prêt à être synthétisé ainsi que le visual_storyboard dans la DA demandée, au format JSON strict."
 
         raw = ClaudeBridge.query(prompt, system_prompt=PROMPT_SCENARISTE)
-        return _clean_json_response(raw)
+        script = _clean_json_response(raw)
+        return cls._ensure_new_opening(script)
+
+    @classmethod
+    def _ensure_new_opening(cls, script: Any) -> Any:
+        """Si l'accroche reprend le début d'une vidéo récente (« Dans ma ville… »), une seule réécriture de l'accroche."""
+        from core.script_template import repeated_opening, first_sentence
+        if not isinstance(script, dict):
+            return script
+        spoken = str(script.get("full_spoken_script") or "")
+        dup = repeated_opening(script.get("hook_spoken") or spoken)
+        if not dup:
+            return script
+        print(f"✍️ Accroche trop proche d'une vidéo récente (« {dup[:60]} ») : réécriture de l'accroche.")
+        old_hook = first_sentence(spoken)
+        try:
+            fixed = cls.revise_script(script, (
+                f"La première phrase « {old_hook} » commence comme une vidéo récente (« {dup} »). Réécris UNIQUEMENT "
+                "l'accroche (hook_spoken, début de full_spoken_script, hook_screen_text et le premier plan du storyboard) avec une "
+                "première phrase qui naît de ce sujet précis et ne commence pas par « Dans ma ville / mon village » ni par les "
+                "mêmes mots. Garde la même longueur totale."
+            ))
+        except Exception as e:
+            print(f"Réécriture de l'accroche impossible ({e}).")
+            return script
+        if isinstance(fixed, dict) and str(fixed.get("full_spoken_script") or "").strip():
+            return fixed
+        return script
 
     @classmethod
     def direct_custom_script(

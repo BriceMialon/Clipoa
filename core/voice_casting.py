@@ -3,6 +3,8 @@ Casting des voix ElevenLabs : l'IA choisit, d'après le script et le style, la v
 personnage, avec des réglages adaptés (stabilité, style, vitesse).
 
 Voix proposées à l'IA, dans cet ordre :
+0. les voix VALIDÉES par l'utilisateur, chacune avec ses emplois (narrateur d'histoire, explication, enfant…) :
+   elles passent avant tout, mais seulement pour l'emploi qui leur correspond (jamais une voix unique pour tout) ;
 1. les voix de l'utilisateur (clonées ou créées par lui) ;
 2. les voix de la bibliothèque ElevenLabs les plus utilisées dans la langue du script (cache 7 jours) ;
 3. les voix par défaut d'ElevenLabs (anglophones : elles gardent un accent en français, donc en dernier recours).
@@ -45,6 +47,88 @@ DEFAULT_VOICES: List[Dict[str, str]] = [
 
 # Usages de la bibliothèque interrogés (un appel chacun, puis cache 7 jours)
 LIBRARY_USE_CASES = ("narrative_story", "characters_animation", "social_media", "informative_educational", "conversational")
+
+# Emplois d'une voix validée par l'utilisateur (réglage elevenlabs.voice_roster)
+ROLES: Dict[str, str] = {
+    "narrateur_recit": "narrateur d'histoire, conte, mystère, drame",
+    "narrateur_energique": "narrateur énergique : humour, réseaux sociaux, liste, top",
+    "explication": "explication, tuto, info (posé et clair)",
+    "narratrice": "narratrice (voix de femme)",
+    "enfant_ado": "enfant ou ado",
+    "personnage_comique": "personnage drôle, sketch",
+    "mechant": "méchant, voix inquiétante",
+    "personne_agee": "personne âgée",
+}
+ACCENTS_NATIVE = {"fr": ("parisian", "standard", "french", "france", "")}
+FOREIGN_NAME_HINTS = ("american", "british", "australian", "english", "us ", "uk ")
+RECENT_NARRATORS_LIMIT = 3
+
+
+def load_roster() -> List[Dict[str, Any]]:
+    """Voix validées à l'oreille par l'utilisateur : [{voice_id, name, roles: [...], note}]."""
+    try:
+        from core.settings_store import load_settings
+        raw = (load_settings().get("elevenlabs") or {}).get("voice_roster") or []
+    except Exception:
+        raw = []
+    out = []
+    for v in raw if isinstance(raw, list) else []:
+        if not isinstance(v, dict) or not str(v.get("voice_id") or "").strip():
+            continue
+        roles = [r for r in (v.get("roles") or []) if r in ROLES]
+        out.append({"voice_id": str(v["voice_id"]).strip()[:64], "name": str(v.get("name") or "")[:40],
+                    "roles": roles, "note": str(v.get("note") or "")[:120]})
+    return out
+
+
+def sanitize_roster(items: Any) -> List[Dict[str, Any]]:
+    """Nettoie une liste envoyée par l'interface avant de l'enregistrer."""
+    out, seen = [], set()
+    for v in items if isinstance(items, list) else []:
+        if not isinstance(v, dict):
+            continue
+        vid = re.sub(r"[^A-Za-z0-9]", "", str(v.get("voice_id") or ""))[:64]
+        roles = [r for r in (v.get("roles") or []) if r in ROLES]
+        if not vid or not roles or vid in seen:
+            continue
+        seen.add(vid)
+        out.append({"voice_id": vid, "name": str(v.get("name") or "")[:40], "roles": roles, "note": str(v.get("note") or "")[:120]})
+    return out[:30]
+
+
+def recent_narrators(limit: int = RECENT_NARRATORS_LIMIT) -> List[str]:
+    """Noms des voix de narrateur des dernières vidéos (pour varier d'une vidéo à l'autre)."""
+    try:
+        from config import RENDERS_DIR
+        metas = sorted(RENDERS_DIR.glob("*/metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    except Exception:
+        return []
+    names: List[str] = []
+    for mf in metas[: limit * 3]:
+        try:
+            vc = json.loads(mf.read_text(encoding="utf-8")).get("voice_casting") or {}
+            n = str((vc.get("narrator") or {}).get("name") or "").strip()
+        except Exception:
+            continue
+        if n:
+            names.append(n)
+        if len(names) >= limit:
+            break
+    return names
+
+
+def _accent_score(v: Dict[str, Any], language: str) -> float:
+    """+ pour un accent natif de la langue, − pour une voix étrangère (ex. « Adam – American » en français)."""
+    if language not in ACCENTS_NATIVE:
+        return 0.0
+    acc = str(v.get("accent") or "").lower().strip()
+    name = " " + str(v.get("name") or "").lower() + " "
+    if any(h in name for h in FOREIGN_NAME_HINTS) or acc in ("american", "british", "australian", "transatlantic"):
+        return -6.0
+    if acc in ACCENTS_NATIVE[language]:
+        return 2.0
+    return -1.0  # québécois, belge, africain… : bien, mais pas le choix par défaut d'un public français
+
 
 CAST_SYSTEM = (
     "Tu es directeur de casting voix pour des vidéos courtes. Tu choisis dans une liste fermée la voix de chaque rôle "
@@ -103,13 +187,33 @@ def account_voices(key: str) -> List[Dict[str, Any]]:
         return []
 
 
+LIBRARY_BLOCK_SEC = 3 * 86400
+
+
+def library_blocked() -> bool:
+    """Vrai si l'API a refusé récemment d'ajouter une voix de la bibliothèque (compte gratuit, quota de voix…)."""
+    cache = _read_json(LIBRARY_CACHE, {})
+    return isinstance(cache, dict) and time.time() - float(cache.get("_blocked_at") or 0) < LIBRARY_BLOCK_SEC
+
+
+def _mark_library_blocked(reason: str) -> None:
+    with _LOCK:
+        cache = _read_json(LIBRARY_CACHE, {})
+        cache = cache if isinstance(cache, dict) else {}
+        cache["_blocked_at"] = time.time()
+        cache["_blocked_reason"] = reason[:200]
+        _write_json(LIBRARY_CACHE, cache)
+
+
 def library_voices(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
-    """Voix de la bibliothèque ElevenLabs les plus utilisées dans la langue (cache 7 jours)."""
+    """Voix de la bibliothèque ElevenLabs dans la langue, accent natif d'abord (cache 7 jours)."""
+    if library_blocked():
+        return []
     lang = (language or "fr")[:5]
     with _LOCK:
         cache = _read_json(LIBRARY_CACHE, {})
         entry = cache.get(lang) if isinstance(cache, dict) else None
-        if isinstance(entry, dict) and time.time() - float(entry.get("at") or 0) < CACHE_TTL_SEC and entry.get("voices"):
+        if isinstance(entry, dict) and entry.get("v") == 2 and time.time() - float(entry.get("at") or 0) < CACHE_TTL_SEC and entry.get("voices"):
             voices = entry["voices"]
             return [v for v in voices if v.get("free_users_allowed") or not free_only]
     found: Dict[str, Dict[str, Any]] = {}
@@ -145,13 +249,22 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
                 }
         except Exception:
             continue
-    voices = sorted(found.values(), key=lambda x: -x["usage"])[:40]
+    # Popularité ≠ bonne voix : on classe d'abord par accent natif, puis par usage, et on retire les doublons de nom
+    ranked = sorted(found.values(), key=lambda x: (-_accent_score(x, lang[:2]), -x["usage"]))
+    voices, names = [], set()
+    for v in ranked:
+        key = re.sub(r"\s+", " ", v["name"].split("-")[0].strip().lower())
+        if key in names:
+            continue
+        names.add(key)
+        voices.append(v)
+    voices = voices[:40]
     if voices:
         with _LOCK:
             cache = _read_json(LIBRARY_CACHE, {})
             if not isinstance(cache, dict):
                 cache = {}
-            cache[lang] = {"at": time.time(), "voices": voices}
+            cache[lang] = {"at": time.time(), "voices": voices, "v": 2}
             _write_json(LIBRARY_CACHE, cache)
     return [v for v in voices if v.get("free_users_allowed") or not free_only]
 
@@ -160,12 +273,28 @@ def build_candidates(key: str, language: str, free_only: bool = False) -> List[D
     acc = account_voices(key)
     # Compte gratuit : l'API refuse toute voix de la bibliothèque (402 paid_plan_required), même
     # « free_users_allowed » et même déjà ajoutée au compte (catégorie « professional »).
+    free_cats = ("premade", "cloned", "generated")
+    default_ids = {v["voice_id"] for v in DEFAULT_VOICES}
+    by_id = {v["voice_id"]: v for v in acc}
+    lib = [] if free_only else library_voices(key, language, free_only=free_only)
+    lib_by_id = {v["voice_id"]: v for v in lib}
+    roster = []
+    for r in load_roster():
+        if free_only and r["voice_id"] not in default_ids and \
+                (by_id.get(r["voice_id"]) or {}).get("category") not in free_cats:
+            continue
+        # voix validée pas encore ajoutée au compte : si elle vient de la bibliothèque, elle sera ajoutée au 1er usage
+        base = dict(by_id.get(r["voice_id"]) or lib_by_id.get(r["voice_id"])
+                    or {"voice_id": r["voice_id"], "name": r["name"], "source": "account"})
+        base.update({"roles": r["roles"], "validated": True, "note": r.get("note", "")})
+        base["name"] = base.get("name") or r["name"]
+        roster.append(base)
     own_cats = ("cloned", "generated") if free_only else ("cloned", "professional", "generated")
     own = [v for v in acc if v.get("category") in own_cats]
-    lib = [] if free_only else library_voices(key, language, free_only=free_only)
+    premade = [v for v in acc if v.get("category") == "premade"]
     seen = set()
     out: List[Dict[str, Any]] = []
-    for group in (own[:8], lib, [v for v in acc if v.get("category") == "premade"], DEFAULT_VOICES):
+    for group in (roster, own[:8], lib, premade, DEFAULT_VOICES):
         for v in group:
             vid = v.get("voice_id")
             if vid and vid not in seen:
@@ -189,6 +318,10 @@ def _describe(v: Dict[str, Any]) -> str:
     src = {"account": "voix du compte", "library": "bibliothèque", "default": "voix par défaut (anglophone)"}.get(v.get("source"), "")
     if v.get("category") in ("cloned", "professional"):
         src = "voix clonée de l'utilisateur"
+    if v.get("validated"):
+        src = "★ VALIDÉE par l'utilisateur pour : " + ", ".join(ROLES[r] for r in v.get("roles") or [] if r in ROLES)
+        if v.get("note"):
+            src += f" ({v['note']})"
     bits.append(src)
     return " · ".join(b for b in bits if b)
 
@@ -200,13 +333,22 @@ def _clamp(x, lo, hi, default):
         return default
 
 
+def _default_speed() -> float:
+    try:
+        from core.speech_rate import DEFAULT_EL_SPEED
+        from core.settings_store import load_settings
+        return max(0.95, min(1.15, float((load_settings().get("elevenlabs") or {}).get("speed") or DEFAULT_EL_SPEED)))
+    except Exception:
+        return 1.08
+
+
 def _settings(d: Dict[str, Any]) -> Dict[str, float]:
     d = d if isinstance(d, dict) else {}
     return {
         "stability": _clamp(d.get("stability"), 0.25, 0.8, 0.45),
         "similarity_boost": _clamp(d.get("similarity_boost"), 0.6, 0.9, 0.78),
         "style": _clamp(d.get("style"), 0.0, 0.6, 0.25),
-        "speed": _clamp(d.get("speed"), 0.85, 1.15, 1.0),
+        "speed": _clamp(d.get("speed"), 0.95, 1.15, _default_speed()),
     }
 
 
@@ -215,6 +357,7 @@ def ai_cast(script_text: str, speakers: List[Dict[str, str]], style_hint: str, l
     """Demande à Claude le casting ; renvoie {"narrator": {...}, "characters": {nom: {...}}} avec des refs valides."""
     from core.claude_bridge import ClaudeBridge
     refs = {v["ref"]: v for v in cands}
+    recent = recent_narrators()
     roles = "\n".join(f"- {s['name']}" + (f" ({s['hint']})" if s.get("hint") else "") for s in speakers) or "- (narrateur seul)"
     prompt = (
         f"Langue du script : {language}\n"
@@ -222,15 +365,22 @@ def ai_cast(script_text: str, speakers: List[Dict[str, str]], style_hint: str, l
         f"Rôles qui parlent :\n{roles}\n\n"
         f"Script (extrait) :\n{(script_text or '')[:2600]}\n\n"
         f"Voix disponibles (choisis uniquement parmi ces références) :\n" + "\n".join(_describe(v) for v in cands[:60]) + "\n\n"
-        "Règles de casting :\n"
-        "- Priorité aux voix natives de la langue du script (une voix anglophone en français garde un accent : dernier recours).\n"
+        + (f"Voix de narrateur des dernières vidéos : {', '.join(recent)}. Si une autre voix convient aussi bien, prends-la "
+           "pour que la chaîne ne sonne pas toujours pareil.\n\n" if recent else "")
+        + "Règles de casting :\n"
+        "- D'abord le GENRE du script (histoire/conte/mystère, humour, tuto/explication, pub, témoignage…), puis l'emploi de chaque rôle.\n"
+        "- Les voix ★ VALIDÉES sont les meilleures de l'utilisateur, mais SEULEMENT pour les emplois indiqués : une voix validée "
+        "« narrateur d'histoire » ne fait pas un tuto ni un sketch. Si aucune voix validée ne correspond à l'emploi, prends la "
+        "meilleure autre voix.\n"
+        "- Priorité aux voix natives de la langue du script avec l'accent standard (une voix anglophone en français garde un accent : dernier recours).\n"
         "- Âge et genre cohérents avec le rôle ; un enfant ou un ado a une voix jeune.\n"
         "- Le narrateur porte la vidéo : voix captivante qui colle au ton (grave et lente pour le mystère, vive pour l'humour ou "
         "les réseaux sociaux, claire et posée pour une explication, chaleureuse pour une histoire tendre).\n"
         "- Récit à la 1re personne : le narrateur EST le personnage principal, donne-lui la même voix.\n"
         "- Deux personnages différents n'ont jamais la même voix.\n"
         "- Réglages : stability 0.30 à 0.45 pour une voix expressive (histoire, humour, peur), 0.50 à 0.65 pour une voix posée "
-        "(tuto, info) ; style 0.0 à 0.45 (plus haut = artefacts) ; speed 0.92 à 1.12 (vif = 1.05 à 1.12, posé = 0.95 à 1.0).\n\n"
+        "(tuto, info) ; style 0.0 à 0.45 (plus haut = artefacts) ; speed 1.0 à 1.12 (Shorts : 1.08 par défaut, vif = 1.08 à 1.12, "
+        "posé ou émouvant = 1.0 à 1.05).\n\n"
         'Réponds en JSON : {"narrator": {"voice": "V3", "stability": 0.4, "style": 0.3, "speed": 1.05, "why": "5 mots"}, '
         '"characters": {"NomExact": {"voice": "V7", "stability": 0.4, "style": 0.3, "speed": 1.0, "why": "5 mots"}}}'
     )
@@ -259,11 +409,22 @@ _GENRE_USES = (
     (("astuce", "comment", "étape", "méthode", "conseil", "explique", "tuto", "apprendre"), ("inform", "educat", "explication", "clair")),
     (("drôle", "blague", "sketch", "lol", "délire", "absurde"), ("charact", "conversation", "humour", "social")),
 )
+# même découpage, en emplois de voix validées (narrateur)
+_GENRE_ROLES = ("narrateur_recit", "explication", "narrateur_energique")
+
+
+def narrator_role(text: str) -> str:
+    """Emploi de narrateur qui colle au script (repli sans IA)."""
+    low = (text or "").lower()
+    for (words, _), role in zip(_GENRE_USES, _GENRE_ROLES):
+        if any(w in low for w in words):
+            return role
+    return "narrateur_recit"
 
 
 def heuristic_pick(cands: List[Dict[str, Any]], language: str, text: str, female: Optional[bool] = None,
-                   young: bool = False, exclude: Optional[set] = None) -> Optional[Dict[str, Any]]:
-    """Repli sans IA : langue native, usage qui colle au ton, genre/âge si connus."""
+                   young: bool = False, exclude: Optional[set] = None, role: str = "") -> Optional[Dict[str, Any]]:
+    """Repli sans IA : voix validée pour l'emploi, langue et accent natifs, usage qui colle au ton, genre/âge si connus."""
     low = (text or "").lower()
     wanted = ("narrat", "story", "narration")
     for words, uses in _GENRE_USES:
@@ -278,6 +439,11 @@ def heuristic_pick(cands: List[Dict[str, Any]], language: str, text: str, female
         score = 0.0
         if str(v.get("language") or "").lower().startswith(language):
             score += 4
+        if v.get("validated"):
+            score += 10 if role and role in (v.get("roles") or []) else -2  # validée, mais pas pour cet emploi
+        if v.get("source") == "default" and language != "en":
+            score -= 5  # anglophone : accent en français
+        score += _accent_score(v, language) * 0.5
         if v.get("category") in ("cloned", "professional"):
             score += 1
         score += sum(1.5 for w in wanted if w in blob)
@@ -317,6 +483,8 @@ def resolve_voice_id(key: str, v: Dict[str, Any]) -> str:
             print(f"🎙️ Voix « {v.get('name')} » ajoutée à ton compte ElevenLabs.")
             return new_id
         print(f"Voix de la bibliothèque non ajoutée (HTTP {res.status_code} : {res.text[:120]}).")
+        if res.status_code in (400, 401, 402, 403):
+            _mark_library_blocked(f"HTTP {res.status_code} : {res.text[:150]}")
     except Exception as e:
         print(f"Voix de la bibliothèque non ajoutée ({e}).")
     return ""
@@ -348,12 +516,14 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
         vid = resolve_voice_id(key, v)
         if not vid:  # ajout impossible (quota de voix, compte gratuit) : meilleure voix déjà utilisable
             alt = heuristic_pick([c for c in cands if c.get("source") != "library" or c.get("is_added_by_user")],
-                                 language, script_text, exclude=used)
+                                 language, script_text, exclude=used, role=narrator_role(script_text))
             if not alt:
                 return None
             v, vid = alt, alt["voice_id"]
         used.add(vid)
-        return {"voice_id": vid, "name": v.get("name", ""), "settings": _settings(raw), "why": str(raw.get("why") or "")[:80]}
+        return {"voice_id": vid, "name": v.get("name", ""), "settings": _settings(raw), "why": str(raw.get("why") or "")[:80],
+                "source": "validée" if v.get("validated") else v.get("source", ""),
+                "foreign": bool(language != "en" and (v.get("source") == "default" or _accent_score(v, language) <= -6))}
 
     used: set = set()
     result: Dict[str, Any] = {"language": language, "characters": {}}
@@ -367,7 +537,7 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
                 if fin:
                     result["characters"][s["key"]] = fin
     if not result.get("narrator"):
-        v = heuristic_pick(cands, language, script_text)
+        v = heuristic_pick(cands, language, script_text, role=narrator_role(script_text))
         result["narrator"] = _final(v, {}, used) if v else None
     for s in speakers:
         if s["key"] not in result["characters"]:
@@ -381,4 +551,11 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
     summary = ", ".join([f"narrateur → {result['narrator']['name']}"] + [f"{k} → {c['name']}" for k, c in result["characters"].items()])
     print(f"🎭 Casting voix ({'IA' if picked else 'auto'}, {language}) : {summary}")
     result["by_ai"] = bool(picked)
+    if result["narrator"].get("foreign"):
+        result["accent_warning"] = (
+            "Aucune voix française utilisable sur ce compte ElevenLabs : la voix choisie est anglophone et aura un accent. "
+            + ("La bibliothèque de voix a été refusée par l'API (compte gratuit ?). " if library_blocked() else "")
+            + "Ajoute une voix française à ton compte ou valide-en une dans Voix."
+        )
+        print("⚠️ " + result["accent_warning"])
     return result
