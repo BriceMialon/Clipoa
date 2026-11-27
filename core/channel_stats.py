@@ -375,6 +375,9 @@ def remake_request(video_id: str) -> Dict[str, Any]:
             "plugin_id": meta.get("plugin_id") or None, "target_duration_sec": dur,
             "enable_music": bool(meta.get("enable_music", True)), "enable_sfx": bool(meta.get("enable_sfx", True)),
         }}
+    from core import edition as _edition
+    if _edition.is_public():
+        return {"route": "/api/make", "payload": {"topic": brief, "target_duration_sec": dur}}
     return {"route": "/api/make-like", "payload": {"url": v.get("url"), "topic": brief, "target_duration_sec": dur}}
 
 

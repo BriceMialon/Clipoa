@@ -104,8 +104,10 @@ def _search_links(query: str, platform: str, lang: str) -> List[str]:
 def _probe(url: str) -> Optional[Dict[str, Any]]:
     """Chiffres réels d'une vidéo via yt-dlp (vues, likes, commentaires, date, durée, description)."""
     try:
-        p = subprocess.run([YT_DLP_PATH, "--dump-json", "--skip-download", "--no-warnings", url],
-                           capture_output=True, text=True, timeout=25)
+        from core.security import validate_public_http_url
+        safe_url = validate_public_http_url(url, resolve_dns=True)
+        p = subprocess.run([YT_DLP_PATH, "--dump-json", "--skip-download", "--no-warnings", "--", safe_url],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=25)
         if p.returncode != 0 or not p.stdout.strip():
             return None
         info = json.loads(p.stdout.splitlines()[0])
@@ -146,7 +148,8 @@ def _looks_ai(v: Dict[str, Any]) -> bool:
 
 
 def _default_ai_query(prompt: str, system_prompt: str) -> str:
-    """IA choisie toute seule : Claude si branché, sinon Gemini. Vide si aucune ne répond."""
+    """IA choisie toute seule : Claude si branché, sinon Gemini (hors édition publique). Vide si aucune ne répond."""
+    from core import edition as _edition
     try:
         from core.claude_bridge import ClaudeBridge
         if (ClaudeBridge.check_status(live_probe=False) or {}).get("connected"):
@@ -155,6 +158,8 @@ def _default_ai_query(prompt: str, system_prompt: str) -> str:
                 return out
     except Exception:
         pass
+    if _edition.is_public():
+        return ""
     try:
         from core.gemini_studio import GeminiStudio
         return GeminiStudio.query(prompt, system_prompt=system_prompt, model=GeminiStudio.get_best_available_model()) or ""

@@ -78,12 +78,15 @@ class AnalyticsEngine:
 
     @classmethod
     def _run_ai(cls, prompt: str, system_prompt: str, engine: str = "auto") -> Dict[str, Any]:
+        from core import edition as _edition
+        if _edition.is_public() and engine == "gemini":
+            engine = "claude"
         if engine == "claude":
             raw = ClaudeBridge.query(prompt, system_prompt=system_prompt, action="analytics")
         elif engine == "gemini":
             raw = GeminiStudio.query(prompt, system_prompt=system_prompt, model=GeminiStudio.get_best_available_model())
         else:
-            # IA choisie toute seule (Claude, sinon Gemini) : plus de choix affiché
+            # IA choisie toute seule (Claude, sinon Gemini hors public) : plus de choix affiché
             from core.inspiration_radar import _default_ai_query
             raw = _default_ai_query(prompt, system_prompt)
         return _clean_json_response(raw)
@@ -91,15 +94,18 @@ class AnalyticsEngine:
     @classmethod
     def fetch_video_metrics(cls, url: str) -> Dict[str, Any]:
         """Récupère les vraies stats publiques d'une vidéo YouTube/TikTok/IG via yt-dlp."""
+        from core.security import validate_public_http_url
+        safe_url = validate_public_http_url(url, resolve_dns=True)
         cmd = [
             YT_DLP_PATH,
             "--dump-json",
             "--skip-download",
             "--no-warnings",
             "--ignore-errors",
-            url,
+            "--",
+            safe_url,
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=45)
+        res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=45)
         for line in res.stdout.splitlines():
             line = line.strip()
             if not line:
