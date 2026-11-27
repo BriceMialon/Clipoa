@@ -161,3 +161,8 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Édition public : `/api/agent-team/` et `/api/channel-stats/tiktok-handle` coupés, mode Équipe IA masqué.
 - S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
 - `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.
+
+## 27/11/2026 — Vidéo d'exemple et « type de vidéo » pour chaque style
+- Chaque style livré a une vidéo d'exemple courte dans `assets/style_refs/<id>.mp4` (Fête en folie, Dessin à compteur, Roblox Ciné ajoutés ; 720×1280, CRF 27, ~16-20 s) et une phrase « Type de vidéo » (`STYLE_DESCRIPTIONS` dans `core/style_plugins.py`) affichée sous la vidéo dans Créer. Un style perso affiche sa propre accroche.
+- Test `test_every_starter_has_description_and_shipped_example` : un nouveau style livré doit fournir les deux.
+- Tuile « Schéma animé » retirée (décision de Brice) : elle ne dessinait aucun schéma, juste un fond dégradé et des sous-titres.

@@ -33,6 +33,21 @@ STARTER_LOOK_SINCE: Dict[str, float] = {"2d_monde_3d": 1795627000.0, "explainer_
 # Vidéos de référence livrées avec ClipRoll (choisies par l'éditeur, pas par les utilisateurs) : assets/style_refs/<id>.mp4
 STYLE_REFS_DIR = Path(__file__).resolve().parent.parent / "assets" / "style_refs"
 MAX_SCRIPT_BYTES = 2 * 1024 * 1024  # 2 MB per script
+# « Type de vidéo » montré sous l'exemple de chaque style livré : ce que la vidéo raconte et à quoi elle ressemble
+STYLE_DESCRIPTIONS: Dict[str, str] = {
+    "roblox_3d": ("Une histoire racontée au « je » par un avatar Roblox en blocs, en plans 3D qui changent toutes les 1 à 3 s. "
+                  "Deux tons : « Dans ma ville » (règles absurdes, drôle) ou conte mélancolique (secret, twist émouvant)."),
+    "2d_monde_3d": ("Des stickmen 2D à tête blanche dans un décor 3D, caméra toujours en mouvement, beaucoup de bruitages, "
+                    "sous-titres d'un ou deux mots. Pour les histoires rapides et les « et si… »."),
+    "fete_en_folie": ("Une histoire au « je » en dessin animé plat très coloré : un nouveau plan à chaque phrase, un seul mot "
+                      "à l'écran à la fois, et le public qui décide de la suite dans les commentaires."),
+    "explainer_2d": ("Un dessin animé illustré et chaleureux qui explique un sujet (histoire, science, métier) avec un héros "
+                     "mignon, de grandes étiquettes et une voix posée."),
+    "compteur_toon": ("Une règle absurde et un compteur à l'écran qui monte : une nouvelle image dessinée toutes les 0,8 s, "
+                      "sous-titres blancs avec le mot prononcé en rose."),
+    "roblox_cine": ("Le même univers que 3D Roblox en qualité cinéma : vraie lumière, visages vivants, 1080p. "
+                    "Rendu long (20 à 60 min) et plus de tokens."),
+}
 
 PLUGIN_GRADIENTS = [
     {"id": "roblox", "label": "3D Roblox (Bleu / Or)", "css": "sp-plug-roblox"},
@@ -1296,11 +1311,13 @@ class StylePluginStore:
             return {"kind": "none"}
         with _LOCK:
             raw = next((p for p in cls._load_raw_unlocked() if p.get("id") == plugin_id), None)
+        desc = STYLE_DESCRIPTIONS.get(plugin_id) or str((raw or {}).get("tagline") or "")
+        # Seulement une vidéo lue dans ClipRoll : jamais de lien vers le site d'origine.
+        # Une vidéo livrée (assets/style_refs) sert même pour une tuile qui n'est pas un style enregistré.
+        if cls.get_reference_video_path(plugin_id):
+            return {"kind": "video", "url": f"/api/plugins/{plugin_id}/reference-video", "label": "Exemple de ce style", "description": desc}
         if not raw:
             return {"kind": "none"}
-        # Seulement une vidéo lue dans ClipRoll : jamais de lien vers le site d'origine
-        if cls.get_reference_video_path(plugin_id):
-            return {"kind": "video", "url": f"/api/plugins/{plugin_id}/reference-video", "label": "Vidéo de référence"}
         rd = Path(renders_dir) if renders_dir else STORAGE_DIR / "renders"
         since = STARTER_LOOK_SINCE.get(plugin_id, 0.0)
         best = None
@@ -1321,8 +1338,8 @@ class StylePluginStore:
         except Exception:
             best = None
         if best:
-            return {"kind": "video", "url": f"/stream/{best[1]}", "label": "Exemple fait avec ClipRoll dans ce style"}
-        return {"kind": "none"}
+            return {"kind": "video", "url": f"/stream/{best[1]}", "label": "Exemple fait avec ClipRoll dans ce style", "description": desc}
+        return {"kind": "none", "description": desc}
 
     @classmethod
     def get_sheet_path(cls, plugin_id: str, filename: str) -> Optional[Path]:
