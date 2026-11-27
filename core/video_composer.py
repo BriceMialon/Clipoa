@@ -56,6 +56,14 @@ SUBTITLE_STYLES: Dict[str, Dict[str, str]] = {
         "hook_bg": "&H002B2125",
         "bar_color": "#F0508C",
     },
+    "toon_yellow": {
+        "label": "Parabole (blanc, mot prononcé jaune)",
+        "active_color": "&H003FD2FF",   # #FFD23F
+        "base_color": "&H00FFFFFF",
+        "outline_color": "&H002B2125",  # encre #25212B
+        "hook_bg": "&H002B2125",
+        "bar_color": "#FFD23F",
+    },
     "cyber_cyan": {
         "label": "Cyber Cyan",
         "active_color": "&H00FFE500",   # #00E5FF

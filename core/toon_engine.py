@@ -26,6 +26,16 @@ FONTS_DIR = BASE_DIR / "assets" / "fonts"
 PANEL_TARGET_S = 0.7
 PANEL_MIN_S = 0.45
 PANEL_MAX_S = 1.4
+# Deux mises en page du même moteur : « compteur » (une image toutes les ~0,8 s) et « parable » (Parabole à 3 destins :
+# plans de 4-6 s, bandeau de chapitre, objets qui apparaissent pendant le plan, carton final « Et toi ? »).
+MODES = {
+    "compteur": {"target": PANEL_TARGET_S, "min": PANEL_MIN_S, "max": PANEL_MAX_S},
+    "parable": {"target": 4.2, "min": 2.4, "max": 6.5},
+}
+
+
+def mode_params(mode: Optional[str]) -> Dict[str, float]:
+    return MODES.get(mode or "compteur", MODES["compteur"])
 
 
 # ───────────────────────────── Découpe en images ─────────────────────────────
@@ -37,13 +47,20 @@ def build_panels(words: List[Dict[str, Any]], duration: float, beat_starts: Opti
     ws = [w for w in (words or []) if isinstance(w, dict) and "start" in w]
     beats = sorted(float(b) for b in (beat_starts or []) if 0 < float(b) < duration)
     starts = [0.0]
-    for w in ws[1:]:
+    sentence_cuts = target >= 2.0
+    for prev_w, w in zip(ws, ws[1:]):
         t = float(w["start"])
         if t >= duration - min_len:
             break
         since = t - starts[-1]
         at_beat = any(abs(t - b) < 0.12 for b in beats)
-        if since >= min_len and (since >= target or at_beat):
+        # plans longs (Parabole) : on coupe de préférence en fin de phrase
+        at_sentence = sentence_cuts and re.search(r"[.!?…]$", str(prev_w.get("word", "")).strip()) is not None
+        if sentence_cuts:
+            cut = since >= min_len and (at_sentence or at_beat or since >= max_len * 0.9)
+        else:
+            cut = since >= min_len and (since >= target or at_beat)
+        if cut:
             starts.append(t)
     # trous sans mots trop longs (silence, musique) : coupés régulièrement
     filled = []
@@ -70,7 +87,9 @@ def build_panels(words: List[Dict[str, Any]], duration: float, beat_starts: Opti
 
 # ───────────────────────────── Mise en scène par l'IA ─────────────────────────────
 
-def build_prompt(script: Dict[str, Any], panels: List[Dict[str, Any]], da_hint: str = "") -> str:
+def build_prompt(script: Dict[str, Any], panels: List[Dict[str, Any]], da_hint: str = "", mode: str = "compteur") -> str:
+    if mode == "parable":
+        return build_parable_prompt(script, panels, da_hint)
     lines = "\n".join(f'{p["i"]}|{p["end"] - p["start"]:.1f}s|{p["text"]}' for p in panels)
     title = script.get("title") or ""
     hook = script.get("hook_screen_text") or ""
@@ -132,6 +151,54 @@ Règles :
 - Textes en français, sans emoji."""
 
 
+def build_parable_prompt(script: Dict[str, Any], panels: List[Dict[str, Any]], da_hint: str = "") -> str:
+    """Parabole à 3 destins : même départ, trois choix, trois destins, puis la morale et « Et toi ? »."""
+    lines = "\n".join(f'{p["i"]}|{p["end"] - p["start"]:.1f}s|{p["text"]}' for p in panels)
+    da = (da_hint or "")[:1500]
+    return f"""Tu es le dessinateur d'un short vertical en DESSIN VECTORIEL PLAT, format « parabole à 3 destins » : au départ,
+trois personnages reçoivent la même chose ; chacun fait un choix différent ; on suit les trois destins ; la morale arrive à la fin.
+Images calmes et lisibles : UNE image par phrase (4 à 6 s), sur laquelle 1 ou 2 objets « apparaissent » pendant la phrase.
+Un bandeau de chapitre en haut dit où on en est (« N°1 : IL LE DÉPENSE »). La dernière image est un carton « ET TOI ? »
+qui reprend les choix en icônes pour faire commenter. Tu ne dessines rien toi-même : tu DÉCRIS chaque image en JSON.
+
+Titre : {script.get("title") or ""}
+Accroche : {script.get("hook_screen_text") or ""}
+{('Direction artistique du style :' + chr(10) + da) if da else ''}
+
+Voici les {len(panels)} images, une par ligne : numéro|durée|texte dit pendant l'image.
+{lines}
+
+Réponds UNIQUEMENT avec ce JSON (aucun texte autour) :
+{{
+ "header": {{"title": "la question de départ, 3 à 7 mots (ex. POURQUOI CERTAINS S'EN SORTENT ?)", "accent": "#FFD23F"}},
+ "cast": [{{"id": "p1", "name": "Léo", "skin": "#F6D3B3", "hair": "#3B2A20", "hair_style": "short", "top": "#4E7FCB",
+           "top_style": "tshirt", "pants": "#3C4A66", "cap": null, "glasses": false}}],
+ "locations": [{{"id": "rue", "kind": "street", "label": ""}}],
+ "choices": {{"title": "ET TOI ?", "items": [{{"prop": "plate", "label": "DÉPENSER"}}, {{"prop": "piggy", "label": "GARDER"}}, {{"prop": "plant", "label": "FAIRE GRANDIR"}}]}},
+ "panels": [{{"i": 0, "loc": "rue", "f": "medium", "ch": "", "c": [{{"id": "p1", "e": "happy", "p": "wave"}}],
+             "prop": "", "pl": "", "pops": [{{"prop": "coin", "label": "", "at": "top"}}]}}]
+}}
+
+Règles :
+- cast : EXACTEMENT 3 personnages principaux (les trois destins), très reconnaissables (haut de couleur différente), + 1 ou 2 secondaires si besoin.
+  skin parmi {", ".join(K.SKINS)} ; hair_style parmi {", ".join(K.HAIR_STYLES)} ; top_style parmi {", ".join(K.TOP_STYLES)} ;
+  "cap" = couleur de casquette ou null, "glasses" true/false.
+- locations : 1 à 4 lieux ; kind parmi {", ".join(K.LOCATIONS)} ; "label" = panneau court ou vide.
+- panels : EXACTEMENT {len(panels)} entrées, "i" de 0 à {len(panels) - 1}, dans l'ordre.
+  "f" parmi medium (2-3 persos, le plus fréquent), wide (les 3 + "crowd" figurants 0-8), close (UN perso, pour son destin),
+  object (gros objet qui explique : "prop" parmi {", ".join(K.PROPS)}, "pl" = petit texte, ex. un tableau « chalkboard » ou
+  une courbe « chart_up » / « chart_down »), choices (le carton final, UNE seule fois, sur la DERNIÈRE image).
+  "c" = persos : "e" expression parmi {", ".join(K.EXPRESSIONS)} ; "p" pose parmi {", ".join(K.POSES)} ; "say" = bulle 1 à 3 mots (rare).
+  "ch" = texte du bandeau de chapitre, 2 à 5 mots en majuscules (« N°1 : IL LE DÉPENSE », « N°2 : IL LE GARDE »,
+  « N°3 : IL LE FAIT GRANDIR », « LA MORALE ») ; vide pendant l'introduction. Le même texte reste tant qu'on est dans le chapitre.
+  "pops" = 0 à 2 objets qui apparaissent pendant la phrase : "prop" parmi la même liste, "label" court, "at" parmi
+  {", ".join(K.POP_SLOTS)} (ne cache pas les visages : préfère top).
+- L'image montre ce que dit la voix : un nom = un objet visible. Pendant le chapitre N°1, c'est le perso 1 qu'on voit, etc.
+  L'objet commun du départ revient dans chaque destin (multiplié, disparu, grandi…).
+- Persos, objets et lieux sont les TIENS : n'imite aucune chaîne ni aucun personnage existant.
+- Textes en français, sans emoji."""
+
+
 def _num(v: Any) -> Optional[str]:
     if v is None or v == "":
         return None
@@ -143,7 +210,25 @@ def _short(v: Any, n: int) -> str:
     return re.sub(r"[\x00-\x1f<>]", "", str(v or "")).strip()[:n]
 
 
-def sanitize(raw: Dict[str, Any], n: int) -> Optional[Dict[str, Any]]:
+def _pops(v: Any) -> List[Dict[str, Any]]:
+    out = []
+    for p in (v or [])[:2] if isinstance(v, list) else []:
+        if isinstance(p, dict) and p.get("prop") in K.PROPS:
+            out.append({"prop": p["prop"], "label": _short(p.get("label"), 10), "at": p.get("at") if p.get("at") in K.POP_SLOTS else "top"})
+    return out
+
+
+def _choices(v: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(v, dict):
+        return None
+    items = [{"prop": it["prop"], "label": _short(it.get("label"), 14)} for it in (v.get("items") or [])[:3]
+             if isinstance(it, dict) and it.get("prop") in K.PROPS]
+    if len(items) < 2:
+        return None
+    return {"title": _short(v.get("title"), 20) or "ET TOI ?", "items": items, "accent": K.hexcol(v.get("accent"), "#FFD23F")}
+
+
+def sanitize(raw: Dict[str, Any], n: int, mode: str = "compteur") -> Optional[Dict[str, Any]]:
     """Ne garde que des valeurs connues et bornées ; None si inutilisable."""
     if not isinstance(raw, dict) or not isinstance(raw.get("panels"), list) or not raw["panels"]:
         return None
@@ -187,6 +272,7 @@ def sanitize(raw: Dict[str, Any], n: int) -> Optional[Dict[str, Any]]:
                 elif isinstance(it, dict):
                     items.append([_short(it.get("head"), 30), _short(it.get("text"), 90)])
             cards[_short(key, 20)] = {"title": _short(cd.get("title"), 40), "items": items, "sign": _short(cd.get("sign"), 30)}
+    choices = _choices(raw.get("choices"))
     first_loc = next(iter(locs))
     first_cast = next(iter(cast))
     panels: List[Dict[str, Any]] = []
@@ -204,6 +290,8 @@ def sanitize(raw: Dict[str, Any], n: int) -> Optional[Dict[str, Any]]:
             p = dict(prev or {}, i=i)
         f = p.get("f") or p.get("frame")
         f = f if f in K.FRAMES else "medium"
+        if f == "choices" and not choices:
+            f = "medium"
         chars = []
         for c in (p.get("c") or p.get("chars") or [])[:5]:
             if not isinstance(c, dict):
@@ -237,9 +325,16 @@ def sanitize(raw: Dict[str, Any], n: int) -> Optional[Dict[str, Any]]:
         out = {"i": i, "frame": f, "loc": loc if loc in locs else first_loc, "chars": chars, "crowd": crowd,
                "counter": _num(p.get("k") if "k" in p else p.get("counter")), "prop": p.get("prop") if p.get("prop") in K.PROPS else "",
                "prop_label": _short(p.get("pl") or p.get("prop_label"), 14), "card": card}
+        if mode == "parable":
+            out["chapter"] = _short(p.get("ch") or p.get("chapter"), 30)
+            out["pops"] = _pops(p.get("pops"))
+            out["choices"] = choices if f == "choices" else None
         panels.append(out)
         prev = p
-    return {"header": header, "cast": cast, "locations": locs, "cards": cards, "panels": panels}
+    if mode == "parable" and choices and panels and not any(p["frame"] == "choices" for p in panels):
+        # le carton « Et toi ? » termine toujours la parabole
+        panels[-1].update(frame="choices", choices=choices, chars=[], pops=[])
+    return {"header": header, "cast": cast, "locations": locs, "cards": cards, "choices": choices, "panels": panels}
 
 
 def _default_cast() -> Dict[str, Dict[str, Any]]:
@@ -250,8 +345,41 @@ def _default_cast() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def heuristic_spec(script: Dict[str, Any], panels: List[Dict[str, Any]]) -> Dict[str, Any]:
+def heuristic_parable(script: Dict[str, Any], panels: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Parabole sans IA : intro, 3 chapitres (un perso chacun), morale, carton final."""
+    cast = _default_cast()
+    cast["ami"]["cap"] = None
+    ids = list(cast)
+    n = len(panels)
+    choices = {"title": "ET TOI ?", "accent": "#FFD23F",
+               "items": [{"prop": "plate", "label": "DÉPENSER"}, {"prop": "piggy", "label": "GARDER"}, {"prop": "plant", "label": "FAIRE GRANDIR"}]}
+    body = max(1, n - 2)
+    out = []
+    for p in panels:
+        i = p["i"]
+        part = 0 if i == 0 else min(4, 1 + (i - 1) * 3 // body) if i < n - 1 else 5
+        t = p.get("text") or ""
+        e = "shocked" if "?" in t else ("laugh" if "!" in t else ("talk", "happy", "worried", "think")[i % 4])
+        if part in (1, 2, 3):
+            who = ids[part - 1]
+            chars = [{"id": who, "expr": e, "pose": ("idle", "point", "shrug", "cheer")[i % 4], "counter": None, "say": "", "ghost": 0.0}]
+            frame, ch = "close" if i % 2 else "medium", f"N°{part}"
+        else:
+            chars = [{"id": c, "expr": e, "pose": "idle", "counter": None, "say": "", "ghost": 0.0} for c in ids]
+            frame, ch = "medium", ("LA MORALE" if part == 4 else "")
+        out.append({"i": i, "frame": "choices" if part == 5 else frame, "loc": "main", "chars": [] if part == 5 else chars,
+                    "crowd": 0, "counter": None, "prop": "", "prop_label": "", "card": None, "chapter": ch,
+                    "pops": [{"prop": "coin", "label": "", "at": "top"}] if part in (1, 2, 3) else [],
+                    "choices": choices if part == 5 else None})
+    title = _short(script.get("hook_screen_text") or script.get("title") or "", 34)
+    return {"header": {"title": title, "subtitle": "", "counter_label": "", "counter_unit": "", "accent": "#FFD23F"},
+            "cast": cast, "locations": {"main": {"kind": "street", "label": ""}}, "cards": {}, "choices": choices, "panels": out}
+
+
+def heuristic_spec(script: Dict[str, Any], panels: List[Dict[str, Any]], mode: str = "compteur") -> Dict[str, Any]:
     """Mise en scène sans IA : héros + amis, cadrages alternés, expression déduite de la ponctuation."""
+    if mode == "parable":
+        return heuristic_parable(script, panels)
     cast = _default_cast()
     ids = list(cast)
     cycle = ("close", "medium", "close", "wide", "close", "medium")
@@ -281,18 +409,19 @@ def _parse_json(raw: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def design(script: Dict[str, Any], panels: List[Dict[str, Any]], model: Optional[str] = None, da_hint: str = "") -> Dict[str, Any]:
+def design(script: Dict[str, Any], panels: List[Dict[str, Any]], model: Optional[str] = None, da_hint: str = "",
+           mode: str = "compteur") -> Dict[str, Any]:
     raw = ""
     try:
         from core.claude_bridge import ClaudeBridge
-        raw = ClaudeBridge.query(build_prompt(script, panels, da_hint), action="toon_design", model=model)
+        raw = ClaudeBridge.query(build_prompt(script, panels, da_hint, mode), action="toon_design", model=model)
     except Exception as e:
         print(f"⚠️ Mise en scène IA indisponible ({e}) : mise en scène déduite du texte.")
-    spec = sanitize(_parse_json(raw) or {}, len(panels)) if raw else None
+    spec = sanitize(_parse_json(raw) or {}, len(panels), mode) if raw else None
     if spec:
         spec["_source"] = "ia"
         return spec
-    spec = heuristic_spec(script, panels)
+    spec = heuristic_spec(script, panels, mode)
     spec["_source"] = "texte"
     return spec
 
@@ -351,13 +480,17 @@ class Rasterizer:
             self._pw.stop()
 
 
-ZOOMS = {"close": (1.0, 1.07), "medium": (1.02, 1.08), "wide": (1.09, 1.02), "card": (1.0, 1.03), "object": (1.0, 1.1)}
+ZOOMS = {"close": (1.0, 1.07), "medium": (1.02, 1.08), "wide": (1.09, 1.02), "card": (1.0, 1.03), "object": (1.0, 1.1),
+         "choices": (1.0, 1.04)}
 
 
-def _segment(scene_png: str, header_png: Optional[str], frames: int, frame: str, idx: int, out: str) -> None:
+def _segment(scene_png: str, header_png: Optional[str], frames: int, frame: str, idx: int, out: str,
+             zrange: Optional[tuple] = None) -> None:
     z0, z1 = ZOOMS.get(frame, (1.0, 1.06))
     if idx % 3 == 2 and frame == "close":
         z0, z1 = z1, z0
+    if zrange:
+        z0, z1 = (round(z0 + (z1 - z0) * zrange[0], 4), round(z0 + (z1 - z0) * zrange[1], 4))
     n = max(1, frames)
     up_w, up_h = 1620, 2880
     zexpr = f"{z0}+({z1}-{z0})*on/{max(1, n - 1)}"
@@ -375,8 +508,20 @@ def _segment(scene_png: str, header_png: Optional[str], frames: int, frame: str,
         raise RuntimeError(f"FFmpeg (image {idx}) : {res.stderr[-400:]}")
 
 
+def _parable_header(header: Dict[str, Any], sp: Dict[str, Any]) -> tuple:
+    """Parabole : bandeau du chapitre en cours, sinon la question de départ ; rien sur le carton final."""
+    if sp.get("frame") == "choices":
+        return "", ""
+    ch = sp.get("chapter") or ""
+    if ch:
+        return "ch:" + ch, K.chapter_svg(ch, "#FFFFFF")
+    t = header.get("title") or ""
+    return ("t:" + t, K.header_svg({"title": t, "accent": header.get("accent")})) if t else ("", "")
+
+
 def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: float, out_mp4: str,
-                 progress: Optional[Callable[[int, str], None]] = None, work_dir: Optional[str] = None) -> str:
+                 progress: Optional[Callable[[int, str], None]] = None, work_dir: Optional[str] = None,
+                 mode: str = "compteur") -> str:
     """Dessine chaque image, ajoute zoom + en-tête, assemble la vidéo de fond (sans son)."""
     tmp = Path(work_dir or tempfile.mkdtemp(prefix="toon_"))
     tmp.mkdir(parents=True, exist_ok=True)
@@ -386,7 +531,7 @@ def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: f
     pspec = spec.get("panels") or []
     n = len(panels)
     headers: Dict[str, str] = {}
-    scenes: List[str] = []
+    scenes: List[List[str]] = []
     counter = None
     with Rasterizer() as R:
         for k, p in enumerate(panels):
@@ -395,12 +540,22 @@ def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: f
             if sp.get("counter") is not None:
                 counter = sp["counter"]
             loc = locs.get(sp.get("loc")) or next(iter(locs.values()), {"kind": "park_day"})
-            svg = K.wrap_svg(K.panel_svg(sp, cast, loc, seed=7 + list(locs).index(sp.get("loc")) if sp.get("loc") in locs else 7))
-            scenes.append(R.png(svg, str(tmp / f"s{k:03d}.png")))
-            key = str(counter)
-            if key not in headers and (header.get("title") or header.get("counter_label")):
-                headers[key] = R.png(K.wrap_svg(K.header_svg(header, counter)), str(tmp / f"h{len(headers):03d}.png"), transparent=True)
-            p["_header"] = headers.get(key)
+            seed = 7 + list(locs).index(sp.get("loc")) if sp.get("loc") in locs else 7
+            # objets qui apparaissent pendant le plan (Parabole) : une image par étape, le zoom continue d'une étape à l'autre
+            pops = sp.get("pops") or []
+            states = []
+            for j in range(len(pops) + 1):
+                st = dict(sp, pops=pops[:j])
+                states.append(R.png(K.wrap_svg(K.panel_svg(st, cast, loc, seed=seed)), str(tmp / f"s{k:03d}_{j}.png")))
+            scenes.append(states)
+            if mode == "parable":
+                key, hsvg = _parable_header(header, sp)
+            else:
+                key = str(counter)
+                hsvg = K.header_svg(header, counter) if (header.get("title") or header.get("counter_label")) else ""
+            if hsvg and key not in headers:
+                headers[key] = R.png(K.wrap_svg(hsvg), str(tmp / f"h{len(headers):03d}.png"), transparent=True)
+            p["_header"] = headers.get(key) if hsvg else None
             if progress and (k % 10 == 0 or k == n - 1):
                 progress(58 + int(8 * (k + 1) / max(1, n)), f"🖍️ [3/4] Dessin des images… {k + 1}/{n}")
     segs = []
@@ -409,10 +564,19 @@ def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: f
         f_end = int(round((p["end"] if k < n - 1 else duration) * FPS))
         frames = max(1, f_end - f_prev)
         f_prev = f_end
-        seg = str(tmp / f"v{k:03d}.mp4")
         sp = pspec[k] if k < len(pspec) else pspec[-1]
-        _segment(scenes[k], p.get("_header"), frames, sp.get("frame", "medium"), k, seg)
-        segs.append(seg)
+        states = scenes[k]
+        m = len(states)
+        if m > 1 and frames < m * 12:
+            states, m = states[-1:], 1  # plan trop court pour faire apparaître les objets un par un
+        done = 0
+        for j, png in enumerate(states):
+            nf = frames - done if j == m - 1 else frames * (j + 1) // m - done
+            seg = str(tmp / f"v{k:03d}_{j}.mp4")
+            _segment(png, p.get("_header"), nf, sp.get("frame", "medium"), k, seg,
+                     zrange=(done / frames, (done + nf) / frames) if m > 1 else None)
+            done += nf
+            segs.append(seg)
         if progress and (k % 10 == 0 or k == n - 1):
             progress(66 + int(8 * (k + 1) / max(1, n)), f"🎞️ [3/4] Montage des images… {k + 1}/{n}")
     lst = tmp / "list.txt"
@@ -428,17 +592,19 @@ def render_video(spec: Dict[str, Any], panels: List[Dict[str, Any]], duration: f
 
 def render_story(session_id: str, script: Dict[str, Any], plan: Dict[str, Any], words: List[Dict[str, Any]],
                  duration: float, out_dir: Path, model: Optional[str] = None, da_hint: str = "",
-                 progress: Optional[Callable[[int, str], None]] = None) -> str:
+                 progress: Optional[Callable[[int, str], None]] = None, mode: str = "compteur") -> str:
     """Point d'entrée du pipeline : renvoie la vidéo de fond (mp4 sans son)."""
     beats = [float(s.get("start", 0)) for s in (plan.get("shots") or [])[1:]]
-    panels = build_panels(words, duration, beats)
+    mode = mode if mode in MODES else "compteur"
+    mp = mode_params(mode)
+    panels = build_panels(words, duration, beats, target=mp["target"], min_len=mp["min"], max_len=mp["max"])
     if progress:
         progress(55, f"🖍️ [3/4] Claude met en scène {len(panels)} images dessinées…")
-    spec = design(script, panels, model=model, da_hint=da_hint)
+    spec = design(script, panels, model=model, da_hint=da_hint, mode=mode)
     try:
         with open(Path(out_dir) / f"{session_id}_toon_spec.json", "w", encoding="utf-8") as f:
             json.dump({"panels_timing": panels, **spec}, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
     out = str(Path(out_dir) / f"{session_id}_toon_bg.mp4")
-    return render_video(spec, panels, duration, out, progress)
+    return render_video(spec, panels, duration, out, progress, mode=mode)

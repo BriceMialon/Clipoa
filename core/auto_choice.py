@@ -20,6 +20,8 @@ KEYWORDS = {
     "explainer_2d": ("pourquoi", "comment", "astuce", "conseil", "chiffre", "fait", "science", "argent",
                      "economie", "explique", "top", "lecon", "tuto", "sante", "budget", "invest",
                      "salaire", "%", "statistique", "etude", "cerveau", "corps humain", "methode"),
+    "parabole_3_destins": ("destin", "trois", "3 personnes", "3 types", "3 facons", "choix", "fable", "parabole",
+                           "imagine", "difference entre", "s'enrichissent", "riches", "habitude"),
     "2d_monde_3d": ("quand", "pov", "histoire", "il etait", "couple", "ecole", "travail", "riche",
                     "pauvre", "maison", "ville", "famille", "ami", "patron", "voisin", "moi"),
 }
@@ -28,6 +30,7 @@ LABELS = {
     "roblox_3d": "ça parle de jeu vidéo",
     "fete_en_folie": "c'est festif",
     "explainer_2d": "ça explique quelque chose",
+    "parabole_3_destins": "ça compare des choix",
     "2d_monde_3d": "c'est une histoire",
 }
 
