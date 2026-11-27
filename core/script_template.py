@@ -260,6 +260,8 @@ def build_script_generation_prompt(
         + tpl_body
     )
     da_block = f"\nDirection Artistique (DA) à respecter dans les scènes, actions, émotions et sons :\n{da_context[:12000]}\n" if da_context else ""
+    from core.personality import build_personality_prompt_block
+    personality_block = build_personality_prompt_block()
     avoid_block = avoid_titles_block(avoid_titles)
     extra_note = (
         "Adapte exactement la structure et les colonnes du modèle personnalisé fourni ci-dessus."
@@ -271,7 +273,7 @@ def build_script_generation_prompt(
         f"Durée demandée : {mmss} ({dur['duration_sec']} secondes). La voix lit environ {dur['target_words']} mots dans ce temps : "
         f"écris entre {dur['min_words']} et {dur['max_words']} mots parlés (compte-les), un plan toutes les 2 à 4 s. "
         "La vidéo doit durer ce qui est demandé, ni beaucoup plus court ni plus long.\n"
-        f"{da_block}{avoid_block}\n"
+        f"{personality_block}{da_block}{avoid_block}\n"
         f"{extra_note}"
     )
     return system_prompt, user_prompt
