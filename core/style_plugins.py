@@ -69,7 +69,7 @@ SHEET_ROLES = [
     {"id": "reference", "label": "Aperçu"},
 ]
 
-STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « 3D Roblox » : Dans ma ville (pop) & Conte en blocs (mélancolie)
+STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « 3D Roblox » : Roblox pop & Conte en blocs (mélancolie)
 
 > **À l'IA qui lit ce fichier :** tu reçois après ce document un **script oral** (ou une idée). Produis le script / découpage plan par plan, prompts, sous-titres et montage **exactement dans cette direction artistique**.
 > Ordre : §0 choisir la variante → §1 règles d'or → §2–§6 DA → §7 découpage → §8 prompts → §9 montage → §10 checklist.
@@ -83,7 +83,7 @@ STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « 3D Roblox » : Dans ma ville (po
 2. **Décors = 3D low-poly propre**, objets simples et lisibles, aucune texture photoréaliste.
 3. **Format 9:16**, 1080×1920, 30 fps.
 4. **Plans très courts** : 1–1,5 s en A, 2–3 s en B. Caméra presque toujours en mouvement.
-5. **Ouverture obligatoire** : « Dans ma ville / In this town, [règle absurde ou surnaturelle] » dans les 2 premières secondes, sur un plan de ville.
+5. **Ouverture** : accrocher dans les 2 premières secondes avec ce que l'idée a de plus fort (règle absurde, chiffre, objet bizarre, réplique en pleine action, question, contradiction). Jamais de formule toute faite : chaque vidéo a SA première phrase, tirée de son sujet.
 6. **Narrateur à la 1re personne**, qui fait exception à la règle (A) ou en est victime (B).
 7. **Chaque phrase est montrée littéralement** à l'image avec **panneaux 3D lisibles** dans le décor (BAKERY, MATH TEST, PARTY HOUSE, CLOSED, TOWN MEETING…).
 8. **Un objet/gimmick récurrent** dans presque tous les plans (A : ballon de basket orange ; B : neige, miroirs couverts, écran blanc, lumière sous la glace).
@@ -119,8 +119,8 @@ STYLE_BIBLE_ROBLOX_3D = """# STYLE BIBLE — « 3D Roblox » : Dans ma ville (po
 - **Voix** : A = jeune blasé pince-sans-rire (~3,2 mots/s) ; B = jeune douce posée mélancolique (~2,5 mots/s) avec silences avant révélations.
 """
 
-NARRATIVE_RULES_ROBLOX_3D = """Structure « Dans ma ville » (variante A pop) :
-1. Hook (0–2 s) : « Dans ma ville, [règle absurde ou surnaturelle]. Sauf moi. »
+NARRATIVE_RULES_ROBLOX_3D = """Structure « Roblox pop » (variante A) :
+1. Hook (0–2 s) : le décalage le plus fort de l'idée, dit en une phrase (jamais la même tournure d'une vidéo à l'autre).
 2. Origine en 1 phrase.
 3. Litanie d'exemples (4 à 7 persos-types), 1 plan chacun.
 4. Conséquence sur la ville / premier cas vécu.
@@ -128,7 +128,7 @@ NARRATIVE_RULES_ROBLOX_3D = """Structure « Dans ma ville » (variante A pop) :
 6. Chute en boucle qui répond à la première phrase.
 
 Structure « Conte en blocs » (variante B mélancolie) — narration au « je » (enfant ou jeune adulte), passé composé et imparfait, phrases courtes avec répétitions émotives (« j'ai essayé, j'ai vraiment essayé ») :
-1. Accroche-règle (0–7 s) : une loi étrange de « ma ville » ou de « ma famille », posée calmement.
+1. Accroche-règle (0–7 s) : une loi étrange tirée du sujet (un lieu, une famille, un objet…), posée calmement.
 2. Premier souvenir et règles : la première fois qu'on a vu le phénomène, puis 3 ou 4 règles concrètes et visuelles (objet à cacher ou à allumer, interdit émotionnel) et la conséquence si on les enfreint.
 3. Le drame : un accident ou une perte, raconté pudiquement, avec de la culpabilité.
 4. La journée de retour : on applique les règles, petits détails tendres (repas préféré, programme télé). « Pendant une journée, tout était normal. »
@@ -178,7 +178,7 @@ un accessoire signature par perso (bonnet, chapeau, lunettes). L'expression chan
 """
 
 NARRATIVE_RULES_2D_MONDE_3D = """Structure Stickman — conte / suspense (phrases courtes de 4 à 10 mots, 1re personne) :
-1. Hook-concept (0–3 s) : règle étrange du monde (« Dans ma ville, tout le monde… sauf moi »).
+1. Hook-concept (0–3 s) : ce que l'idée a de plus étrange ou de plus fort, en une phrase qui lui est propre.
 2. Exemples concrets / règles du monde (1 plan par règle).
 3. Bascule personnelle + lien affectif / objet-clé.
 4. Montée de tension / perte jour après jour.
@@ -227,7 +227,7 @@ Histoire à la 1re personne racontée d'une traite, illustrée en **dessin anim�
 """
 
 NARRATIVE_RULES_FETE_EN_FOLIE = """Structure « vie pilotée par les commentaires » (1re personne, présent, phrases courtes, ~3 mots/s) :
-1. Hook (0–4 s) : la règle du monde en une phrase (« Dans cette ville, plus t'es riche, plus tu vis haut. ») → plan EST/TILT.
+1. Hook (0–4 s) : la règle du monde en une phrase propre au sujet (jamais la même tournure d'une vidéo à l'autre) → plan EST/TILT.
 2. Situation du héros (4–10 s) : où il vit, ce qu'il n'a pas → HERO, décharge.
 3. Contrat spectateur (10–20 s) : abonnés / commentaires = progression → UI + STAGE.
 4. Action / montée (20–70 s) : gradation verticale du décor, phrases courtes et sensorielles, 1 plan par phrase.
@@ -345,7 +345,7 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "category": "3D",
         "icon": "🧱",
         "gradient": "roblox",
-        "tagline": "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique.",
+        "tagline": "Avatars R6 en blocs : histoire drôle ou conte mélancolique.",
         "da_prompt": STYLE_BIBLE_ROBLOX_3D,
         "narrative_rules": NARRATIVE_RULES_ROBLOX_3D,
         "render_mode": "blender3d",
@@ -601,16 +601,23 @@ STARTER_DEFAULT_UPDATES: Dict[str, Dict[str, Any]] = {
     # références 2D × 3D : sous-titres blancs à contour noir (plus de mot actif cyan)
     "2d_monde_3d": {"subtitle_style": ("cyber_cyan", "clean_white"),
                     "da_prompt": ("prefix:# STYLE BIBLE — « Conte cartoon 2D dans un monde 3D »", STYLE_BIBLE_2D_MONDE_3D),
-                    "narrative_rules": ("prefix:Structure conte / suspense", NARRATIVE_RULES_2D_MONDE_3D),
+                    "narrative_rules": (["prefix:Structure conte / suspense", "prefix:Structure Stickman — conte / suspense"], NARRATIVE_RULES_2D_MONDE_3D),
                     # renommé « Stickman » (réf. pipeline 2.5D stickman, 33 000 images analysées)
                     "name": ("2D × Monde 3D", "Stickman"),
                     "category": ("2D × 3D", "Stickman 2.5D"),
                     "tagline": ("Persos cartoon 2D plats dans un décor 3D.", "Stickmen 2D à tête de haricot dans un monde 3D à contours encre.")},
     # 3D Roblox fusionné avec « Conte Blocs Mélancolique » (un seul style, le meilleur des deux)
     "roblox_3d": {"subtitle_style": ("submagic_yellow", "clean_white"),
-                  "tagline": ("Avatars R6 en blocs dans un monde 3D low-poly.", "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique."),
-                  "da_prompt": ("prefix:# STYLE BIBLE — « In this town / Dans ma ville »", STYLE_BIBLE_ROBLOX_3D),
-                  "narrative_rules": ("prefix:Structure « In this town / Dans ma ville »", NARRATIVE_RULES_ROBLOX_3D)},
+                  "tagline": (["Avatars R6 en blocs dans un monde 3D low-poly.", "Avatars R6 en blocs : « Dans ma ville » drôle ou conte mélancolique."],
+                              "Avatars R6 en blocs : histoire drôle ou conte mélancolique."),
+                  # 27/11/2026 : la formule « Dans ma ville… sauf moi » était imposée → 8 vidéos sur 8 commençaient pareil
+                  "da_prompt": (["prefix:# STYLE BIBLE — « In this town / Dans ma ville »", "prefix:# STYLE BIBLE — « 3D Roblox » : Dans ma ville"],
+                                STYLE_BIBLE_ROBLOX_3D),
+                  "narrative_rules": (["prefix:Structure « In this town / Dans ma ville »", "prefix:Structure « Dans ma ville »"],
+                                      NARRATIVE_RULES_ROBLOX_3D)},
+    "fete_en_folie": {"narrative_rules": ("prefix:Structure « vie pilotée par les commentaires »", NARRATIVE_RULES_FETE_EN_FOLIE)},
+    "roblox_cine": {"narrative_rules": (["prefix:Structure « In this town / Dans ma ville »", "prefix:Structure « Dans ma ville »"],
+                                        NARRATIVE_RULES_ROBLOX_3D)},
     # références @rosoai (cuisine, savant 1770) : sous-titres blancs + mot prononcé jaune crème, DA illustrée chaleureuse
     "explainer_2d": {"subtitle_style": ("shortcrew_red", "warm_cream"),
                      "tagline": ("Dessin animé vectoriel pastel vu de face, grandes étiquettes, voix posée.", "Dessin animé illustré chaleureux : héros chibi, décors cosy, contours épais."),
@@ -682,16 +689,25 @@ def _format_tokens_label(tokens: int) -> str:
     return f"~{tokens} tokens"
 
 
-def duration_to_word_range(duration_sec: int = 60) -> Dict[str, int]:
-    """Calcule la fourchette de mots parlés et le nombre de plans pour une durée cible (en secondes)."""
+def duration_to_word_range(duration_sec: int = 60, words_per_sec: Optional[float] = None) -> Dict[str, int]:
+    """Fourchette de mots parlés et nombre de plans pour une durée cible (en secondes).
+    Le débit vient de la voix RÉELLE (core/speech_rate, appris vidéo après vidéo) : avant, 2,65 mots/s fixes
+    donnaient des vidéos de 60 s qui duraient 44 à 53 s."""
     sec = max(15, min(180, int(duration_sec or 60)))
-    center = int(round(sec * 2.65))
-    low = max(30, int(round(center * 0.90)))
-    high = max(low + 15, int(round(center * 1.08)))
+    if words_per_sec is None:
+        try:
+            from core.speech_rate import words_per_sec as _learned
+            words_per_sec = _learned()
+        except Exception:
+            words_per_sec = 3.0
+    center = int(round(sec * float(words_per_sec)))
+    low = max(30, int(round(center * 0.93)))
+    high = max(low + 10, int(round(center * 1.04)))
     plans_min = max(6, int(round(sec / 3.0)))
     plans_max = max(plans_min + 3, int(round(sec / 2.2)))
     return {
         "duration_sec": sec,
+        "target_words": center,
         "min_words": low,
         "max_words": high,
         "plans_min": plans_min,
@@ -933,7 +949,11 @@ class StylePluginStore:
                 continue
             for key, (old_val, new_val) in STARTER_DEFAULT_UPDATES.get(p.get("id"), {}).items():
                 cur = p.get(key)
-                if cur == old_val or (isinstance(old_val, str) and old_val.startswith("prefix:") and isinstance(cur, str) and cur.startswith(old_val[7:])):
+                if cur == new_val:
+                    continue
+                olds = old_val if isinstance(old_val, list) else [old_val]
+                if any(cur == o or (isinstance(o, str) and o.startswith("prefix:") and isinstance(cur, str) and cur.startswith(o[7:]))
+                       for o in olds):
                     p[key] = new_val
                     added = True
         if added:

@@ -369,6 +369,7 @@ class VoiceEngine:
             "srt_path": "",
             "voices_by_character": assigned,
             "casting": cast or None,
+            "el_speed": float((main_settings or {}).get("speed") or cls._default_el_speed()) if any("elevenlabs" in p for p in providers) else 1.0,
         }
 
     @classmethod
@@ -405,6 +406,32 @@ class VoiceEngine:
             return None
 
     @classmethod
+    def _default_el_speed(cls) -> float:
+        """Vitesse ElevenLabs par défaut : un peu plus vive que 1,0 (rythme Shorts). Réglable : elevenlabs.speed."""
+        from core.speech_rate import DEFAULT_EL_SPEED
+        try:
+            v = float((load_settings().get("elevenlabs") or {}).get("speed") or DEFAULT_EL_SPEED)
+        except (TypeError, ValueError):
+            v = DEFAULT_EL_SPEED
+        return max(0.9, min(1.15, v))
+
+    @classmethod
+    def _default_el_voice_is_foreign(cls, text: str) -> bool:
+        """Vrai si ElevenLabs prendrait une voix par défaut anglophone (George, Liam…) pour un script français."""
+        if not cls.get_elevenlabs_key():
+            return False
+        el_cfg = load_settings().get("elevenlabs", {}) or {}
+        if el_cfg.get("enabled") is False:
+            return False
+        try:
+            from core import voice_casting
+            default_ids = {v["voice_id"] for v in voice_casting.DEFAULT_VOICES}
+            vid = el_cfg.get("default_voice_id") or ELEVENLABS_VOICE_ID or ""
+            return (not vid or vid in default_ids) and voice_casting.detect_language(text) != "en"
+        except Exception:
+            return False
+
+    @classmethod
     def _pick_auto_el_voice(cls, tags) -> str:
         """Choisit dans le compte ElevenLabs la voix dont la description colle le mieux au ton du script."""
         try:
@@ -415,12 +442,19 @@ class VoiceEngine:
             if res.status_code != 200:
                 return ""
             best, best_score = "", 0
+            try:
+                from core.voice_casting import load_roster
+                validated = {r["voice_id"] for r in load_roster()}
+            except Exception:
+                validated = set()
             for v in res.json().get("voices", []):
                 labels = v.get("labels") or {}
                 blob = " ".join([str(v.get("name") or ""), str(v.get("description") or ""), " ".join(str(x) for x in labels.values())]).lower()
                 score = sum(1 for t in tags if t in blob)
                 if v.get("category") in ("cloned", "professional"):
                     score += 0.5  # la voix clonée de l'utilisateur passe devant à égalité
+                if v.get("voice_id") in validated:
+                    score += 1.5  # voix validée à l'oreille par l'utilisateur
                 if score > best_score:
                     best, best_score = v.get("voice_id") or "", score
             return best
@@ -453,6 +487,9 @@ class VoiceEngine:
 
         # « Auto » ElevenLabs : l'IA choisit les voix (narrateur + personnages) et leurs réglages d'après le script et le style
         cast = None
+        if not (voice or "").strip() and cls._default_el_voice_is_foreign(text):
+            # Voix par défaut anglophone (ex. Liam) pour un script français : accent garanti → casting à la place
+            voice = "auto_el"
         if (voice or "").strip() == "auto_el" and cls.get_elevenlabs_key():
             cast = cls._cast_voices(text, segments, style_hint, voices_hint)
             if cast:
@@ -484,6 +521,8 @@ class VoiceEngine:
         explicit_free = chosen_voice.startswith(("edge:", "gemini:", "fr-"))
         style_prompt = auto_profile["style_prompt"]
         el_settings = dict(voice_settings or {"stability": auto_profile["el_stability"], "style": auto_profile["el_style"]})
+        if not el_settings.get("speed"):
+            el_settings["speed"] = cls._default_el_speed()
         provider = "gemini_tts" if gem_key else "edge_tts"
 
         if chosen_voice == "auto_gemini":
@@ -580,6 +619,8 @@ class VoiceEngine:
             "audio_mp3": str(audio_mp3 if audio_mp3.exists() else audio_wav),
             "srt_path": str(srt_path) if srt_path.exists() else ""
         }
+        if provider == "elevenlabs":
+            out["el_speed"] = float(el_settings.get("speed") or 1.0)
         if cast:
             out["casting"] = cast
         return out
