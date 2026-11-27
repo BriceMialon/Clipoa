@@ -212,6 +212,22 @@ def api_license_activate():
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/api/license/link", methods=["POST"])
+def api_license_link():
+    """Lien Stripe : « portal » (gérer l'abonnement) ou « checkout » (s'abonner)."""
+    body = request.get_json(silent=True) or {}
+    try:
+        if body.get("kind") == "portal":
+            url = LICENSE.portal_url()
+        else:
+            url = LICENSE.checkout_url(body.get("plan", "yearly"))
+        if not str(url).startswith("https://"):
+            raise RuntimeError("Lien de paiement indisponible.")
+        return jsonify({"url": url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/license/deactivate", methods=["POST"])
 def api_license_deactivate():
     return jsonify(LICENSE.deactivate())
