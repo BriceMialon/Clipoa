@@ -45,6 +45,8 @@ STYLE_DESCRIPTIONS: Dict[str, str] = {
                      "mignon, de grandes étiquettes et une voix posée."),
     "compteur_toon": ("Une règle absurde et un compteur à l'écran qui monte : une nouvelle image dessinée toutes les 0,8 s, "
                       "sous-titres blancs avec le mot prononcé en rose."),
+    "parabole_3_destins": ("Une fable dessinée : le même départ, trois choix, trois destins en chapitres de 4 à 6 s, "
+                           "puis la question « Et toi ? » à la fin."),
     "roblox_cine": ("Le même univers que 3D Roblox en qualité cinéma : vraie lumière, visages vivants, 1080p. "
                     "Rendu long (20 à 60 min) et plus de tokens."),
 }
