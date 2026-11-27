@@ -296,7 +296,30 @@ class LicenseManager:
             self._save(data)
         return self.status()
 
+    def portal_url(self) -> str:
+        """Lien du portail client Stripe (carte, factures, résiliation)."""
+        key = self._load().get("key")
+        if not key:
+            raise ValueError("Aucune licence activée sur cet ordinateur.")
+        return self._post("/portal", {"key": key}).get("url", "")
+
+    def checkout_url(self, plan: str = "yearly") -> str:
+        """Lien de paiement Stripe Checkout (annuel présélectionné)."""
+        return self._post("/checkout", {"plan": "monthly" if plan == "monthly" else "yearly"}).get("url", "")
+
     def auth_header(self) -> Dict[str, str]:
         """En-tête à joindre aux appels du relais OAuth (réservé aux abonnés)."""
         tok = self._load().get("token", "")
         return {"X-Clipoa-License": tok} if tok else {}
+
+
+def current_token() -> str:
+    """Jeton en cache (vide hors édition publique) : utilisé par le relais OAuth réservé aux abonnés."""
+    if not _edition.is_public():
+        return ""
+    try:
+        from config import STORAGE_DIR
+        with open(os.path.join(str(STORAGE_DIR), "license.json"), "r", encoding="utf-8") as f:
+            return str((json.load(f) or {}).get("token") or "")
+    except Exception:
+        return ""

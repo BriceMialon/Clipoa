@@ -138,6 +138,16 @@ def _parse_scheduled_datetime(raw: str) -> Optional[datetime]:
     return dt
 
 
+def _license_param(name: str) -> Dict[str, str]:
+    """Jeton de licence à joindre aux appels du relais OAuth (réservé aux abonnés en version publique)."""
+    try:
+        from core.license import current_token
+        tok = current_token()
+    except Exception:
+        tok = ""
+    return {name: tok} if tok else {}
+
+
 def _http_json_with_curl_fallback(
     method: str,
     url: str,
@@ -608,7 +618,7 @@ class FreeSocialPublisher:
             relay_url = apps["relay"]["url"].rstrip("/")
             return_to = f"{base_url.rstrip('/')}/oauth/{provider}/relay-done"
             return f"{relay_url}/oauth/{provider}/start?" + urlencode(
-                {"return_to": return_to, "nonce": nonce, "target": target}
+                {"return_to": return_to, "nonce": nonce, "target": target, **_license_param("lic")}
             )
 
         cfg = apps.get(provider, {})
@@ -1281,7 +1291,7 @@ class FreeSocialPublisher:
                 tok = _http_json_with_curl_fallback(
                     "POST",
                     f"{relay_url}/oauth/youtube/refresh",
-                    json_body={"refresh_token": refresh_token},
+                    json_body={"refresh_token": refresh_token, **_license_param("license")},
                     timeout=15,
                 )
                 if isinstance(tok, dict) and tok.get("access_token"):
@@ -1339,7 +1349,7 @@ class FreeSocialPublisher:
                 tok = _http_json_with_curl_fallback(
                     "POST",
                     f"{relay_url}/oauth/tiktok/refresh",
-                    json_body={"refresh_token": refresh_token},
+                    json_body={"refresh_token": refresh_token, **_license_param("license")},
                     timeout=15,
                 )
                 if isinstance(tok, dict) and tok.get("access_token"):

@@ -333,6 +333,42 @@ function legalPage(kind) {
   });
 }
 
+// ---------- Relais réservé aux abonnés (licence ClipRoll signée Ed25519, voir license_worker/) ----------
+// Actif seulement si REQUIRE_LICENSE = "yes" et LICENSE_PUBKEY_HEX (clé publique du serveur de licence) sont posés.
+// Jeton : ?lic=… sur /oauth/<p>/start, champ "license" du JSON sur /oauth/<p>/refresh.
+function licB64d(s) {
+  const b = atob(String(s).replace(/-/g, "+").replace(/_/g, "/") + "===".slice((String(s).length + 3) % 4));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+
+async function licenseOk(env, token) {
+  try {
+    const [bodyB64, sigB64] = String(token || "").split(".");
+    if (!bodyB64 || !sigB64) return false;
+    const hex = String(env.LICENSE_PUBKEY_HEX || "");
+    const raw = Uint8Array.from(hex.match(/.{2}/g) || [], (h) => parseInt(h, 16));
+    if (raw.length !== 32) return false;
+    const pk = await crypto.subtle.importKey("raw", raw, { name: "Ed25519" }, false, ["verify"]);
+    const body = licB64d(bodyB64);
+    if (!(await crypto.subtle.verify({ name: "Ed25519" }, pk, licB64d(sigB64), body))) return false;
+    const data = JSON.parse(new TextDecoder().decode(body));
+    return Number(data.exp) > Date.now() / 1000 && ["active", "trialing", "past_due"].includes(data.status);
+  } catch (e) {
+    return false;
+  }
+}
+
+async function licenseGate(request, env, url, method) {
+  if (env.REQUIRE_LICENSE !== "yes") return null;
+  let token = "";
+  if (/^\/oauth\/(youtube|tiktok|meta)\/start$/.test(url.pathname)) token = url.searchParams.get("lic") || "";
+  else if (/^\/oauth\/(youtube|tiktok)\/refresh$/.test(url.pathname) && method === "POST") {
+    try { token = ((await request.clone().json()) || {}).license || ""; } catch (e) { token = ""; }
+  } else return null;
+  if (await licenseOk(env, token)) return null;
+  return jsonResponse({ ok: false, error: "license_required" }, 402);
+}
+
 // ---------- Support : rapports de plantage & messages (route /support/*) ----------
 // Bindings / secrets (tous optionnels, au moins un stockage ou une alerte requis) :
 //   - SUPPORT_KV            : namespace Workers KV où sont rangés les rapports (expirent après 90 jours)
@@ -546,6 +582,10 @@ export default {
     if (url.pathname.startsWith("/support/")) {
       return handleSupport(request, env, url, method, ipHash);
     }
+
+    // Relais OAuth réservé aux abonnés (si REQUIRE_LICENSE = "yes")
+    const gate = await licenseGate(request, env, url, method);
+    if (gate) return gate;
 
     // 0. Pages légales (exigées par TikTok / Meta / Google)
     if (url.pathname === "/terms" || url.pathname === "/privacy") {

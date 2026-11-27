@@ -111,6 +111,17 @@ class TokenTests(unittest.TestCase):
             self.assertTrue(self.mgr.can_fabricate())
 
 
+class RelayTokenTests(unittest.TestCase):
+    def test_license_param_only_in_public_edition(self):
+        from core import social_publisher as sp
+        with mock.patch("core.license.current_token", return_value="tok"):
+            self.assertEqual(sp._license_param("lic"), {"lic": "tok"})
+        with mock.patch("core.license.current_token", return_value=""):
+            self.assertEqual(sp._license_param("lic"), {})
+        with mock.patch.object(edition, "EDITION", "perso"):
+            self.assertEqual(lic.current_token(), "")
+
+
 class AppGateTests(unittest.TestCase):
     def test_public_edition_blocks_fabrication_without_license(self):
         try:
@@ -124,6 +135,8 @@ class AppGateTests(unittest.TestCase):
                 c = clipoa_app.app.test_client()
                 self.assertEqual(c.post("/api/make", json={}).status_code, 402)
                 self.assertEqual(c.get("/api/license/status").get_json()["state"], "none")
+                r = c.post("/api/license/link", json={"kind": "portal"})
+                self.assertEqual(r.status_code, 400)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
