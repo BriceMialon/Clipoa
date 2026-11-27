@@ -4,6 +4,14 @@
 
 Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste court. Chercher ici (grep) avant de modifier une fonction ; ajouter les nouveautés ici, pas dans CLAUDE.md.
 
+## Fabrique, barre latérale, TikTok et styles (27/11/2026)
+
+- Qualité du rendu « Haute qualité / Rapide » proposée pour tous les styles intégrés (pas Ciné, pas les styles copiés sur mesure). Ce que change le choix : Roblox et Stickman = EEVEE 720x1280 contre Workbench 540x960 (aucun token en plus) ; Explainer 2D et Fête en folie = Workbench 720x1280 contre 540x960 (`BlenderEngine.create_scene_from_spec`) ; Dessin à compteur = une image toutes les ~0,7 s contre ~1,4 s en Rapide (`toon_engine.FAST_PANEL_TIMING`), donc environ 2x moins de tokens et de dessins. Le long texte est remplacé par une bulle (i) dont le contenu dépend du style (`RQ_INFO` dans index.html).
+- Durée : curseur 30 s → 2 min (pas de 5 s) en haut à droite du bloc « Ton idée » (`#fab-dur-range`, `setTargetDuration`). La logique de calcul des durées n'a pas changé.
+- Barre latérale : « Montage » reste allumé quand on l'ouvre ; « S'inspirer » devient l'onglet « Concurrents » (vue `analyse`, titre « Analyse des concurrents ») ; « Découper une vidéo » et « S'inspirer » retirés du sous-menu de Créer.
+- TikTok : le nom du compte est redemandé à TikTok avec `display_name` seul si `username` est refusé (il exige le scope `user.info.profile`, non demandé) ; `FreeSocialPublisher.refresh_tiktok_names()` renomme au démarrage les comptes restés « Compte TikTok » (jetons intacts) ; l'ancienne fiche « TikTok (Connecté) » sans `open_id` n'est plus affichée (elle reste dans le fichier). Même correctif dans `oauth_relay_worker.js` (à redéployer).
+- Styles livrés (`STARTER_PLUGINS`) en lecture seule : boutons Éditer / ✕ masqués, et l'API refuse PUT, DELETE, planches et script (403, `_builtin_style_locked`).
+
 ## Marque ClipRoll (26/11/2026)
 
 - Nom visible « ClipRoll » → « ClipRoll » partout (UI, notifications, barre de menus, installateur, DMG `ClipRoll.app` / `ClipRoll-<v>.dmg`, site public, docs) par `tools/rebrand_cliproll.py` (rejouable sur les branches windows / PR en cours).

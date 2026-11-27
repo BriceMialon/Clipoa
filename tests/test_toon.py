@@ -28,6 +28,13 @@ class TestPanels(unittest.TestCase):
         self.assertTrue(all(0.4 <= l <= 1.6 for l in lens), lens)
         self.assertTrue(any(abs(p["start"] - 4.0) < 0.4 for p in panels))
 
+    def test_fast_mode_draws_fewer_images(self):
+        ws = _words(60)
+        hq = T.build_panels(ws, 20.0)
+        fast = T.build_panels(ws, 20.0, **T.FAST_PANEL_TIMING)
+        self.assertLess(len(fast), len(hq) * 0.75, (len(fast), len(hq)))
+        self.assertAlmostEqual(fast[-1]["end"], 20.0, places=2)
+
     def test_long_silence_is_split(self):
         ws = [{"word": "a", "start": 0.1, "end": 0.3}, {"word": "b", "start": 6.0, "end": 6.3}]
         panels = T.build_panels(ws, 7.0)

@@ -71,7 +71,8 @@ class BlenderEngine:
     ) -> str:
         """
         Scène construite pour CETTE vidéo à partir du décor décrit par l'IA (core/scene_designer.py),
-        dans le style choisi (roblox | paper2d | flat_vector). 12 fps ; quality « fast » = Workbench 540x960, « hq » = EEVEE 720x1280.
+        dans le style choisi (roblox | paper2d | flat_vector | explainer2d). 12 fps ; quality « fast » = Workbench 540x960,
+        « hq » = EEVEE 720x1280 (roblox, paper2d) ou Workbench 720x1280 (flat_vector, explainer2d : aplats).
         """
         dur = max(3.0, float(audio_duration_sec or 0) or 30.0)
         total_frames = max(36, int(round(dur * fps)))
@@ -95,14 +96,16 @@ class BlenderEngine:
                 continue
         full_spec = dict(spec)
         full_spec["_style"] = style if style in ("roblox", "paper2d", "flat_vector", "explainer2d") else "roblox"
+        # Explainer / Fête en folie (aplats, Workbench) : la haute qualité = image plus nette (720x1280), sans EEVEE
+        res_x, res_y = (720, 1280) if quality != "fast" and full_spec["_style"] in ("flat_vector", "explainer2d") else (540, 960)
         header = f"""
 import bpy
 import json
 bpy.ops.wm.read_factory_settings(use_empty=True)
 scene = bpy.context.scene
 scene.render.engine = 'BLENDER_WORKBENCH'
-scene.render.resolution_x = 540
-scene.render.resolution_y = 960
+scene.render.resolution_x = {res_x}
+scene.render.resolution_y = {res_y}
 scene.render.resolution_percentage = 100
 scene.render.fps = {int(fps)}
 scene.frame_start = 1
