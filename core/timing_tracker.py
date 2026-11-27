@@ -71,6 +71,7 @@ STYLE_DEFAULTS_60S: Dict[str, Dict[str, float]] = {
     "2d_monde_3d":   {"sec": 320.0, "pct": 4.2},
     "explainer_2d":  {"sec": 260.0, "pct": 3.6},
     "fete_en_folie": {"sec": 250.0, "pct": 3.5},
+    "parabole_3_destins": {"sec": 150.0, "pct": 2.5},
     "roblox_cine":   {"sec": 2400.0, "pct": 16.0},
     "_copy":         {"sec": 900.0, "pct": 12.0},   # analyse + moteur sur mesure écrit par l'IA
     "_motion":       {"sec": 90.0, "pct": 2.5},

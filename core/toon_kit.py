@@ -22,9 +22,13 @@ POSES = ("idle", "arms_up", "wave", "hands_face", "point", "shrug", "crossed", "
 HAIR_STYLES = ("short", "curly", "long", "bun", "pigtails", "spiky", "bald", "afro")
 TOP_STYLES = ("hoodie", "tshirt", "vest", "stripes", "shirt", "dress")
 LOCATIONS = ("park_day", "park_night", "building", "room", "street", "classroom", "kitchen", "beach", "plain")
-FRAMES = ("close", "medium", "wide", "card", "object")
+FRAMES = ("close", "medium", "wide", "card", "object", "choices")
+POP_SLOTS = {"left": (250, 1020), "right": (830, 1020), "top": (540, 700), "low": (540, 1450)}
+# en gros plan, la tête occupe le centre : les objets vont dans les coins hauts, plus petits
+POP_SLOTS_CLOSE = {"left": (250, 500), "right": (830, 500), "top": (830, 500), "low": (250, 500)}
 PROPS = ("hands", "phone", "clock", "book", "heart", "star", "trophy", "money", "ball", "letter", "plate", "cap",
-         "gift", "pizza", "bell", "lock", "key", "camera", "flag", "fire", "bulb", "sign")
+         "gift", "pizza", "bell", "lock", "key", "camera", "flag", "fire", "bulb", "sign",
+         "chalkboard", "chart_up", "chart_down", "plant", "coin", "piggy", "house", "egg")
 
 SKINS = ("#F6D3B3", "#EBC09A", "#D9A47C", "#B97C55", "#8D5A3B", "#6B4128")
 HAIRS = ("#3B2A20", "#1F1A1C", "#6B4128", "#A8652F", "#E3B35A", "#7A7A7A")
@@ -622,6 +626,40 @@ def prop_svg(kind: str, label: str = "") -> str:
     if k == "bulb":
         return (f'<circle cx="0" cy="-60" r="170" fill="#FFE07A" {S(10)}/><rect x="-80" y="100" width="160" height="110" rx="20" fill="#B9C2CC" {S(9)}/>'
                 f'<path d="M-40,40 L-20,-60 L0,20 L20,-60 L40,40" fill="none" {S(8)}/>')
+    if k == "chalkboard":
+        lab = (label or "").upper()[:16]
+        return (f'<rect x="-330" y="-230" width="660" height="440" rx="18" fill="#7A4E2D" {S(10)}/>'
+                f'<rect x="-295" y="-195" width="590" height="370" rx="8" fill="#2F5245"/>'
+                f'<path d="M-60,210 L-120,320 M60,210 L120,320" {S(10)}/>'
+                + (text(0, 10, lab, fit_size(lab, 520, 90), "#F4F1E6", 700) if lab else
+                   f'<path d="M-230,110 Q-60,60 0,-20 T230,-140" fill="none" stroke="#F4F1E6" stroke-width="12" stroke-linecap="round"/>'))
+    if k in ("chart_up", "chart_down"):
+        up = k == "chart_up"
+        col = "#3FA56A" if up else "#E2574C"
+        bars = [(-210, 120), (-90, 190), (30, 260), (150, 340)] if up else [(-210, 340), (-90, 260), (30, 190), (150, 120)]
+        return (f'<rect x="-300" y="-260" width="600" height="520" rx="24" fill="#FFFFFF" {S(10)}/>'
+                f'<path d="M-250,200 L260,200 M-250,200 L-250,-220" {S(9)}/>'
+                + "".join(f'<rect x="{x}" y="{200 - h}" width="80" height="{h}" fill="{col}" {S(7)}/>' for x, h in bars)
+                + (f'<path d="M-230,60 L-60,-20 L40,20 L230,-180 M170,-190 L235,-185 L225,-120" fill="none" stroke="{INK}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>' if up else
+                   f'<path d="M-230,-180 L-60,-80 L40,-110 L230,60 M170,70 L235,65 L225,0" fill="none" stroke="{INK}" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>'))
+    if k == "plant":
+        return (f'<path d="M-150,80 L150,80 L115,260 L-115,260Z" fill="#C9743F" {S(10)}/><rect x="-170" y="40" width="340" height="60" rx="12" fill="#D9844F" {S(9)}/>'
+                f'<path d="M0,40 L0,-200" stroke="#3F8E5E" stroke-width="22"/>'
+                f'<path d="M0,-60 Q-180,-80 -200,-220 Q-40,-200 0,-60Z M0,-120 Q180,-140 200,-280 Q40,-260 0,-120Z" fill="#5FB46A" {S(8)}/>')
+    if k == "coin":
+        return (f'<circle r="210" fill="#F2C14E" {S(12)}/><circle r="160" fill="none" stroke="#E0A93A" stroke-width="14"/>'
+                + text(0, 46, label[:3] if label else "€", 150, "#FFFFFF", 700, stroke=INK, sw=10))
+    if k == "piggy":
+        return (f'<ellipse cx="0" cy="20" rx="250" ry="190" fill="#F4A6B8" {S(10)}/><circle cx="170" cy="-120" r="60" fill="#F4A6B8" {S(9)}/>'
+                f'<ellipse cx="250" cy="40" rx="60" ry="50" fill="#F28AA2" {S(8)}/><circle cx="235" cy="35" r="9" fill="{INK}"/><circle cx="265" cy="35" r="9" fill="{INK}"/>'
+                f'<circle cx="150" cy="-40" r="16" fill="{INK}"/><rect x="-60" y="-178" width="120" height="22" rx="10" fill="{INK}"/>'
+                + "".join(f'<rect x="{x}" y="170" width="60" height="80" rx="14" fill="#F28AA2" {S(8)}/>' for x in (-170, -60, 50, 140)))
+    if k == "house":
+        return (f'<path d="M-260,-40 L0,-260 L260,-40Z" fill="#E2574C" {S(10)}/><rect x="-210" y="-40" width="420" height="300" fill="#FFF4DC" {S(10)}/>'
+                f'<rect x="-50" y="100" width="100" height="160" fill="#7A4E2D" {S(8)}/><rect x="-170" y="20" width="90" height="90" fill="#A9D8F5" {S(7)}/>'
+                f'<rect x="80" y="20" width="90" height="90" fill="#A9D8F5" {S(7)}/>')
+    if k == "egg":
+        return f'<path d="M0,-240 C170,-240 220,40 200,110 C170,230 -170,230 -200,110 C-220,40 -170,-240 0,-240Z" fill="#FFF8EC" {S(12)}/>'
     lab = (label or "?").upper()[:14]
     return (f'<rect x="-280" y="-150" width="560" height="300" rx="30" fill="#FFF4DC" {S(10)}/>'
             + text(0, 30, lab, fit_size(lab, 480, 110), INK, 700))
@@ -649,6 +687,24 @@ def panel_svg(panel: Dict[str, Any], cast: Dict[str, Dict[str, Any]], loc: Dict[
     frame = panel.get("frame") if panel.get("frame") in FRAMES else "medium"
     if frame == "card":
         return card_svg(panel.get("card") or {}, panel.get("card_bg"))
+    if frame == "choices":
+        return choices_svg(panel.get("choices") or {})
+    return _panel_body(panel, frame, cast, loc, seed) + pops_svg(panel.get("pops") or [], close=frame == "close")
+
+
+def pops_svg(pops: List[Dict[str, Any]], close: bool = False) -> str:
+    """Objets qui « apparaissent » par-dessus l'image (Parabole) : petit objet dessiné à un emplacement fixe."""
+    out = []
+    slots, sc = (POP_SLOTS_CLOSE, 0.4) if close else (POP_SLOTS, 0.42)
+    for p in pops[:3]:
+        if not isinstance(p, dict) or p.get("prop") not in PROPS:
+            continue
+        x, y = slots.get(p.get("at"), slots["top"])
+        out.append(f'<g transform="translate({x},{y}) scale({sc})">{prop_svg(p["prop"], str(p.get("label") or ""))}</g>')
+    return "".join(out)
+
+
+def _panel_body(panel: Dict[str, Any], frame: str, cast: Dict[str, Dict[str, Any]], loc: Dict[str, Any], seed: int) -> str:
     out = [location_svg(loc, seed)]
     if frame == "object":
         out.append(f'<rect width="{W}" height="{H}" fill="#FFFFFF" fill-opacity="0.18"/>')
@@ -728,6 +784,34 @@ def card_svg(card: Dict[str, Any], bg: Optional[str] = None) -> str:
     if card.get("sign"):
         out.append(text(540, 1680, str(card["sign"])[:30], 36, "#8A7A6A", 500))
     return "".join(out)
+
+
+def choices_svg(ch: Dict[str, Any]) -> str:
+    """Carton final « Et toi ? » : fond nuit, grande question, 2 ou 3 choix (objet + mot) pour faire commenter."""
+    title = str(ch.get("title") or "ET TOI ?").upper()[:20]
+    items = [i for i in (ch.get("items") or []) if isinstance(i, dict)][:3]
+    accent = hexcol(ch.get("accent"), "#FFD23F")
+    out = [f'<rect width="{W}" height="{H}" fill="#1E1B3A"/>',
+           f'<circle cx="540" cy="980" r="620" fill="#2A2550"/>']
+    out.append(text(540, 520, title, fit_size(title, 900, 150, 0.6), accent, 700, stroke=INK, sw=14))
+    xs = _slots(len(items), 330) if items else []
+    for it, x in zip(items, xs):
+        out.append(f'<g transform="translate({x:.0f},1180) scale(0.5)">{prop_svg(str(it.get("prop") or ""), "")}</g>')
+        lab = str(it.get("label") or "").upper()[:12]
+        if lab:
+            out.append(text(x, 1400, lab, fit_size(lab, 300, 46, 0.6), accent, 700))
+    return "".join(out)
+
+
+def chapter_svg(chapter: str, accent: str = "#FFFFFF") -> str:
+    """Bandeau de chapitre en haut (Parabole) : pastille sombre « N°1 : … » (fond transparent)."""
+    t = str(chapter or "").upper()[:30]
+    if not t:
+        return ""
+    fs = fit_size(t, 820, 50, 0.62)
+    w = len(t) * fs * 0.62 + 90
+    return (f'<rect x="{540 - w / 2:g}" y="230" width="{w:g}" height="86" rx="43" fill="{INK}" stroke="{hexcol(accent, "#FFFFFF")}" stroke-width="5"/>'
+            + text(540, 230 + 43 + fs * 0.36, t, fs, "#FFFFFF", 700))
 
 
 def header_svg(header: Dict[str, Any], counter: Any = None) -> str:

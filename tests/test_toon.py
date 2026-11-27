@@ -154,3 +154,80 @@ class TestStyleAndCaptions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestParable(unittest.TestCase):
+    """Parabole à 3 destins : plans longs calés sur les phrases, chapitres, objets qui apparaissent, carton final."""
+
+    def _sentence_words(self):
+        text = ("Imagine trois amis. Chacun reçoit cent euros le même jour. Le premier dépense tout très vite. "
+                "Le deuxième garde tout dans sa tirelire. Le troisième plante des graines et attend. Et toi, tu fais quoi ?")
+        ws, t = [], 0.2
+        for w in text.split():
+            ws.append({"word": w, "start": round(t, 2), "end": round(t + 0.3, 2)})
+            t += 0.42
+        return ws, t + 0.5
+
+    def test_panels_are_long_and_cut_on_sentences(self):
+        ws, dur = self._sentence_words()
+        mp = T.mode_params("parable")
+        panels = T.build_panels(ws, dur, [], target=mp["target"], min_len=mp["min"], max_len=mp["max"])
+        lens = [p["end"] - p["start"] for p in panels]
+        self.assertTrue(all(l <= mp["max"] + 0.01 for l in lens), lens)
+        self.assertGreater(sum(lens) / len(lens), 2.0)
+        for p in panels[:-1]:
+            self.assertRegex(p["text"], r"[.!?]$")
+
+    def test_sanitize_keeps_chapters_pops_and_forces_final_card(self):
+        raw = {"cast": [{"id": "a"}, {"id": "b"}, {"id": "c"}],
+               "choices": {"items": [{"prop": "plate", "label": "Manger"}, {"prop": "piggy", "label": "<b>Garder"},
+                                     {"prop": "volcano", "label": "x"}]},
+               "panels": [{"i": 0, "f": "medium", "ch": "N°1 : IL DÉPENSE", "c": [{"id": "a"}],
+                           "pops": [{"prop": "coin", "at": "nowhere"}, {"prop": "dragon"}, {"prop": "plant", "at": "left"}]},
+                          {"i": 1, "f": "close", "c": [{"id": "b"}]}]}
+        spec = T.sanitize(raw, 2, "parable")
+        p0, p1 = spec["panels"]
+        self.assertEqual(p0["chapter"], "N°1 : IL DÉPENSE")
+        self.assertEqual([p["prop"] for p in p0["pops"]], ["coin"])
+        self.assertEqual(p0["pops"][0]["at"], "top")
+        self.assertEqual(p1["frame"], "choices")
+        self.assertEqual(len(p1["choices"]["items"]), 2)
+        self.assertNotIn("<", p1["choices"]["items"][1]["label"])
+        # mode compteur : rien de tout ça
+        self.assertNotIn("chapter", T.sanitize(raw, 2)["panels"][0])
+
+    def test_choices_without_items_falls_back(self):
+        spec = T.sanitize({"panels": [{"i": 0, "f": "choices"}]}, 1, "parable")
+        self.assertEqual(spec["panels"][0]["frame"], "medium")
+
+    def test_heuristic_and_prompt(self):
+        ws, dur = self._sentence_words()
+        panels = T.build_panels(ws, dur, [], target=4.2, min_len=2.4, max_len=6.5)
+        spec = T.heuristic_spec({"title": "t"}, panels, "parable")
+        self.assertEqual(spec["panels"][-1]["frame"], "choices")
+        self.assertTrue(any(p["chapter"].startswith("N°") for p in spec["panels"]))
+        prompt = T.build_prompt({"title": "t"}, panels, mode="parable")
+        self.assertIn(f"EXACTEMENT {len(panels)} entrées", prompt)
+        self.assertIn("ET TOI ?", prompt)
+
+    def test_drawing_is_valid_svg(self):
+        cast = {"a": {"skin": "#F6D3B3"}}
+        for fr in ("close", "medium", "wide"):
+            pnl = {"frame": fr, "chars": [{"id": "a", "expr": "happy", "pose": "idle"}],
+                   "pops": [{"prop": pr, "label": "1 & 2", "at": at} for pr, at in (("coin", "top"), ("plant", "left"))]}
+            ET.fromstring(K.wrap_svg(K.panel_svg(pnl, cast, {"kind": "street"})))
+        ch = {"title": "Et <toi> ?", "items": [{"prop": p, "label": "A&B"} for p in ("gift", "piggy", "plant")]}
+        ET.fromstring(K.wrap_svg(K.panel_svg({"frame": "choices", "choices": ch}, cast, {})))
+        ET.fromstring(K.wrap_svg(K.chapter_svg("N°1 : <il> & co")))
+
+    def test_style_registered(self):
+        from core.style_plugins import STARTER_PLUGINS, STARTER_PRODUCTION, sanitize_production
+        from core.video_composer import SUBTITLE_STYLES
+        self.assertIn("parabole_3_destins", [p["id"] for p in STARTER_PLUGINS])
+        prod = sanitize_production(STARTER_PRODUCTION["parabole_3_destins"])
+        self.assertEqual(prod["visual_style"], "toon_svg")
+        self.assertEqual(prod["toon_mode"], "parable")
+        self.assertEqual(prod["caption_mode"], "one_word")
+        sub = next(p for p in STARTER_PLUGINS if p["id"] == "parabole_3_destins")["subtitle_style"]
+        self.assertIn(sub, SUBTITLE_STYLES)
+        self.assertTrue(os.path.exists(os.path.join(os.path.dirname(__file__), "..", "assets", "style_covers", "parabole_3_destins.jpg")))

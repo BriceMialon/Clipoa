@@ -19,8 +19,10 @@
   <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=3">
   <link rel="stylesheet" href="/static/css/cliproll.css?v=6">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
+  <link rel="stylesheet" href="/static/css/cliproll-moments.css?v=1">
   <link rel="stylesheet" href="/static/css/toasts.css?v=2">
   <script src="/static/js/cliproll_toast.js?v=2"></script>
+  <script src="/static/js/cliproll_moments.js?v=1"></script>
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
@@ -979,7 +981,7 @@
               <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="quickExportPulse()" title="Télécharger MP4 + copier légende">MP4</button>
                 <button type="button" class="btn btn-ghost" id="btn-pub-schedule" style="flex:1;" onclick="submitPostiz(false)">Programmer</button>
-                <button type="button" class="btn btn-coral" id="btn-pub-now" style="flex:1.2;" onclick="submitPostiz(true)">Publier maintenant →</button>
+                <button type="button" class="btn btn-coral" id="btn-pub-now" style="flex:1.2;" onclick="submitPostiz(true)" title="Maintenir enfoncé pour publier">Maintenir pour publier</button>
               </div>
             </div>
 
@@ -1184,6 +1186,16 @@
             </div>
             <div>
               <button type="button" class="btn btn-coral btn-sm" onclick="openModal('modal-week')">Générer ma semaine →</button>
+            </div>
+          </div>
+
+          <div class="card lg-sheen" id="pilot-panel" style="margin-top:18px; max-width:760px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+              <div class="section-title">Suivi du Pilote auto</div>
+              <button type="button" class="btn btn-ghost btn-xs" onclick="clearNightDone()">Retirer les terminées</button>
+            </div>
+            <div id="pilot-list" style="display:flex; flex-direction:column; gap:8px;">
+              <div style="font-size:13px; color:var(--muted);">Aucune vidéo en préparation.</div>
             </div>
           </div>
         </section>
@@ -1706,22 +1718,43 @@
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
         <div>
           <h2>Ma semaine en 1 clic</h2>
-          <div style="font-size:12.5px; color:var(--muted);">Le Stratège prépare 5 vidéos calibrées (Lun → Ven) prêtes pour le Mode Nuit.</div>
+          <div style="font-size:12.5px; color:var(--muted);">Claude prépare 5 sujets (Lun → Ven). Tu choisis quand les fabriquer et où les publier.</div>
         </div>
         <button type="button" class="btn btn-danger btn-xs" onclick="closeModal('modal-week')" aria-label="Fermer">✕</button>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <input type="text" id="week-niche" class="input-sm" style="flex:1; min-width:180px;" placeholder="Ta niche (ex : Storytelling, Finance, Gaming, IA…)">
-        <select id="week-engine" class="input-sm" style="width:auto;">
-          <option value="gemini">Gemini Flash (Gratuit)</option>
-          <option value="claude">Claude {{ (claude_status.model or 'opus')|capitalize }}</option>
-        </select>
         <button type="button" class="btn btn-primary btn-sm" id="week-gen-btn" onclick="generateWeeklyPlan()">Générer 5 sujets</button>
       </div>
       <div id="week-results" style="display:flex; flex-direction:column; gap:8px;"></div>
-      <div id="week-footer" style="display:none; justify-content:space-between; align-items:center; gap:10px; padding-top:10px; border-top:1px solid var(--stroke-subtle); flex-wrap:wrap;">
+      <div id="week-options" style="display:none; flex-direction:column; gap:10px; padding-top:10px; border-top:1px solid var(--stroke-subtle);">
+        <div class="field" style="margin:0;">
+          <label>Quand fabriquer</label>
+          <select id="week-start" class="input-sm">
+            <option value="now">Maintenant (environ 8 à 10 min par vidéo, l'une après l'autre)</option>
+            <option value="tonight">Ce soir à 22 h (le Mac doit rester allumé, capot ouvert)</option>
+          </select>
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Où publier (une vidéo par jour, du lundi au vendredi)</label>
+          <div class="plat-row" id="week-platforms">
+            {% for key, acc in social_accounts.items() %}{% if acc.auto_api %}
+            <label class="plat-pill" style="cursor:pointer;"><input type="checkbox" class="week-plat" value="{{ key }}" style="margin-right:6px; accent-color:var(--accent);">{{ acc.short_name }} · {{ acc.label }}</label>
+            {% endif %}{% endfor %}
+          </div>
+          {% if not (social_accounts.values()|selectattr('auto_api')|list) %}
+          <div style="font-size:12px; color:var(--muted);">Aucun réseau branché : les vidéos resteront dans « Mes vidéos ».</div>
+          {% endif %}
+        </div>
+        <div class="field" style="margin:0;">
+          <label>Heure de publication</label>
+          <input type="time" id="week-publish-time" class="input-sm" value="18:00" style="width:auto;">
+        </div>
+        <div style="font-size:12px; color:var(--muted); line-height:1.45;">Rien n'est publié sans toi : chaque vidéo est programmée sur son jour seulement après que tu l'as regardée et validée.</div>
+      </div>
+      <div id="week-footer" style="display:none; justify-content:space-between; align-items:center; gap:10px; padding-top:10px; flex-wrap:wrap;">
         <span style="font-size:12px; color:var(--muted);" id="week-count-hint">5 sujets sélectionnés</span>
-        <button type="button" class="btn btn-coral btn-sm" onclick="sendWeekToNightFactory()">Envoyer au Mode Nuit →</button>
+        <button type="button" class="btn btn-coral btn-sm" onclick="sendWeekToNightFactory()">Lancer le Pilote auto →</button>
       </div>
     </div>
   </div>
@@ -2030,7 +2063,7 @@
       location.reload();
     }
     async function removeClaudeApiKey() {
-      if (!confirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
+      if (!(await ClipRollMoments.holdConfirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.', { action: 'retirer' }))) return;
       const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
       if (d.error) return toast('' + d.error);
       location.reload();
@@ -3138,6 +3171,15 @@
     window.addEventListener('DOMContentLoaded', () => {
       try { if (!selectedStylePlaque || selectedStylePlaque === 'auto') selectDefaultStyle(); } catch (e) { /* Fabrique absente */ }
     });
+    // « Publier maintenant » se maintient enfoncé : une publication ne se retire pas.
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.ClipRollMoments) {
+        ClipRollMoments.holdify(document.getElementById('btn-pub-now'), () => submitPostiz(true), {
+          label: 'Maintenir pour publier',
+          hint: 'Maintiens le bouton enfoncé pour publier tout de suite.',
+        });
+      }
+    });
 
 
 
@@ -3716,12 +3758,7 @@
                  ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
                    ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
                </div>
-               <div class="step-pills">
-                 <span class="step-pill ${p >= 40 ? 'done' : (p >= 5 ? 'active' : '')}">${p >= 40 ? '✓ ' : ''}1. Script IA</span>
-                 <span class="step-pill ${p >= 65 ? 'done' : (p >= 40 ? 'active' : '')}">${p >= 65 ? '✓ ' : ''}2. Voix & Whisper</span>
-                 <span class="step-pill ${p >= 90 ? 'done' : (p >= 65 ? 'active' : '')}">${p >= 90 ? '✓ ' : ''}3. Montage 9:16</span>
-                 <span class="step-pill ${p >= 100 ? 'done' : (p >= 90 ? 'active' : '')}">${p >= 100 ? '✓ ' : ''}4. Contrôle</span>
-               </div>`
+               ${window.ClipRollMoments ? ClipRollMoments.stepsHtml(job) : ''}`
             : '';
 
           const actions = job.status === 'done' && job.session_id
@@ -4070,7 +4107,7 @@
     async function deletePluginSheet(filename) {
       const pid = val('pe-id');
       if (!pid) return;
-      if (!confirm('Supprimer cette planche ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer cette planche ?'))) return;
       const res = await apiJson(`/api/plugins/${encodeURIComponent(pid)}/sheets/${encodeURIComponent(filename)}`, { method: 'DELETE' });
       if (res.error) return toast(res.error);
       STYLE_PLUGINS = res.plugins || STYLE_PLUGINS;
@@ -4140,7 +4177,7 @@
 
     async function deletePluginById(pluginId) {
       const pl = STYLE_PLUGINS.find(p => p.id === pluginId);
-      if (!confirm(`Supprimer le plugin « ${pl ? pl.name : pluginId} » ainsi que ses planches et son script ?`)) return;
+      if (!(await ClipRollMoments.holdConfirm(`Supprimer le plugin « ${pl ? pl.name : pluginId} » ainsi que ses planches et son script ?`))) return;
       const res = await apiJson('/api/plugins/' + encodeURIComponent(pluginId), { method: 'DELETE' });
       if (res.error) return toast(res.error);
       STYLE_PLUGINS = res.plugins || STYLE_PLUGINS;
@@ -4732,7 +4769,7 @@
     }
 
     async function deleteVideo(id) {
-      if (!confirm('Supprimer cette vidéo ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer cette vidéo ?'))) return;
       const data = await apiJson('/api/videos/' + encodeURIComponent(id), { method: 'DELETE' });
       if (data.error) return toast(data.error);
       document.getElementById('vcard-' + id)?.remove();
@@ -5106,13 +5143,13 @@
     }
 
     async function deletePostiz(id) {
-      if (!confirm('Retirer cette publication de la file d\'attente ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Retirer cette publication de la file d\'attente ?', { action: 'retirer' }))) return;
       await fetch('/api/social/queue/' + encodeURIComponent(id), { method: 'DELETE' });
       const qData = await apiJson('/api/social/queue');
       renderPulseQueue(qData.queue || []);
     }
 
-    async function clearNightDone() { await apiJson('/api/night/clear', { method: 'POST' }); location.reload(); }
+    async function clearNightDone() { const d = await apiJson('/api/night/clear', { method: 'POST' }); if (d.error) return toast(d.error); renderPilotTasks(d.tasks || []); }
 
     // ===== Réglages Connexions (Claude, Gemini, ElevenLabs, Drive) =====
     async function updateClaudePlan() {
@@ -5233,7 +5270,7 @@
     }
 
     async function deleteInternalReport(id) {
-      if (!confirm('Supprimer ce rapport ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer ce rapport ?'))) return;
       await apiJson('/api/analytics/internal/' + encodeURIComponent(id), { method: 'DELETE' });
       document.getElementById('rep-' + id)?.remove();
       toast('Rapport supprimé');
@@ -5343,7 +5380,7 @@
     }
 
     async function deletePreset(id) {
-      if (!confirm('Supprimer ce preset ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer ce preset ?'))) return;
       const data = await apiJson('/api/presets/' + encodeURIComponent(id), { method: 'DELETE' });
       if (data.error) return toast(data.error);
       STUDIO_PRESETS = data.presets || STUDIO_PRESETS;
@@ -5356,8 +5393,8 @@
     async function generateWeeklyPlan() {
       const niche = val('week-niche');
       if (!niche) return toast('Indique ta niche.');
-      const engine = val('week-engine') || 'gemini';
-      if (engine === 'claude' && !checkClaudeQuotaGuard('analyze', 3)) return;
+      const engine = 'claude';
+      if (!checkClaudeQuotaGuard('analyze', 3)) return;
       const btn = document.getElementById('week-gen-btn');
       const box = document.getElementById('week-results');
       btn.disabled = true; btn.textContent = 'Génération…';
@@ -5381,6 +5418,7 @@
           </label>`;
         }).join('') || '<div style="color:var(--muted); font-size:13px;">Aucun sujet généré.</div>';
         document.getElementById('week-footer').style.display = weeklyPlanCache.length ? 'flex' : 'none';
+        document.getElementById('week-options').style.display = weeklyPlanCache.length ? 'flex' : 'none';
         updateWeekCount();
         refreshClaudeQuota();
       } finally {
@@ -5401,25 +5439,101 @@
         return it.titre || it.sujet || it.title || '';
       }).filter(Boolean);
       if (!topics.length) return toast('Coche au moins un sujet.');
+      let startAt = '';
+      if (val('week-start') === 'tonight') {
+        const d = new Date(); d.setHours(22, 0, 0, 0);
+        if (d <= new Date()) d.setDate(d.getDate() + 1);
+        const pad = n => String(n).padStart(2, '0');
+        startAt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T22:00`;
+      }
+      const platforms = Array.from(document.querySelectorAll('.week-plat:checked')).map(c => c.value);
       const data = await apiJson('/api/night/enqueue', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topics,
           plugin_id: activePluginId || '',
           target_duration_sec: targetDurationSec,
-          engine: val('week-engine') || createEngine,
-          model: val('gem-model') || 'gemini-3-flash-preview',
           theme: val('fab-theme'),
           subtitle_style: val('fab-sub'),
           voice: getSelectedVoiceValue(),
-          keep_awake: true
+          keep_awake: true,
+          start_at: startAt,
+          publish_platforms: platforms,
+          publish_time: val('week-publish-time') || '18:00'
         })
       });
       if (data.error) return toast(data.error);
       closeModal('modal-week');
-      toast(`${data.created} shorts programmés en Mode Nuit !`);
-      setTimeout(() => location.reload(), 700);
+      toast(`${data.created} vidéos confiées au Pilote auto`);
+      showView('equipe');
+      renderPilotTasks(data.tasks || []);
     }
+
+    const PILOT_STATUS = {
+      pending: ['En attente', 'var(--muted)'],
+      running: ['En fabrication', 'var(--cr-cyan)'],
+      waiting_validation: ['À valider', 'var(--accent)'],
+      scheduled: ['Programmée', 'var(--ok)'],
+      done: ['Prête', 'var(--ok)'],
+      error: ['Erreur', 'var(--danger, #e5484d)'],
+      cancelled: ['Annulée', 'var(--muted)'],
+      cancelled_done: ['Annulée', 'var(--muted)'],
+    };
+
+    function renderPilotTasks(tasks) {
+      const box = document.getElementById('pilot-list');
+      if (!box) return;
+      if (!tasks.length) { box.innerHTML = '<div style="font-size:13px; color:var(--muted);">Aucune vidéo en préparation.</div>'; return; }
+      box.innerHTML = tasks.map(t => {
+        const [lbl, col] = PILOT_STATUS[t.status] || [t.status, 'var(--muted)'];
+        const when = t.publish_at ? t.publish_at.replace('T', ' à ') : '';
+        const start = (t.status === 'pending' && t.start_at) ? ` · départ ${escHtml(t.start_at.replace('T', ' à '))}` : '';
+        let btns = '';
+        if (t.status === 'pending') btns += `<button type="button" class="btn btn-ghost btn-xs" onclick="cancelPilotTask('${escHtml(t.id)}')">Retirer</button>`;
+        if (t.status === 'running') btns += `<button type="button" class="btn btn-ghost btn-xs" onclick="cancelPilotTask('${escHtml(t.id)}')">Annuler</button>`;
+        if (t.session_id && ['waiting_validation', 'done', 'scheduled', 'cancelled_done'].includes(t.status)) {
+          btns += `<a class="btn btn-ghost btn-xs" href="/stream/${encodeURIComponent(t.session_id)}" target="_blank" rel="noopener">Regarder</a>`;
+        }
+        if (t.status === 'waiting_validation') btns += `<button type="button" class="btn btn-coral btn-xs" onclick="validatePilotTask('${escHtml(t.session_id)}')">Valider</button>`;
+        const bar = t.status === 'running' ? `<div class="quota-mini-bar" style="margin-top:6px;"><div class="quota-mini-fill" style="width:${Math.max(3, Math.min(100, t.progress || 0))}%; background:var(--cr-cyan);"></div></div>` : '';
+        return `<div style="padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border);">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:13.5px; font-weight:600; color:var(--ink);">${escHtml(t.topic || '')}</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:2px;"><b style="color:${col};">${lbl}</b>${start}${when ? ' · publication ' + escHtml(when) + ' sur ' + escHtml((t.publish_platforms || []).join(', ')) : ''}</div>
+              <div style="font-size:12px; color:var(--muted); margin-top:2px;">${escHtml(t.step || '')}</div>
+              ${bar}
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">${btns}</div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    async function refreshPilotTasks() {
+      const data = await apiJson('/api/night/tasks');
+      if (!data.error) renderPilotTasks(data.tasks || []);
+    }
+
+    async function cancelPilotTask(id) {
+      const data = await apiJson('/api/night/tasks/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (data.error) return toast(data.error);
+      renderPilotTasks(data.tasks || []);
+    }
+
+    async function validatePilotTask(sessionId) {
+      const data = await apiJson('/api/videos/' + encodeURIComponent(sessionId) + '/validate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ validated: true })
+      });
+      if (data.error) return toast(data.error);
+      toast('✓ Validée : elle sera programmée sur son jour dans quelques secondes');
+      setTimeout(refreshPilotTasks, 11000);
+    }
+
+    setInterval(() => {
+      if (document.getElementById('view-equipe')?.classList.contains('actif')) refreshPilotTasks();
+    }, 10000);
+    document.addEventListener('DOMContentLoaded', refreshPilotTasks);
 
     // ===== Palette Rapide Cmd + K ("Demande à ton équipe") =====
     let cmdkSelIdx = 0;
@@ -5944,7 +6058,7 @@
 {% if clipoa_edition == 'public' %}
 <!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
 <style>
-  [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe, .subnav[aria-label="Créer"],
+  [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe, .subnav[aria-label="Créer"], [onclick="openModal('modal-week')"],
     div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn,
     .ai-mode-seg, #ai-roster-strip, #ai-quick-team, div:has(> #cs-tiktok-handle) { display: none !important; }
 </style>

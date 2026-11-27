@@ -148,6 +148,7 @@ class ShortCrewPipeline:
                     raise RuntimeError("navigateur de rendu (Playwright) absent")
                 return toon_engine.render_story(session_id, script, plan, words or [], audio_dur_sec, out_dir,
                                                 model=engine_model, da_hint=da_ctx, progress=progress,
+                                                mode=((plugin or {}).get("production") or {}).get("toon_mode") or "compteur",
                                                 quality="fast" if (plugin or {}).get("_render_quality") == "fast" else "hq")
             except Exception as e:
                 print(f"⚠️ Dessin à compteur indisponible ({e}) : rendu Explainer 2D à la place.")
