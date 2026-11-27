@@ -169,3 +169,9 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - Édition public : `/api/agent-team/` et `/api/channel-stats/tiktok-handle` coupés, mode Équipe IA masqué.
 - S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
 - `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.
+
+## 27/11/2026 — Micro-interactions « UI moments » (suivi par étapes, maintenir pour confirmer)
+- `static/js/cliproll_moments.js` + `static/css/cliproll-moments.css` (chargés après la charte), inspirés de UI Moments (MIT © 2026 guanmo-ai, mention dans `THIRD_PARTY_NOTICES.md`).
+- Fiche de fabrication : les 4 pastilles calées sur de faux seuils (40/65/90) sont remplacées par une piste d'étapes (Script, Voix & son, Décor & montage, Contrôle ; 5 étapes pour la copie de short). L'étape vient du marqueur « [n/N] » envoyé par le pipeline, sinon des bornes de progression ; l'étape en cours se remplit.
+- Les 7 `confirm()` de suppression/retrait passent par `ClipRollMoments.holdConfirm()` (fenêtre « Maintenir pour supprimer », 0,9 s, Échap/clic dehors = annuler, Espace/Entrée maintenus au clavier). « Publier maintenant » devient « Maintenir pour publier » (`holdify`). Le `confirm()` du mode Rapide reste (pas destructif).
+- Mouvements coupés avec `prefers-reduced-motion`. Tests : `tests/test_ui_moments.py`.

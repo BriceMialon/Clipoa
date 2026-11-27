@@ -19,8 +19,10 @@
   <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=3">
   <link rel="stylesheet" href="/static/css/cliproll.css?v=6">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
+  <link rel="stylesheet" href="/static/css/cliproll-moments.css?v=1">
   <link rel="stylesheet" href="/static/css/toasts.css?v=2">
   <script src="/static/js/cliproll_toast.js?v=2"></script>
+  <script src="/static/js/cliproll_moments.js?v=1"></script>
 </head>
 <body>
 {% macro brand(key, label, color, size=22) -%}
@@ -979,7 +981,7 @@
               <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
                 <button type="button" class="btn btn-ghost btn-sm" onclick="quickExportPulse()" title="Télécharger MP4 + copier légende">MP4</button>
                 <button type="button" class="btn btn-ghost" id="btn-pub-schedule" style="flex:1;" onclick="submitPostiz(false)">Programmer</button>
-                <button type="button" class="btn btn-coral" id="btn-pub-now" style="flex:1.2;" onclick="submitPostiz(true)">Publier maintenant →</button>
+                <button type="button" class="btn btn-coral" id="btn-pub-now" style="flex:1.2;" onclick="submitPostiz(true)" title="Maintenir enfoncé pour publier">Maintenir pour publier</button>
               </div>
             </div>
 
@@ -2029,7 +2031,7 @@
       location.reload();
     }
     async function removeClaudeApiKey() {
-      if (!confirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.')) return;
+      if (!(await ClipRollMoments.holdConfirm('Retirer ta clé API Claude de ClipRoll ? Tu devras la recoller pour utiliser l\'IA par clé.', { action: 'retirer' }))) return;
       const d = await apiJson('/api/claude/api-key', { method: 'DELETE' });
       if (d.error) return toast('' + d.error);
       location.reload();
@@ -3137,6 +3139,15 @@
     window.addEventListener('DOMContentLoaded', () => {
       try { if (!selectedStylePlaque || selectedStylePlaque === 'auto') selectDefaultStyle(); } catch (e) { /* Fabrique absente */ }
     });
+    // « Publier maintenant » se maintient enfoncé : une publication ne se retire pas.
+    window.addEventListener('DOMContentLoaded', () => {
+      if (window.ClipRollMoments) {
+        ClipRollMoments.holdify(document.getElementById('btn-pub-now'), () => submitPostiz(true), {
+          label: 'Maintenir pour publier',
+          hint: 'Maintiens le bouton enfoncé pour publier tout de suite.',
+        });
+      }
+    });
 
 
 
@@ -3715,12 +3726,7 @@
                  ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
                    ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
                </div>
-               <div class="step-pills">
-                 <span class="step-pill ${p >= 40 ? 'done' : (p >= 5 ? 'active' : '')}">${p >= 40 ? '✓ ' : ''}1. Script IA</span>
-                 <span class="step-pill ${p >= 65 ? 'done' : (p >= 40 ? 'active' : '')}">${p >= 65 ? '✓ ' : ''}2. Voix & Whisper</span>
-                 <span class="step-pill ${p >= 90 ? 'done' : (p >= 65 ? 'active' : '')}">${p >= 90 ? '✓ ' : ''}3. Montage 9:16</span>
-                 <span class="step-pill ${p >= 100 ? 'done' : (p >= 90 ? 'active' : '')}">${p >= 100 ? '✓ ' : ''}4. Contrôle</span>
-               </div>`
+               ${window.ClipRollMoments ? ClipRollMoments.stepsHtml(job) : ''}`
             : '';
 
           const actions = job.status === 'done' && job.session_id
@@ -4069,7 +4075,7 @@
     async function deletePluginSheet(filename) {
       const pid = val('pe-id');
       if (!pid) return;
-      if (!confirm('Supprimer cette planche ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer cette planche ?'))) return;
       const res = await apiJson(`/api/plugins/${encodeURIComponent(pid)}/sheets/${encodeURIComponent(filename)}`, { method: 'DELETE' });
       if (res.error) return toast(res.error);
       STYLE_PLUGINS = res.plugins || STYLE_PLUGINS;
@@ -4139,7 +4145,7 @@
 
     async function deletePluginById(pluginId) {
       const pl = STYLE_PLUGINS.find(p => p.id === pluginId);
-      if (!confirm(`Supprimer le plugin « ${pl ? pl.name : pluginId} » ainsi que ses planches et son script ?`)) return;
+      if (!(await ClipRollMoments.holdConfirm(`Supprimer le plugin « ${pl ? pl.name : pluginId} » ainsi que ses planches et son script ?`))) return;
       const res = await apiJson('/api/plugins/' + encodeURIComponent(pluginId), { method: 'DELETE' });
       if (res.error) return toast(res.error);
       STYLE_PLUGINS = res.plugins || STYLE_PLUGINS;
@@ -4731,7 +4737,7 @@
     }
 
     async function deleteVideo(id) {
-      if (!confirm('Supprimer cette vidéo ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer cette vidéo ?'))) return;
       const data = await apiJson('/api/videos/' + encodeURIComponent(id), { method: 'DELETE' });
       if (data.error) return toast(data.error);
       document.getElementById('vcard-' + id)?.remove();
@@ -5105,7 +5111,7 @@
     }
 
     async function deletePostiz(id) {
-      if (!confirm('Retirer cette publication de la file d\'attente ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Retirer cette publication de la file d\'attente ?', { action: 'retirer' }))) return;
       await fetch('/api/social/queue/' + encodeURIComponent(id), { method: 'DELETE' });
       const qData = await apiJson('/api/social/queue');
       renderPulseQueue(qData.queue || []);
@@ -5232,7 +5238,7 @@
     }
 
     async function deleteInternalReport(id) {
-      if (!confirm('Supprimer ce rapport ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer ce rapport ?'))) return;
       await apiJson('/api/analytics/internal/' + encodeURIComponent(id), { method: 'DELETE' });
       document.getElementById('rep-' + id)?.remove();
       toast('Rapport supprimé');
@@ -5342,7 +5348,7 @@
     }
 
     async function deletePreset(id) {
-      if (!confirm('Supprimer ce preset ?')) return;
+      if (!(await ClipRollMoments.holdConfirm('Supprimer ce preset ?'))) return;
       const data = await apiJson('/api/presets/' + encodeURIComponent(id), { method: 'DELETE' });
       if (data.error) return toast(data.error);
       STUDIO_PRESETS = data.presets || STUDIO_PRESETS;
