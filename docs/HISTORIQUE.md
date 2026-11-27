@@ -4,6 +4,13 @@
 
 Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste court. Chercher ici (grep) avant de modifier une fonction ; ajouter les nouveautés ici, pas dans CLAUDE.md.
 
+## Pilote auto refait (27/11/2026)
+
+- `core/night_factory.py` ne fabrique plus lui-même : chaque sujet passe par `/api/make` (lanceur `_night_launch` dans `app.py`, branché par `NightFactory.configure`). Donc Claude seul, mêmes réglages que Créer, protection CPU `JOB_GUARD`, pause/reprise quota, notification, vidéo rattachée au compte actif au moment de la programmation.
+- Une seule fabrication à la fois : la tâche suit son job (`running` → `waiting_validation` / `done` / `error`). Écriture du fichier sous un seul verrou (`_mutate`), plus de mise à jour perdue.
+- Publication : créneaux Lun→Ven de la semaine suivante à l'heure choisie (`week_slots`). Une vidéo n'est programmée (`create_post(scheduled_at=…)`) qu'une fois VALIDÉE ; si le créneau est passé, jour de semaine suivant (`next_free_slot`) ; pas de doublon si elle a déjà été programmée à la main. L'ancien `auto_publish_platforms` (publication immédiate sans validation) est supprimé.
+- UI : fenêtre « Ma semaine » sans Gemini, choix « maintenant / ce soir 22 h », réseaux branchés + heure ; écran « Suivi du Pilote auto » (progression, Regarder, Valider, Annuler). Raccourci accueil masqué en édition public. Tests : `tests/test_night_factory.py`.
+
 ## Marque ClipRoll (26/11/2026)
 
 - Nom visible « ClipRoll » → « ClipRoll » partout (UI, notifications, barre de menus, installateur, DMG `ClipRoll.app` / `ClipRoll-<v>.dmg`, site public, docs) par `tools/rebrand_cliproll.py` (rejouable sur les branches windows / PR en cours).
