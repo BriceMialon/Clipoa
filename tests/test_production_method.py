@@ -351,8 +351,14 @@ class TestSceneDesignerAndKit(unittest.TestCase):
                 BlenderEngine.create_scene_from_spec(spec, self.PLAN["shots"], path, 8.0, style=style)
                 code = Path(path).read_text(encoding="utf-8")
                 compile(code, path, "exec")
-                self.assertIn("scene.render.resolution_x = 540", code)
+                # haute qualité (défaut) : aplats en Workbench 720x1280 ; roblox/paper2d partent de 540x960 puis EEVEE passe en 720x1280
+                hq_res = "720" if style in ("flat_vector", "explainer2d") else "540"
+                self.assertIn("scene.render.resolution_x = " + hq_res, code)
                 self.assertIn("scene.render.fps = 12", code)
+                BlenderEngine.create_scene_from_spec(spec, self.PLAN["shots"], path, 8.0, style=style, quality="fast")
+                fast = Path(path).read_text(encoding="utf-8")
+                self.assertIn("scene.render.resolution_x = 540", fast)
+                self.assertNotIn("_clipoa_hq()", fast)
                 self.assertIn("BLENDER_WORKBENCH", code)
                 self.assertIn('"_style": "%s"' % style, code.replace("\\\\", "\\").replace('\\"', '"'))
                 if style == "explainer2d":

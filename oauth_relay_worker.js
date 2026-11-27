@@ -808,17 +808,22 @@ export default {
               target,
             });
           }
+          // « username » exige le scope user.info.profile (non demandé) : TikTok refuse alors toute la requête.
+          // On essaie avec, puis avec display_name seul (scope user.info.basic) pour toujours avoir le nom du compte.
           let username = "Compte TikTok";
-          try {
-            const uRes = await fetchWithTimeout(
-              "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,username",
-              { headers: { Authorization: `Bearer ${tok.access_token}` } }
-            );
-            const uJson = await uRes.json();
-            const userObj = uJson?.data?.user || {};
-            if (userObj.username) username = `@${userObj.username}`;
-            else if (userObj.display_name) username = userObj.display_name;
-          } catch {}
+          for (const fields of ["open_id,display_name,username", "open_id,display_name"]) {
+            try {
+              const uRes = await fetchWithTimeout(
+                `https://open.tiktokapis.com/v2/user/info/?fields=${fields}`,
+                { headers: { Authorization: `Bearer ${tok.access_token}` } }
+              );
+              if (!uRes.ok) continue;
+              const uJson = await uRes.json();
+              const userObj = uJson?.data?.user || {};
+              if (userObj.username) { username = `@${userObj.username}`; break; }
+              if (userObj.display_name) { username = userObj.display_name; break; }
+            } catch {}
+          }
 
           console.log(JSON.stringify({ event: "oauth_callback_ok", provider: "tiktok" }));
           return buildAutoPostPage(returnTo, {

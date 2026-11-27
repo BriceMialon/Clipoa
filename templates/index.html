@@ -17,7 +17,7 @@
   <title>ClipRoll — Studio 9:16</title>
   <link rel="stylesheet" href="/static/css/liquid-glass.css?v=8">
   <link rel="stylesheet" href="/static/css/cliproll-ui.css?v=3">
-  <link rel="stylesheet" href="/static/css/cliproll.css?v=5">
+  <link rel="stylesheet" href="/static/css/cliproll.css?v=6">
   <link rel="stylesheet" href="/static/css/a11y.css?v=1">
   <link rel="stylesheet" href="/static/css/toasts.css?v=2">
   <script src="/static/js/cliproll_toast.js?v=2"></script>
@@ -91,6 +91,12 @@
           <span class="side-link-left">
             <svg class="ico" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.2 7.8L20 18M8.2 16.2L20 6"/></svg>
             <span>Montage</span>
+          </span>
+        </button>
+        <button type="button" class="side-link" data-view="analyse" onclick="showView('analyse')">
+          <span class="side-link-left">
+            <svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/><path d="M8 13l2-2.5 2 1.5 2.5-3"/></svg>
+            <span>Concurrents</span>
           </span>
         </button>
         <button type="button" class="side-link" data-view="videos" onclick="showView('videos')">
@@ -323,7 +329,7 @@
               </button>
               <button type="button" class="home-shortcut" onclick="showView('analyse')">
                 <span class="hs-ico"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2.5"/><path d="M4 16V5a2 2 0 0 1 2-2h11"/></svg></span>
-                <span class="hs-title">S’inspirer</span><span class="hs-sub">Les vidéos IA qui cartonnent</span>
+                <span class="hs-title">Concurrents</span><span class="hs-sub">Les vidéos IA qui cartonnent</span>
               </button>
               <button type="button" class="home-shortcut" onclick="showView('montage')">
                 <span class="hs-ico"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.1 15.9M14.5 14.5L20 20"/></svg></span>
@@ -403,7 +409,7 @@
              VUE 2 : FABRIQUE (Grand Studio + Plugins de Style DA + Mon Script)
              ================================================================ -->
         <section id="view-creer" class="view">
-          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="montage" onclick="showView('montage')">Découper une vidéo</button><button type="button" class="subnav-btn" data-sub="analyse" onclick="showView('analyse')">S’inspirer</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
+          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
           <div class="page-head">
             <div>
               <h1 class="page-title">Nouvelle vidéo</h1>
@@ -425,21 +431,19 @@
           <div class="composer lg-sheen">
 
             <!-- ===== ÉTAPE 1 : LE SCRIPT ===== -->
-            <div class="step-label" style="margin-top:0; margin-bottom:10px;">
-              <span>1 · Ton idée</span>
-              <span class="script-meter" id="fab-script-meter"></span>
+            <div class="step-label fab-step-head" style="margin-top:0; margin-bottom:10px;">
+              <span class="fab-step-title">1 · Ton idée <span class="script-meter" id="fab-script-meter"></span></span>
+              <!-- Durée : curseur 30 s → 2 min (pas de 5 s), en haut à droite du bloc de génération -->
+              <label class="fab-dur-slider" id="fab-dur-bar" title="Durée approximative du script et de la vidéo">
+                <span class="fab-dur-label">Durée</span>
+                <input type="range" id="fab-dur-range" min="30" max="120" step="5" value="60" aria-label="Durée de la vidéo"
+                       oninput="setTargetDuration(this.value)">
+                <output class="fab-dur-value" id="fab-dur-value" for="fab-dur-range">1 min</output>
+              </label>
             </div>
 
             <div class="fab-input-head">
               <span id="fab-input-kind" style="display:none;"></span>
-              <div class="fab-dur-bar" id="fab-dur-bar" title="Durée approximative du script et de la vidéo">
-                <span class="fab-dur-label">Durée</span>
-                <button type="button" class="dur-pill" data-dur="30" onclick="setTargetDuration(30, this)">30s</button>
-                <button type="button" class="dur-pill" data-dur="45" onclick="setTargetDuration(45, this)">45s</button>
-                <button type="button" class="dur-pill actif" data-dur="60" onclick="setTargetDuration(60, this)">1 min</button>
-                <button type="button" class="dur-pill" data-dur="90" onclick="setTargetDuration(90, this)">1m30</button>
-                <button type="button" class="dur-pill" data-dur="120" onclick="setTargetDuration(120, this)">2 min</button>
-              </div>
             </div>
 
             <!-- Titre optionnel (affiché quand un script complet est collé) -->
@@ -502,13 +506,16 @@
                 <button type="button" class="btn btn-primary btn-xs" id="cine-install-btn" onclick="installCineEngine()">Installer le moteur Ciné</button>
               </div>
             </div>
-            <div id="render-quality-row" style="display:none; margin:0 0 10px; padding:9px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; line-height:1.45; color:var(--ink);">
-              <b>Qualité du rendu 3D</b>
-              <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+            <div id="render-quality-row" class="rq-row" style="display:none;">
+              <div class="rq-head">
+                <b>Qualité du rendu</b>
+                <button type="button" class="rq-info-btn" id="rq-info-btn" aria-label="À quoi sert ce choix ?" aria-expanded="false" aria-controls="rq-info" onclick="toggleRenderQualityInfo(event)">i</button>
+              </div>
+              <div class="rq-seg" role="group" aria-label="Qualité du rendu">
                 <button type="button" class="btn btn-primary btn-xs" id="rq-hq" onclick="setRenderQuality('hq')">Haute qualité (recommandé)</button>
                 <button type="button" class="btn btn-xs" id="rq-fast" onclick="setRenderQuality('fast')">Rapide</button>
               </div>
-              <div id="rq-hint" style="margin-top:6px; color:var(--muted);">Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus).</div>
+              <div id="rq-info" class="rq-info" role="note" hidden></div>
             </div>
             <div id="style-ref-lock" style="display:none; margin:0 0 10px; padding:10px 12px; border-radius:12px; background:var(--glass-soft); border:1px solid var(--border); font-size:12.5px; color:var(--ink);">
               <b>Style copié depuis ta vidéo</b> : ClipRoll regarde le lien collé et reproduit son style. Efface le lien pour choisir un style.
@@ -1121,11 +1128,10 @@
              VUE 7 : CONCURRENTS (Scanner @Compte + Copier Recette + Radar Viral)
              ================================================================ -->
         <section id="view-analyse" class="view">
-          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="montage" onclick="showView('montage')">Découper une vidéo</button><button type="button" class="subnav-btn" data-sub="analyse" onclick="showView('analyse')">S’inspirer</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
           <div class="page-head">
             <div>
-              <h1 class="page-title">S’inspirer</h1>
-              <p class="page-sub">Les vidéos faites à l’IA qui cartonnent en ce moment sur TikTok et Instagram Reels : leur score, pourquoi elles marchent, et un clic pour copier leur style.</p>
+              <h1 class="page-title">Analyse des concurrents</h1>
+              <p class="page-sub">Les vidéos faites à l’IA qui cartonnent en ce moment chez les autres créateurs sur TikTok et Instagram Reels : leur score, pourquoi elles marchent, et un clic pour copier leur style.</p>
             </div>
             <button type="button" class="btn btn-coral" id="insp-scan-btn" onclick="scanInspiration()">↻ Actualiser le radar</button>
           </div>
@@ -1157,7 +1163,7 @@
              VUE 8 : ÉQUIPE IA (Les 4 Agents Spécialisés de ClipRoll)
              ================================================================ -->
         <section id="view-equipe" class="view">
-          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="montage" onclick="showView('montage')">Découper une vidéo</button><button type="button" class="subnav-btn" data-sub="analyse" onclick="showView('analyse')">S’inspirer</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
+          <nav class="subnav" aria-label="Créer"><button type="button" class="subnav-btn" data-sub="creer" onclick="showView('creer')">Nouvelle vidéo</button><button type="button" class="subnav-btn" data-sub="equipe" onclick="showView('equipe')">Pilote auto</button></nav>
           <div class="page-head">
             <div>
               <h1 class="page-title">Pilote auto</h1>
@@ -2234,9 +2240,15 @@
 
     function setTargetDuration(sec, btnEl = null) {
       targetDurationSec = Math.max(15, Math.min(180, parseInt(sec, 10) || 60));
-      document.querySelectorAll('#fab-dur-bar .dur-pill').forEach(b => {
-        b.classList.toggle('actif', parseInt(b.dataset.dur, 10) === targetDurationSec);
-      });
+      const durRange = document.getElementById('fab-dur-range');
+      if (durRange) {
+        if (parseInt(durRange.value, 10) !== targetDurationSec) durRange.value = String(targetDurationSec);
+        const lo = parseInt(durRange.min, 10) || 30, hi = parseInt(durRange.max, 10) || 120;
+        const pct = Math.max(0, Math.min(100, (targetDurationSec - lo) / (hi - lo) * 100));
+        durRange.style.setProperty('--fill', pct + '%');
+      }
+      const durOut = document.getElementById('fab-dur-value');
+      if (durOut) durOut.textContent = formatDurShort(targetDurationSec);
       const labDur = document.getElementById('lab-duration');
       if (labDur && Array.from(labDur.options).some(o => parseInt(o.value, 10) === targetDurationSec)) {
         labDur.value = String(targetDurationSec);
@@ -2757,6 +2769,9 @@
       }
       bar.classList.add('show');
       loadStylePreview(pl.id);
+      // styles livrés avec ClipRoll : pas modifiables
+      const apEdit = document.getElementById('ap-edit-btn');
+      if (apEdit) apEdit.style.display = pl.builtin ? 'none' : '';
       const thumb = document.getElementById('ap-thumb');
       if (thumb) {
         thumb.innerHTML = pl.cover_url
@@ -2780,20 +2795,46 @@
 
     let cinePoll = null;
     let renderQuality = 'hq';
+    let renderQualityFamily = '';  // blender3d | flat | toon : le texte du (i) dépend de ce que change le choix
+    const RQ_INFO = {
+      blender3d: "<b>Haute qualité</b> : vraie lumière, ombres et relief. C'est le mode qui donne les meilleures vidéos, mais la vidéo prend plus de temps à générer (quelques minutes de plus). Ici, pas de tokens en plus : seul le calcul est plus long.<br><b>Rapide</b> : vidéo prête plus vite, rendu plus plat.",
+      flat: "<b>Haute qualité</b> : image plus nette (720×1280 au lieu de 540×960). Un peu plus long à générer, pas de tokens en plus.<br><b>Rapide</b> : vidéo prête plus vite, image moins fine.",
+      toon: "<b>Haute qualité</b> : environ deux fois plus d'images dessinées (une toutes les ~0,7 s), animation plus vivante. Consomme plus de tokens (l'IA décrit chaque image) et prend plus de temps à générer.<br><b>Rapide</b> : une image toutes les ~1,4 s, moins de tokens, vidéo prête plus vite.",
+    };
+    function renderQualityFamilyFor(vs) {
+      if (vs === 'roblox' || vs === 'paper2d') return 'blender3d';
+      if (vs === 'flat_vector' || vs === 'explainer2d') return 'flat';
+      if (vs === 'toon_svg') return 'toon';
+      return '';
+    }
     function setRenderQuality(q) {
       if (q === 'fast' && renderQuality !== 'fast' &&
-          !confirm('Attention : en mode Rapide, la vidéo sera de moins bonne qualité (lumière simplifiée, rendu plus plat).\n\nLe mode Haute qualité est recommandé. Passer quand même en Rapide ?')) return;
+          !confirm('Attention : en mode Rapide, la vidéo sera de moins bonne qualité.\n\nLe mode Haute qualité est recommandé. Passer quand même en Rapide ?')) return;
       renderQuality = q === 'fast' ? 'fast' : 'hq';
       document.getElementById('rq-hq')?.classList.toggle('btn-primary', renderQuality === 'hq');
       document.getElementById('rq-fast')?.classList.toggle('btn-primary', renderQuality === 'fast');
-      const hint = document.getElementById('rq-hint');
-      if (hint) hint.textContent = renderQuality === 'hq'
-        ? "Rendu Blender complet (lumière, ombres, relief) : c'est celui qui fait les bonnes vidéos. Plus long à calculer (quelques minutes de plus)."
-        : 'Mode Rapide : vidéo prête plus vite, mais de moins bonne qualité.';
     }
-    function showRenderQuality(on) {
+    function toggleRenderQualityInfo(ev, force) {
+      if (ev) ev.stopPropagation();
+      const box = document.getElementById('rq-info');
+      const btn = document.getElementById('rq-info-btn');
+      if (!box || !btn) return;
+      const open = typeof force === 'boolean' ? force : box.hidden;
+      if (open) box.innerHTML = RQ_INFO[renderQualityFamily] || RQ_INFO.blender3d;
+      box.hidden = !open;
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.classList.toggle('actif', open);
+    }
+    document.addEventListener('click', e => {
+      const box = document.getElementById('rq-info');
+      if (box && !box.hidden && !e.target.closest('#render-quality-row')) toggleRenderQualityInfo(null, false);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') toggleRenderQualityInfo(null, false); });
+    function showRenderQuality(family) {
+      renderQualityFamily = family || '';
       const row = document.getElementById('render-quality-row');
-      if (row) row.style.display = on ? 'block' : 'none';
+      if (row) row.style.display = renderQualityFamily ? 'block' : 'none';
+      toggleRenderQualityInfo(null, false);
     }
     async function showCineWarning(on) {
       const box = document.getElementById('cine-warning');
@@ -2851,14 +2892,15 @@
           const mHint = computeScaledPluginMetrics(pl, targetDurationSec, createEngine);
           hintTxt = `${pl.name} · ${mHint.timeLbl}`;
           showCineWarning(!!pl.heavy);
-          // qualité Blender au choix pour les styles rendus par Blender (pas le mode Ciné, ni un style copié sur mesure)
+          // qualité au choix pour tous les styles intégrés (Blender 3D, aplats, Dessin à compteur) ;
+          // pas pour le mode Ciné (toujours en haute qualité) ni pour un style copié sur mesure
           const vs = (pl.production && pl.production.visual_style) || '';
-          showRenderQuality(adapted === 'blender3d' && !pl.heavy && (vs === 'roblox' || vs === 'paper2d'));
+          showRenderQuality(pl.heavy ? '' : renderQualityFamilyFor(vs));
         }
       } else {
         activePluginId = '';
         showCineWarning(false);
-        showRenderQuality(false);
+        showRenderQuality('');
         syncRenderLocksForStyle(null, null);
         // Repart des réglages par défaut : le thème / les sous-titres d'un style précédent ne doivent pas « coller »
         if (th) th.value = 'dark_luxury';
@@ -3536,7 +3578,8 @@
     }
 
     // Rubriques : les sous-vues allument l'entrée de leur rubrique dans la navigation
-    const VIEW_GROUP = { montage: 'creer', analyse: 'creer', equipe: 'creer', style: 'plugins' };
+    // « Montage » et « Concurrents » ont leur propre lien dans la barre latérale : ils restent allumés (pas « Créer »)
+    const VIEW_GROUP = { equipe: 'creer', style: 'plugins' };
 
     function showView(name) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('actif'));
@@ -3781,8 +3824,8 @@
             </div>
             <div class="plugin-card-actions">
               <button type="button" class="btn btn-coral btn-xs" style="flex:1.2;" onclick="usePluginInFabrique('${escHtml(pl.id)}')">Utiliser →</button>
-              <button type="button" class="btn btn-ghost btn-xs" style="flex:1;" onclick="openPluginEditor('${escHtml(pl.id)}')">Éditer</button>
-              <button type="button" class="btn btn-danger btn-xs" onclick="deletePluginById('${escHtml(pl.id)}')" title="Supprimer">✕</button>
+              ${pl.builtin ? '' : `<button type="button" class="btn btn-ghost btn-xs" style="flex:1;" onclick="openPluginEditor('${escHtml(pl.id)}')">Éditer</button>
+              <button type="button" class="btn btn-danger btn-xs" onclick="deletePluginById('${escHtml(pl.id)}')" title="Supprimer">✕</button>`}
             </div>
           </div>
         </div>`;
@@ -3895,6 +3938,8 @@
     }
 
     async function openPluginEditor(pluginId = '') {
+      const plLocked = STYLE_PLUGINS.find(p => p.id === pluginId);
+      if (plLocked && plLocked.builtin) return toast('Les styles livrés avec ClipRoll ne se modifient pas.');
       if (!pluginId) return toast('La création de styles n’est pas disponible.');
       switchPluginTab('identity');
       const delBtn = document.getElementById('pe-delete-btn');
@@ -5386,7 +5431,7 @@
       { label: 'Montage · Vidéo longue en shorts', hint: 'Découpe', run: () => showView('montage') },
       { label: 'Publier · Calendrier & Auto-Post', hint: 'Diffusion', run: () => showView('auto') },
       { label: 'Statistiques · Mes chiffres', hint: 'Analyse', run: () => showView('perf') },
-      { label: 'S’inspirer · Vidéos IA qui cartonnent', hint: 'Radar', run: () => showView('analyse') },
+      { label: 'Analyse des concurrents · Vidéos IA qui cartonnent', hint: 'Radar', run: () => showView('analyse') },
       { label: 'Équipe IA · Les 4 agents', hint: 'Équipe', run: () => showView('equipe') },
       { label: 'Ouvrir Agent Expert Script', hint: 'IA', run: () => openContextScriptAgent() },
       { label: 'Ma semaine IA en 1 clic (5 vidéos)', hint: 'Batch IA', run: () => openModal('modal-week') },
@@ -5898,7 +5943,7 @@
 {% if clipoa_edition == 'public' %}
 <!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
 <style>
-  [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe,
+  [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe, .subnav[aria-label="Créer"],
     div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn,
     .ai-mode-seg, #ai-roster-strip, #ai-quick-team, div:has(> #cs-tiktok-handle) { display: none !important; }
 </style>

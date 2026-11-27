@@ -798,6 +798,11 @@ def _ensure_starter_cover(pid: str) -> None:
 _SAFE_ID_FOR_COVER = re.compile(r"^[a-z0-9_]{1,64}$")
 
 
+def is_builtin_style(plugin_id: str) -> bool:
+    """Styles par défaut livrés avec ClipRoll : ils restent tels quels (pas modifiables par l'utilisateur)."""
+    return any(sp.get("id") == plugin_id for sp in STARTER_PLUGINS)
+
+
 def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False) -> Dict[str, Any]:
     pid = raw.get("id", "")
     sheets = []
@@ -876,6 +881,8 @@ def _compute_plugin_view(raw: Dict[str, Any], include_script_body: bool = False)
         "status_label": status_label,
         "cover_url": cover_url,
         "starter": bool(raw.get("starter", False)),
+        # style livré avec ClipRoll : lecture seule (ni édition, ni suppression)
+        "builtin": is_builtin_style(pid),
         "reference_url": str(raw.get("reference_url") or ""),
         "hidden": bool(raw.get("hidden")),
         "has_reference_video": bool(raw.get("reference_video")),

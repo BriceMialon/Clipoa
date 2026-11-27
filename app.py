@@ -1153,8 +1153,22 @@ def api_plugins():
         return jsonify({"error": str(e)}), 500
 
 
+BUILTIN_STYLE_LOCKED = "Les styles livrés avec ClipRoll ne se modifient pas."
+
+
+def _builtin_style_locked(plugin_id):
+    """Réponse 403 si on tente de modifier un style livré avec ClipRoll, sinon None."""
+    from core.style_plugins import is_builtin_style
+    if is_builtin_style(plugin_id):
+        return jsonify({"error": BUILTIN_STYLE_LOCKED}), 403
+    return None
+
+
 @app.route("/api/plugins/<plugin_id>", methods=["GET", "PUT", "DELETE"])
 def api_plugin_item(plugin_id):
+    locked = _builtin_style_locked(plugin_id) if request.method != "GET" else None
+    if locked:
+        return locked
     if request.method == "GET":
         p = StylePluginStore.get_plugin(plugin_id, include_script_body=True)
         if not p:
@@ -1179,6 +1193,9 @@ def api_plugin_item(plugin_id):
 
 @app.route("/api/plugins/<plugin_id>/sheets", methods=["POST"])
 def api_plugin_upload_sheets(plugin_id):
+    locked = _builtin_style_locked(plugin_id)
+    if locked:
+        return locked
     files = request.files.getlist("files") or ([request.files["file"]] if "file" in request.files else [])
     if not files:
         return jsonify({"error": "Sélectionne au moins une planche de modèle."}), 400
@@ -1206,6 +1223,9 @@ def api_plugin_sheet_item(plugin_id, filename):
         if not fpath:
             return "Sheet not found", 404
         return send_file(str(fpath), conditional=True)
+    locked = _builtin_style_locked(plugin_id)
+    if locked:
+        return locked
     try:
         updated = StylePluginStore.delete_model_sheet(plugin_id, filename)
         return jsonify({"plugin": updated, "plugins": StylePluginStore.list_plugins(include_script_body=False)})
@@ -1232,6 +1252,9 @@ def api_plugin_reference_video(plugin_id):
 
 @app.route("/api/plugins/<plugin_id>/script", methods=["POST"])
 def api_plugin_upload_script(plugin_id):
+    locked = _builtin_style_locked(plugin_id)
+    if locked:
+        return locked
     try:
         if request.content_type and "multipart/form-data" in request.content_type:
             up = request.files.get("file") or request.files.get("script")
@@ -3199,6 +3222,8 @@ def run_app(port=8080):
     harden_sensitive_files(STORAGE_DIR)
     cleanup_res = cleanup_temp_storage(DOWNLOADS_DIR, AUDIO_DIR, max_age_days=CLIPOA_TEMP_TTL_DAYS)
     FreeSocialPublisher.start_scheduler()
+    # comptes TikTok branchés sous « Compte TikTok » : on récupère leur vrai nom en arrière-plan
+    threading.Thread(target=FreeSocialPublisher.refresh_tiktok_names, daemon=True).start()
     NightFactory.start_worker()
     try:  # notifications + icône barre de menus (macOS ; rien ailleurs)
         from core import notifier, menubar

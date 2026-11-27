@@ -199,6 +199,38 @@ def _account_key(platform: str, entry: Dict[str, Any]) -> str:
     return f"label:{label}" if label else "default"
 
 
+# Noms par défaut posés quand TikTok n'a pas donné le nom du compte : jamais affichés comme un vrai compte
+_GENERIC_TIKTOK_NAMES = {"", "compte tiktok", "tiktok", "tiktok connecté", "tiktok (connecté)", "connecté", "compte"}
+
+
+def _is_generic_name(name: Any) -> bool:
+    return str(name or "").strip().lower() in _GENERIC_TIKTOK_NAMES
+
+
+def _tiktok_display_name(access_token: str) -> str:
+    """Nom du compte TikTok (« @pseudo » ou nom affiché). « username » exige le scope user.info.profile :
+    sans lui TikTok refuse toute la requête, d'où le second essai avec display_name seul (scope user.info.basic)."""
+    if not access_token or access_token.startswith(("same_browser:", "browser_session:")):
+        return ""
+    for fields in ("open_id,display_name,username", "open_id,display_name"):
+        try:
+            r = requests.get(
+                f"https://open.tiktokapis.com/v2/user/info/?fields={fields}",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
+            )
+            if r.status_code != 200:
+                continue
+            user = (r.json().get("data") or {}).get("user") or {}
+            if user.get("username"):
+                return "@" + str(user["username"]).lstrip("@")
+            if user.get("display_name"):
+                return str(user["display_name"]).strip()
+        except Exception:
+            continue
+    return ""
+
+
 def _account_label(entry: Dict[str, Any]) -> str:
     return str(
         entry.get("channel_name") or entry.get("username") or entry.get("page_name")
@@ -344,6 +376,8 @@ class FreeSocialPublisher:
                     }
                     for akey, aval in ((raw.get(SAVED_KEY) or {}).get(key) or {}).items()
                     if isinstance(aval, dict) and aval.get("access_token")
+                    # ancienne fiche « TikTok (Connecté) » sans identifiant de compte : ce n'est pas un vrai compte
+                    and not (key == "tiktok" and not aval.get("open_id") and _is_generic_name(_account_label(aval)))
                 ],
             }
         return out
@@ -406,6 +440,27 @@ class FreeSocialPublisher:
         with _LOCK:
             _atomic_write_json(ACCOUNTS_FILE, accounts, mode=0o600)
         return cls.get_public_accounts_status()[platform]
+
+    @classmethod
+    def refresh_tiktok_names(cls) -> int:
+        """Comptes TikTok branchés sous un nom générique (« Compte TikTok ») : redemande leur vrai nom à TikTok.
+        Ne touche qu'au champ username (jetons conservés). Renvoie le nombre de comptes renommés."""
+        raw = cls.load_accounts()
+        renamed = 0
+        for akey, entry in list(((raw.get(SAVED_KEY) or {}).get("tiktok") or {}).items()):
+            if not isinstance(entry, dict) or not entry.get("access_token") or not entry.get("open_id"):
+                continue
+            if not _is_generic_name(entry.get("username")):
+                continue
+            try:
+                token = cls._ensure_tiktok_token(dict(entry, _account_key=akey))
+                name = _tiktok_display_name(token)
+                if name:
+                    cls.save_account("tiktok", {"open_id": entry["open_id"], "username": name}, account_key=akey)
+                    renamed += 1
+            except Exception as e:
+                print(f"⚠️ Nom du compte TikTok non récupéré : {e}")
+        return renamed
 
     @classmethod
     def disconnect_account(cls, platform: str, account_key: str = "") -> Dict[str, Any]:
@@ -838,21 +893,7 @@ class FreeSocialPublisher:
             if not access_token:
                 raise RuntimeError(f"TikTok n'a pas renvoyé de token : {r.text[:200]}")
             expires_in = int(tok.get("expires_in") or 86400)
-            username = "Compte TikTok"
-            try:
-                u_res = requests.get(
-                    "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,username",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                    timeout=10,
-                )
-                if u_res.status_code == 200:
-                    u_obj = (u_res.json().get("data") or {}).get("user") or {}
-                    if u_obj.get("username"):
-                        username = "@" + u_obj["username"].lstrip("@")
-                    elif u_obj.get("display_name"):
-                        username = u_obj["display_name"]
-            except Exception:
-                pass
+            username = _tiktok_display_name(access_token) or "Compte TikTok"
             acc = cls.save_account("tiktok", {
                 "access_token": access_token,
                 "refresh_token": tok.get("refresh_token", ""),
@@ -959,7 +1000,9 @@ class FreeSocialPublisher:
                 "refresh_token": (payload.get("refresh_token") or "").strip(),
                 "expires_at": int(time.time()) + expires_in,
                 "open_id": (payload.get("open_id") or "").strip(),
-                "username": (payload.get("name") or "Compte TikTok").strip(),
+                # le relais peut ne pas avoir obtenu le nom : on le redemande ici avec le jeton
+                "username": ((payload.get("name") or "").strip() if not _is_generic_name(payload.get("name"))
+                             else (_tiktok_display_name(token) or "Compte TikTok")),
                 "via_relay": True,
             })
             return {"ok": True, "connected_platforms": ["tiktok"]}
