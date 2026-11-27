@@ -29,7 +29,7 @@
     var blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "rapport-clipoa.json";
+    a.download = "rapport-cliproll.json";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
   }

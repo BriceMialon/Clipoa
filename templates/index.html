@@ -190,11 +190,6 @@
               <button type="button" class="ai-mode-btn" id="ai-mode-help" onclick="setAiBarMode('help')">Aide</button>
             </div>
 
-            <!-- Modèle : Claude -->
-            <select id="ai-tb-model" class="ai-tb-model" title="Modèle IA qui répond" onchange="saveAiTaskbarModel()">
-              <option value="claude:opus" selected>Claude Opus 5.5</option>
-            </select>
-
             <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Demande à ton équipe (ex : génère mes 5 vidéos de la semaine…)' if claude_status.connected else 'Connecte Claude pour activer ton équipe IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
 
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
@@ -353,8 +348,9 @@
               </div>
             </div>
             {% if renders %}
-            <div class="home-strip">
-              {% for v in renders[:8] %}
+            <div class="home-strip-marquee">
+            <div class="home-strip" id="home-shorts-strip">
+              {% for v in renders %}
               <div class="v-card" data-vid="{{ v.id }}" data-validated="{{ '1' if v.validated else '0' }}">
                 <div class="v-frame" onclick="toggleInlinePlay(this)">
                   <button type="button" class="v-expand-btn" onclick="event.stopPropagation(); openTheaterById('{{ v.id }}')" title="Plein écran">⤢</button>
@@ -382,6 +378,7 @@
                 </div>
               </div>
               {% endfor %}
+            </div>
             </div>
             {% else %}
             <div class="card home-empty">
@@ -733,6 +730,28 @@
             </div>
           </div>
 
+          {% if renders %}
+          <div class="lib-showcase" id="lib-showcase" aria-label="Vitrine de tes vidéos">
+            <button type="button" class="lib-sc-arrow prev" onclick="scrollLibShowcase(-1)" aria-label="Vidéos précédentes">‹</button>
+            <div class="lib-showcase-track" id="lib-showcase-track">
+              {% for v in renders %}
+              <button type="button" class="lib-sc-card" style="--sc-i: {{ loop.index0 % 6 }};" onclick="openTheaterById('{{ v.id }}')">
+                <div class="lib-sc-media">
+                  <video src="/stream/{{ v.id }}#t=0.4" preload="metadata" playsinline muted loop></video>
+                  <span class="lib-sc-badge">{{ '✓ Validée' if v.validated else 'À regarder' }}</span>
+                  <span class="lib-sc-play" aria-hidden="true">▶</span>
+                  <div class="lib-sc-caption">
+                    <div class="lib-sc-title">{{ v.script.title or v.id }}</div>
+                    <div class="lib-sc-meta">{{ v.created_label }}</div>
+                  </div>
+                </div>
+              </button>
+              {% endfor %}
+            </div>
+            <button type="button" class="lib-sc-arrow next" onclick="scrollLibShowcase(1)" aria-label="Vidéos suivantes">›</button>
+          </div>
+          {% endif %}
+
           <div class="filter-tabs-bar">
             <div class="u-tabs" id="lib-status-tabs">
               <button type="button" class="u-tab actif" data-lstat="all" onclick="filterLibraryStatus('all', this)">Toutes <span>{{ renders|length }}</span></button>
@@ -827,7 +846,7 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Montage</h1>
-              <p class="page-sub">Tes vidéos filmées. Dépose une vidéo où tu parles : l'équipe coupe les blancs, ajoute sous-titres, zooms et accroche. Rien n'est publié sans toi.</p>
+              <p class="page-sub">Tes vidéos filmées. Dépose une vidéo où tu parles : l'équipe coupe les blancs, ajoute sous-titres, zooms et accroche.</p>
             </div>
           </div>
 
@@ -890,7 +909,6 @@
             <div>
               <h1 class="page-title">Publier</h1>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" onclick="showView('perf')">Voir mes statistiques ›</button>
           </div>
 
           <!-- Barre de statut OAuth 1-clic -->
@@ -1042,8 +1060,7 @@
               <h1 class="page-title">Statistiques</h1>
             </div>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-ghost btn-sm" id="cs-audit-btn" onclick="runChannelRetentionAudit()">Audit rétention (12 Shorts)</button>
-              <button type="button" class="btn btn-coral btn-sm" id="cs-sync-btn" onclick="syncChannelStats()">↻ Mettre à jour</button>
+              <button type="button" class="btn btn-coral btn-sm" id="cs-sync-btn" onclick="syncAndAuditChannelStats()">↻ Mettre à jour &amp; analyser</button>
             </div>
           </div>
 
@@ -1051,6 +1068,7 @@
 
           <div class="card lg-sheen" style="margin-bottom:16px;">
             <div id="cs-head" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
+            <div id="cs-kpis" class="cs-stats-grid"></div>
             <div id="cs-status" style="font-size:12.5px; color:var(--muted); margin-top:8px;"></div>
             <div style="display:flex; gap:6px; margin-top:10px;" id="cs-sort">
               <button type="button" class="chip actif" data-v="recent" onclick="setCsSort('recent', this)">Plus récentes</button>
@@ -3221,19 +3239,64 @@
       renderChannelStats();
       if (!CS.timer) CS.timer = setTimeout(() => { CS.timer = null; loadChannelStats(); }, 2500);
     }
+    async function syncAndAuditChannelStats() {
+      const btn = document.getElementById('cs-sync-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Mise à jour & analyse…'; }
+      try {
+        await syncChannelStats();
+        if (typeof runChannelRetentionAudit === 'function') {
+          await runChannelRetentionAudit();
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '↻ Mettre à jour & analyser'; }
+      }
+    }
     function renderChannelStats() {
       const d = CS.data || {};
       const list = document.getElementById('cs-list');
       const head = document.getElementById('cs-head');
+      const kpis = document.getElementById('cs-kpis');
       const st = document.getElementById('cs-status');
       const btn = document.getElementById('cs-sync-btn');
       if (!list) return;
-      if (btn) { btn.disabled = !!d.syncing; btn.textContent = d.syncing ? 'Mise à jour…' : '↻ Mettre à jour'; }
+      if (btn) { btn.disabled = !!d.syncing; btn.textContent = d.syncing ? 'Mise à jour & analyse…' : '↻ Mettre à jour & analyser'; }
       const ch = d.channel || {};
       if (head) head.innerHTML = ch.name ? `<b style="font-size:15px; color:var(--ink);">${escHtml(ch.name)}</b>
         <span class="kpi-pill"><b>${fmtCount(ch.subscribers)}</b> abonnés</span>
-        <span class="kpi-pill"><b>${fmtCount(ch.total_views)}</b> vues au total</span>
-        <span class="kpi-pill"><b>${fmtCount(d.median_views)}</b> vues par vidéo (médiane)</span>` : '';
+        <span class="kpi-pill"><b>${fmtCount(ch.total_views)}</b> vues au total</span>` : '';
+      let vids = (d.videos || []).slice();
+      if (kpis) {
+        if (vids.length) {
+          const totalViews = vids.reduce((s, v) => s + Number(v.views || 0), 0);
+          const avgViews = Math.round(totalViews / vids.length);
+          const med = Number(d.median_views || 0);
+          const bestVid = vids.reduce((a, b) => (Number(b.views || 0) > Number(a.views || 0) ? b : a), vids[0]);
+          const bestRatio = med > 0 ? (Number(bestVid.views || 0) / med).toFixed(1).replace('.0', '') : '';
+          const totalLikes = vids.reduce((s, v) => s + Number(v.likes || 0), 0);
+          const totalComments = vids.reduce((s, v) => s + Number(v.comments || 0), 0);
+          const avgEng = (vids.reduce((s, v) => s + Number(v.engagement || 0), 0) / vids.length).toFixed(1);
+          const avgScore = Math.round(vids.reduce((s, v) => s + Number(v.score || 0), 0) / vids.length);
+          const hits = vids.filter(v => Number(v.score || 0) >= 65).length;
+          const topDurs = vids.filter(v => Number(v.score || 0) >= 65 && Number(v.duration || 0) > 0).map(v => Number(v.duration));
+          const allDurs = vids.filter(v => Number(v.duration || 0) > 0).map(v => Number(v.duration));
+          const durArr = topDurs.length ? topDurs : allDurs;
+          const winDur = durArr.length ? Math.round(durArr.reduce((a, b) => a + b, 0) / durArr.length) : 0;
+          const nowMs = Date.now();
+          const last30 = vids.filter(v => {
+            const t = Date.parse(v.published_at || '');
+            return !isNaN(t) && (nowMs - t) <= 30 * 86400 * 1000;
+          }).length;
+          kpis.innerHTML = `
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Vues médianes</span><span class="cs-kpi-val">${fmtCount(med)}</span><span class="cs-kpi-sub">Moyenne : ${fmtCount(avgViews)} / vidéo</span></div>
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Record de vues</span><span class="cs-kpi-val">${fmtCount(bestVid.views)}</span><span class="cs-kpi-sub">${bestRatio ? '×' + bestRatio + ' la médiane' : escHtml((bestVid.title || '').slice(0, 26))}</span></div>
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Engagement moyen</span><span class="cs-kpi-val">${avgEng} %</span><span class="cs-kpi-sub">${fmtCount(totalLikes)} likes · ${fmtCount(totalComments)} comm.</span></div>
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Score moyen</span><span class="cs-kpi-val">${avgScore}<small>/100</small></span><span class="cs-kpi-sub">${hits} réussite${hits > 1 ? 's' : ''} (≥ 65/100)</span></div>
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Durée gagnante</span><span class="cs-kpi-val">${winDur ? winDur + ' s' : '—'}</span><span class="cs-kpi-sub">${topDurs.length ? 'Moyenne de tes meilleurs' : 'Moyenne chaîne'}</span></div>
+            <div class="cs-kpi-card"><span class="cs-kpi-label">Rythme (30 j)</span><span class="cs-kpi-val">${last30} <small>vidéos</small></span><span class="cs-kpi-sub">${vids.length} vidéos analysées</span></div>`;
+        } else {
+          kpis.innerHTML = '';
+        }
+      }
       if (st) {
         const isTikTok = ((d.workspace || {}).platform === 'tiktok');
         const handleForm = (isTikTok && (d.error || !(d.videos || []).length))
@@ -3242,15 +3305,14 @@
                <button type="button" class="btn btn-coral btn-xs" onclick="saveTikTokHandleAndSync()">Enregistrer @handle & analyser</button>
              </div>` : '';
         st.innerHTML = (d.syncing ? `<span class="pulse-dot"></span>${escHtml(d.progress || 'Mise à jour…')}`
-          : (d.error ? `${escHtml(d.error)}` : (d.updated_at ? `Mis à jour le ${escHtml(d.updated_at)} · score /100 comparé aux autres vidéos de ta chaîne (vues) et à l’engagement.` : 'Clique sur « Mettre à jour » pour récupérer les vidéos du compte actif.'))) + handleForm;
+          : (d.error ? `${escHtml(d.error)}` : (!vids.length ? 'Clique sur « Mettre à jour & analyser » pour récupérer les vidéos du compte actif.' : ''))) + handleForm;
       }
-      let vids = (d.videos || []).slice();
       if (CS.sort === 'best') vids.sort((a, b) => b.score - a.score);
       if (CS.sort === 'worst') vids.sort((a, b) => a.score - b.score);
       list.innerHTML = vids.map(v => {
         const col = v.score >= 65 ? 'var(--ok)' : (v.score >= 40 ? 'var(--accent)' : 'var(--danger)');
         return `<div style="display:flex; gap:12px; align-items:flex-start; padding:12px; border-radius:16px; background:var(--glass-soft); border:1px solid var(--border);">
-          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="flex-shrink:0;"><img src="${escHtml(v.thumbnail || '')}" alt="" loading="lazy" style="width:${v.is_short ? 64 : 112}px; height:${v.is_short ? 112 : 63}px; object-fit:cover; border-radius:10px; background:#000;"></a>
+          <a href="${escHtml(v.url)}" target="_blank" rel="noopener" style="flex-shrink:0;"><img src="${escHtml(v.thumbnail || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" style="width:${v.is_short ? 64 : 112}px; height:${v.is_short ? 112 : 63}px; object-fit:cover; border-radius:10px; background:#000;"></a>
           <div style="flex:1; min-width:0;">
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; font-size:15px; color:${col};">${v.score}/100</span>
@@ -6041,6 +6103,109 @@
     }
     setInterval(checkBuild, 30000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) checkBuild(); });
+  })();
+
+  // Défilement horizontal fluide « À valider » (Accueil) avec pause au survol / lecture / touch
+  (function () {
+    const strip = document.getElementById('home-shorts-strip');
+    if (!strip) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let paused = false;
+    let resumeTimer = null;
+    let lastTs = 0;
+    const SPEED_PX_PER_SEC = 34;
+
+    function pauseBriefly(ms) {
+      paused = true;
+      clearTimeout(resumeTimer);
+      if (ms > 0) resumeTimer = setTimeout(() => { paused = false; }, ms);
+    }
+    strip.addEventListener('mouseenter', () => { clearTimeout(resumeTimer); paused = true; });
+    strip.addEventListener('mouseleave', () => { paused = false; });
+    strip.addEventListener('focusin', () => { clearTimeout(resumeTimer); paused = true; });
+    strip.addEventListener('focusout', () => { paused = false; });
+    strip.addEventListener('touchstart', () => pauseBriefly(4000), { passive: true });
+    strip.addEventListener('wheel', () => pauseBriefly(2500), { passive: true });
+    strip.addEventListener('play', () => { clearTimeout(resumeTimer); paused = true; }, true);
+    strip.addEventListener('pause', () => pauseBriefly(1500), true);
+
+    function step(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = Math.min(0.05, (ts - lastTs) / 1000);
+      lastTs = ts;
+      const visible = strip.offsetParent !== null && !document.hidden;
+      if (visible && !paused) {
+        const maxScroll = strip.scrollWidth - strip.clientWidth;
+        if (maxScroll > 8) {
+          if (strip.scrollLeft >= maxScroll - 1) strip.scrollLeft = 0;
+          else strip.scrollLeft += SPEED_PX_PER_SEC * dt;
+        }
+      }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  })();
+
+  // Vitrine animée « Mes vidéos » : défilement fluide + mise en avant dynamique de la carte centrale
+  (function () {
+    const track = document.getElementById('lib-showcase-track');
+    if (!track) return;
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let paused = false;
+    let resumeTimer = null;
+    let lastTs = 0;
+    const SPEED_PX_PER_SEC = 38;
+
+    function pauseBriefly(ms) {
+      paused = true;
+      clearTimeout(resumeTimer);
+      if (ms > 0) resumeTimer = setTimeout(() => { paused = false; }, ms);
+    }
+    window.scrollLibShowcase = function (dir) {
+      pauseBriefly(3200);
+      track.scrollBy({ left: dir * 260, behavior: 'smooth' });
+    };
+    track.addEventListener('mouseenter', () => { clearTimeout(resumeTimer); paused = true; });
+    track.addEventListener('mouseleave', () => { paused = false; });
+    track.addEventListener('focusin', () => { clearTimeout(resumeTimer); paused = true; });
+    track.addEventListener('focusout', () => { paused = false; });
+    track.addEventListener('touchstart', () => pauseBriefly(4000), { passive: true });
+    track.addEventListener('wheel', () => pauseBriefly(2500), { passive: true });
+
+    function updateSpotlight() {
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const center = rect.left + rect.width / 2;
+      const cards = track.querySelectorAll('.lib-sc-card');
+      let bestCard = null;
+      let bestDist = Infinity;
+      for (const c of cards) {
+        const cr = c.getBoundingClientRect();
+        const dist = Math.abs((cr.left + cr.width / 2) - center);
+        if (dist < bestDist) { bestDist = dist; bestCard = c; }
+        c.classList.remove('is-center');
+      }
+      if (bestCard) bestCard.classList.add('is-center');
+    }
+
+    function step(ts) {
+      if (!lastTs) lastTs = ts;
+      const dt = Math.min(0.05, (ts - lastTs) / 1000);
+      lastTs = ts;
+      const visible = track.offsetParent !== null && !document.hidden;
+      if (visible) {
+        if (!reduced && !paused) {
+          const maxScroll = track.scrollWidth - track.clientWidth;
+          if (maxScroll > 8) {
+            if (track.scrollLeft >= maxScroll - 1) track.scrollLeft = 0;
+            else track.scrollLeft += SPEED_PX_PER_SEC * dt;
+          }
+        }
+        updateSpotlight();
+      }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   })();
 </script>
 {% if clipoa_edition == 'public' %}
