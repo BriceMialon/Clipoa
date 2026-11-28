@@ -1046,11 +1046,12 @@ CAM_OFF = {
     "face":   ((0.12, -1.95, 2.85), (0.04, -1.6, 2.85), 2.8),
     "back":   ((0.9, -3.6, 3.1), (0.6, -3.1, 3.0), 2.4),
     "high":   ((2.6, -5.5, 8.5), (1.9, -4.6, 7.6), 1.0),
-    "low":    ((1.0, -3.4, 0.6), (0.6, -3.0, 0.8), 2.2),
+    "low":    ((1.1, -4.4, 0.6), (0.7, -4.0, 0.8), 2.5),
     # « pov » : trois-quarts face (l'ancienne caméra derrière la tête ne montrait qu'un dos sans tête)
     "pov":    ((2.4, -4.4, 3.0), (1.8, -3.8, 2.9), 1.9),
-    # « tilt » : montée jusqu'au haut des bâtiments, sans finir sur un ciel vide
-    "tilt":   ((0.0, -12.0, 1.5), (0.0, -12.0, 7.0), 3.0),
+    # « tilt » : la caméra monte des pieds au-dessus de la tête du perso, qui reste en entier dans le cadre
+    # (l'ancienne montée visait z = 8 à 12 m : le perso sortait par le bas, plan de ciel vide)
+    "tilt":   ((0.0, -9.0, 0.5), (0.0, -9.0, 4.6), 1.3),
 }
 if STYLE == "paper2d":
     # références : caméra à hauteur d'yeux, persos grands dans le cadre, jamais de dos (découpes face caméra)
@@ -1102,6 +1103,10 @@ def _show_pop(holder, f0, f1):
         holder.keyframe_insert("scale", frame=fr)
 
 
+BIG_SHOW_PROPS = ("house", "tower", "townhall", "castle", "market", "gate", "mountain", "bus", "stage", "tree", "pine",
+                  "fountain", "bookshelf", "fridge", "snowman")
+
+
 def show_item(sh, at, f0, f1, idx):
     """Ce que dit la phrase, montré pendant le plan : un objet à côté du perso ou un grand mot qui surgit."""
     side = 1 if idx % 2 == 0 else -1
@@ -1120,6 +1125,8 @@ def show_item(sh, at, f0, f1, idx):
         pivot = Vector((at.x, at.y - 1.2, _tz))
     else:
         _dx, _dy = (1.05, -0.9) if STYLE == "paper2d" else (1.9, -0.6)
+        if kind in BIG_SHOW_PROPS:
+            _dx, _dy = (2.4, 2.6)  # gros décor (maison, tour…) : derrière le perso, sinon il le cache
         prop(kind, at.x + side * _dx, at.y + _dy, sh.get("color"), txt)
         pivot = Vector((at.x + side * _dx, at.y + _dy, 0.0))
     holder = _show_holder("Show_%d" % idx, before, pivot)
@@ -1176,6 +1183,8 @@ for si, S in enumerate(SHOTS):
     if _act == "sit" and kind in ("face", "close", "low"):
         kind = "medium"
     a, b, aim_z = CAM_OFF[kind]
+    if _show.get("kind") == "text" and kind == "medium" and STYLE != "paper2d":
+        aim_z += 0.6  # le grand mot flotte au-dessus de la tête : sans ça il sort par le haut du cadre
     if _act == "fall":
         aim_z = 0.9
     elif _act == "sit":
@@ -1186,7 +1195,7 @@ for si, S in enumerate(SHOTS):
     tgt = focus_pos + Vector((0, 0, aim_z))
     if kind == "back" and STYLE != "paper2d":
         tgt = focus_pos + Vector((0, 4.5, aim_z))
-    tgt1 = focus_pos + Vector((0, 6, 8)) if kind == "tilt" else tgt
+    tgt1 = focus_pos + Vector((0, 0, 2.7)) if kind == "tilt" else tgt
     if STYLE == "paper2d":
         try:
             cam_d.dof.focus_distance = max(1.0, (focus_pos + Vector((0, 0, 2.3)) - p0).length)
@@ -1224,6 +1233,32 @@ for si, S in enumerate(SHOTS):
             show_item(S["show"], focus_pos, f0, f1, si)
         except Exception as _e:
             print("show:", _e)
+
+def _char_objects(root):
+    objs = [root]
+    try:
+        objs += list(root.children_recursive)
+    except Exception:
+        pass
+    return objs
+
+
+# Chaque plan ne montre que ses personnages : un perso placé pour un autre plan au même lieu (géant au premier plan,
+# tête coupée) est caché le temps du plan. Le vol continu du Stickman garde tout le monde (pas d'apparition sèche).
+if not P2_FLOW:
+    for (_loc, _cid), _parts in placed.items():
+        _objs = _char_objects(_parts[0])
+        for S in SHOTS:
+            if S.get("location") != _loc:
+                continue
+            _who = [w for w in [S.get("focus")] + list(S.get("others") or []) if w in CHARS][:4]
+            _hide = _cid not in _who
+            for _o in _objs:
+                try:
+                    _o.hide_render = _hide
+                    _o.keyframe_insert("hide_render", frame=int(S["f0"]))
+                except Exception:
+                    pass
 
 # Stickman : figurants qui réagissent + visages vivants (regard, clignements, bouche sur les mots)
 if P2_FLOW:
