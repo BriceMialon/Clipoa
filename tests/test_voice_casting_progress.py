@@ -85,7 +85,7 @@ class TestVoiceCasting(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             resp = MagicMock(status_code=200)
             resp.json.return_value = {"voice_id": "added_1"}
-            with patch.object(vc, "ADDED_FILE", Path(td) / "added.json"), \
+            with patch.object(vc, "ADDED_FILE", Path(td) / "added.json"), patch.object(vc, "library_add_allowed", return_value=True), \
                  patch("core.voice_casting.requests.post", return_value=resp) as post:
                 self.assertEqual(vc.resolve_voice_id("k", dict(self.CANDS[0])), "added_1")
                 self.assertEqual(vc.resolve_voice_id("k", dict(self.CANDS[0])), "added_1")

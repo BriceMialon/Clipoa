@@ -160,6 +160,37 @@ def _write_json(path, data) -> None:
         pass
 
 
+def _is_library_copy(v: Dict[str, Any]) -> bool:
+    sharing = v.get("sharing") or {}
+    return str(sharing.get("status") or "").lower() == "copied" or (
+        v.get("is_owner") is False and v.get("category") == "professional")
+
+
+_TIER_CACHE: Dict[str, Any] = {}
+
+
+def is_free_tier(key: str) -> bool:
+    """Compte ElevenLabs gratuit ? (mis en cache 10 min ; en cas de doute : non)."""
+    if not key:
+        return False
+    hit = _TIER_CACHE.get(key)
+    if hit and time.time() - hit[1] < 600:
+        return hit[0]
+    free = False
+    try:
+        sub = requests.get(f"{API}/user/subscription", headers={"xi-api-key": key}, timeout=8)
+        free = sub.status_code == 200 and str(sub.json().get("tier") or "").lower() == "free"
+    except Exception:
+        return False
+    _TIER_CACHE[key] = (free, time.time())
+    return free
+
+
+def usable_on_free_tier(v: Dict[str, Any]) -> bool:
+    """Une voix copiée depuis la bibliothèque (même déjà sur le compte) est refusée par l'API en compte gratuit."""
+    return not (v.get("library_copy") or v.get("source") == "library" or _is_library_copy(v))
+
+
 def account_voices(key: str) -> List[Dict[str, Any]]:
     """Voix déjà présentes sur le compte ElevenLabs de l'utilisateur."""
     try:
@@ -181,6 +212,8 @@ def account_voices(key: str) -> List[Dict[str, Any]]:
                 "description": str(v.get("description") or "")[:120],
                 "category": v.get("category") or "premade",
                 "source": "account",
+                # voix de la bibliothèque copiée sur le compte : l'API la refuse aux comptes gratuits
+                "library_copy": _is_library_copy(v),
             })
         return [v for v in out if v["voice_id"]]
     except Exception:
@@ -269,7 +302,64 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
     return [v for v in voices if v.get("free_users_allowed") or not free_only]
 
 
+def library_add_allowed() -> bool:
+    """Ajouter une voix de la bibliothèque au compte ElevenLabs de l'utilisateur : seulement s'il l'a autorisé
+    (réglage elevenlabs.add_library_voices). Par défaut, ClipRoll ne touche pas à son compte."""
+    try:
+        from core.settings_store import load_settings
+        return (load_settings().get("elevenlabs") or {}).get("add_library_voices") is True
+    except Exception:
+        return False
+
+
+def paid_only_ids() -> set:
+    """Voix refusées par l'API pour ce compte (offre payante demandée) : écartées des castings suivants."""
+    cache = _read_json(LIBRARY_CACHE, {})
+    ids = cache.get("_paid_only_ids") if isinstance(cache, dict) else None
+    return set(ids) if isinstance(ids, list) else set()
+
+
+def mark_voice_paid_only(voice_id: str) -> None:
+    if not voice_id:
+        return
+    with _LOCK:
+        cache = _read_json(LIBRARY_CACHE, {})
+        cache = cache if isinstance(cache, dict) else {}
+        ids = cache.get("_paid_only_ids") if isinstance(cache.get("_paid_only_ids"), list) else []
+        if voice_id not in ids:
+            ids.append(voice_id)
+        cache["_paid_only_ids"] = ids[-200:]
+        _write_json(LIBRARY_CACHE, cache)
+
+
+def _added_ids() -> set:
+    added = _read_json(ADDED_FILE, {})
+    if not isinstance(added, dict):
+        return set()
+    return set(added.keys()) | set(str(v) for v in added.values())
+
+
 def build_candidates(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
+    """Voix utilisables. Bibliothèque : seulement si le compte est payant (l'API refuse ces voix aux comptes
+    gratuits, même ajoutées) ET si la voix est déjà sur le compte ou que l'utilisateur autorise l'ajout."""
+    added_ids = _added_ids()
+    allow_add = library_add_allowed()
+
+    refused = paid_only_ids()
+
+    def _usable(v: Dict[str, Any]) -> bool:
+        if v.get("voice_id") in refused:
+            return False
+        # voix de la bibliothèque déjà ajoutée au compte (par ClipRoll : nom « ClipRoll · … »)
+        from_lib = (v.get("source") == "library" or v.get("voice_id") in added_ids
+                    or str(v.get("name") or "").startswith("ClipRoll ·") or bool(v.get("library_copy")))
+        if not from_lib:
+            return True
+        if free_only:
+            return False
+        return (allow_add or bool(v.get("is_added_by_user")) or v.get("voice_id") in added_ids
+                or bool(v.get("library_copy")))
+
     acc = account_voices(key)
     by_id = {v["voice_id"]: v for v in acc}
     lib = library_voices(key, language, free_only=free_only)
@@ -289,7 +379,7 @@ def build_candidates(key: str, language: str, free_only: bool = False) -> List[D
     for group in (roster, own[:8], lib, premade, DEFAULT_VOICES):
         for v in group:
             vid = v.get("voice_id")
-            if vid and vid not in seen:
+            if vid and vid not in seen and _usable(v):
                 seen.add(vid)
                 out.append(dict({"source": "default", "language": "en"}, **v))
     for i, v in enumerate(out):
@@ -458,6 +548,9 @@ def resolve_voice_id(key: str, v: Dict[str, Any]) -> str:
         added = _read_json(ADDED_FILE, {})
         if isinstance(added, dict) and added.get(v["voice_id"]):
             return added[v["voice_id"]]
+    if not library_add_allowed():
+        print(f"Voix « {v.get('name')} » non ajoutée : ClipRoll n'ajoute pas de voix à ton compte ElevenLabs sans ton accord.")
+        return ""
     try:
         res = requests.post(
             f"{API}/voices/add/{v.get('public_owner_id')}/{v['voice_id']}",
@@ -491,12 +584,8 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
     if not key:
         return None
     language = detect_language(script_text)
-    if not free_only:
-        try:  # compte gratuit : seulement les voix de la bibliothèque ouvertes aux comptes gratuits
-            sub = requests.get(f"{API}/user/subscription", headers={"xi-api-key": key}, timeout=8)
-            free_only = sub.status_code == 200 and str(sub.json().get("tier") or "").lower() == "free"
-        except Exception:
-            pass
+    if not free_only:  # compte gratuit : aucune voix venue de la bibliothèque (l'API les refuse)
+        free_only = is_free_tier(key)
     cands = build_candidates(key, language, free_only=free_only)
     if not cands:
         return None
@@ -507,7 +596,8 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
     def _final(v: Dict[str, Any], raw: Dict[str, Any], used: set) -> Optional[Dict[str, Any]]:
         vid = resolve_voice_id(key, v)
         if not vid:  # ajout impossible (quota de voix, compte gratuit) : meilleure voix déjà utilisable
-            alt = heuristic_pick([c for c in cands if c.get("source") != "library" or c.get("is_added_by_user")],
+            alt = heuristic_pick([c for c in cands if (c.get("source") != "library" or c.get("is_added_by_user"))
+                                  and (not free_only or usable_on_free_tier(c))],
                                  language, script_text, exclude=used, role=narrator_role(script_text))
             if not alt:
                 return None

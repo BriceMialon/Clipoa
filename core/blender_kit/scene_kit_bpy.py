@@ -1046,9 +1046,12 @@ CAM_OFF = {
     "face":   ((0.12, -1.95, 2.85), (0.04, -1.6, 2.85), 2.8),
     "back":   ((0.9, -3.6, 3.1), (0.6, -3.1, 3.0), 2.4),
     "high":   ((2.6, -5.5, 8.5), (1.9, -4.6, 7.6), 1.0),
-    "low":    ((1.0, -3.4, 0.6), (0.6, -3.0, 0.8), 2.2),
-    "pov":    ((0.5, 1.4, 2.7), (0.4, 0.4, 2.7), 2.4),
-    "tilt":   ((0.0, -14.0, 1.5), (0.0, -14.0, 16.0), 3.0),
+    "low":    ((1.1, -4.4, 0.6), (0.7, -4.0, 0.8), 2.5),
+    # « pov » : trois-quarts face (l'ancienne caméra derrière la tête ne montrait qu'un dos sans tête)
+    "pov":    ((2.4, -4.4, 3.0), (1.8, -3.8, 2.9), 1.9),
+    # « tilt » : la caméra monte des pieds au-dessus de la tête du perso, qui reste en entier dans le cadre
+    # (l'ancienne montée visait z = 8 à 12 m : le perso sortait par le bas, plan de ciel vide)
+    "tilt":   ((0.0, -9.0, 0.5), (0.0, -9.0, 4.6), 1.3),
 }
 if STYLE == "paper2d":
     # références : caméra à hauteur d'yeux, persos grands dans le cadre, jamais de dos (découpes face caméra)
@@ -1100,6 +1103,10 @@ def _show_pop(holder, f0, f1):
         holder.keyframe_insert("scale", frame=fr)
 
 
+BIG_SHOW_PROPS = ("house", "tower", "townhall", "castle", "market", "gate", "mountain", "bus", "stage", "tree", "pine",
+                  "fountain", "bookshelf", "fridge", "snowman")
+
+
 def show_item(sh, at, f0, f1, idx):
     """Ce que dit la phrase, montré pendant le plan : un objet à côté du perso ou un grand mot qui surgit."""
     side = 1 if idx % 2 == 0 else -1
@@ -1108,16 +1115,22 @@ def show_item(sh, at, f0, f1, idx):
     txt = str(sh.get("text") or "")
     if kind == "text":
         col = hex_rgba(sh.get("color"), ACCENT)
-        _tz = 3.6 if STYLE == "paper2d" else 4.3
-        o = text3d(txt, (at.x, at.y - 1.2, _tz), 0.62, col)
+        _cs = float(globals().get("_SHOW_SCALE", 1.0) or 1.0)
+        _tz = 3.6 if STYLE == "paper2d" else (3.3 + 0.45) * _cs
+        _ty = 1.2 if STYLE == "paper2d" else 1.2 * _cs
+        # mot long : taille réduite pour tenir dans la largeur du plan (« SCROLL = MOINS » sortait des deux côtés)
+        _ts = 0.62 if STYLE == "paper2d" else min(0.62, float(globals().get("_SHOW_WIDTH", 1.5)) / (0.62 * max(1, len(txt[:28])))) * _cs
+        o = text3d(txt, (at.x, at.y - _ty, _tz), _ts, col)
         try:
             o.data.extrude = 0.06
             o.data.bevel_depth = 0.015
         except Exception:
             pass
-        pivot = Vector((at.x, at.y - 1.2, _tz))
+        pivot = Vector((at.x, at.y - _ty, _tz))
     else:
         _dx, _dy = (1.05, -0.9) if STYLE == "paper2d" else (1.9, -0.6)
+        if kind in BIG_SHOW_PROPS:
+            _dx, _dy = (2.4, 2.6)  # gros décor (maison, tour…) : derrière le perso, sinon il le cache
         prop(kind, at.x + side * _dx, at.y + _dy, sh.get("color"), txt)
         pivot = Vector((at.x + side * _dx, at.y + _dy, 0.0))
     holder = _show_holder("Show_%d" % idx, before, pivot)
@@ -1165,16 +1178,42 @@ for si, S in enumerate(SHOTS):
             animate(parts, "idle", f0, f1)
             set_emotion(parts, emo if emo in ("sad", "cry", "happy", "scared") else "neutral", f0)
     kind = S.get("camera", "medium") if S.get("camera") in CAM_OFF else "medium"
-    if P2_FLOW and S.get("show") and kind in ("face", "close"):
-        kind = "medium"  # l'objet qui illustre la phrase doit être dans le cadre
+    _act = S.get("action", "idle")
+    _show = S.get("show") if isinstance(S.get("show"), dict) else {}
+    if (P2_FLOW and _show or _show.get("kind") == "text") and kind in ("face", "close"):
+        kind = "medium"  # l'objet ou le grand mot qui illustre la phrase doit être dans le cadre
+    if _act == "fall" and kind in ("face", "close", "low", "pov", "back", "medium"):
+        kind = "wide"  # le perso bascule vers la caméra : de près, il sort du cadre
+    if _act == "sit" and kind in ("face", "close", "low"):
+        kind = "medium"
     a, b, aim_z = CAM_OFF[kind]
+    # perso petit (90 cm, enfant) ou géant : cadrage à sa taille, sinon visage en bas du cadre ou tête coupée
+    _fs = 1.0
+    if STYLE != "paper2d":
+        try:
+            _fs = max(0.35, min(2.5, float((CHARS.get(S.get("focus")) or {}).get("scale", 1.0) or 1.0)))
+        except (TypeError, ValueError):
+            _fs = 1.0
+    if abs(_fs - 1.0) > 0.05:
+        aim_z *= _fs
+        if kind not in ("drone", "high"):
+            a = tuple(v * _fs for v in a)
+            b = tuple(v * _fs for v in b)
+    _SHOW_SCALE = _fs
+    _SHOW_WIDTH = 3.2 if kind in ("wide", "drone", "high", "tilt") else 1.5  # largeur visible au niveau du perso
+    if _show.get("kind") == "text" and kind == "medium" and STYLE != "paper2d":
+        aim_z += 0.6 * _fs  # le grand mot flotte au-dessus de la tête : sans ça il sort par le haut du cadre
+    if _act == "fall":
+        aim_z = 0.9 * _fs
+    elif _act == "sit":
+        aim_z = max(0.8 * _fs, aim_z - 0.5 * _fs)
     side = -1 if si % 2 else 1
     p0 = focus_pos + Vector((a[0] * side, a[1], a[2]))
     p1 = focus_pos + Vector((b[0] * side, b[1], b[2]))
-    tgt = focus_pos + Vector((0, 0, aim_z)) if kind != "pov" else focus_pos + Vector((0, -6, 1.8))
+    tgt = focus_pos + Vector((0, 0, aim_z))
     if kind == "back" and STYLE != "paper2d":
         tgt = focus_pos + Vector((0, 4.5, aim_z))
-    tgt1 = focus_pos + Vector((0, 7, 22)) if kind == "tilt" else tgt
+    tgt1 = focus_pos + Vector((0, 0, 2.7 * _fs)) if kind == "tilt" else tgt
     if STYLE == "paper2d":
         try:
             cam_d.dof.focus_distance = max(1.0, (focus_pos + Vector((0, 0, 2.3)) - p0).length)
@@ -1212,6 +1251,32 @@ for si, S in enumerate(SHOTS):
             show_item(S["show"], focus_pos, f0, f1, si)
         except Exception as _e:
             print("show:", _e)
+
+def _char_objects(root):
+    objs = [root]
+    try:
+        objs += list(root.children_recursive)
+    except Exception:
+        pass
+    return objs
+
+
+# Chaque plan ne montre que ses personnages : un perso placé pour un autre plan au même lieu (géant au premier plan,
+# tête coupée) est caché le temps du plan. Le vol continu du Stickman garde tout le monde (pas d'apparition sèche).
+if not P2_FLOW:
+    for (_loc, _cid), _parts in placed.items():
+        _objs = _char_objects(_parts[0])
+        for S in SHOTS:
+            if S.get("location") != _loc:
+                continue
+            _who = [w for w in [S.get("focus")] + list(S.get("others") or []) if w in CHARS][:4]
+            _hide = _cid not in _who
+            for _o in _objs:
+                try:
+                    _o.hide_render = _hide
+                    _o.keyframe_insert("hide_render", frame=int(S["f0"]))
+                except Exception:
+                    pass
 
 # Stickman : figurants qui réagissent + visages vivants (regard, clignements, bouche sur les mots)
 if P2_FLOW:

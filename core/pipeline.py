@@ -359,6 +359,15 @@ class ShortCrewPipeline:
             out["accent_warning"] = cast["accent_warning"]
         return out
 
+    @staticmethod
+    def _voice_warnings(voice_res: Dict[str, Any]) -> List[str]:
+        """Avertissements à montrer à l'utilisateur : voix de secours utilisée, accent étranger."""
+        out = []
+        for w in ((voice_res or {}).get("fallback_note"), ((voice_res or {}).get("casting") or {}).get("accent_warning")):
+            if w and w not in out:
+                out.append(str(w))
+        return out
+
     @classmethod
     def _fit_voice_to_target(cls, voice_res: Dict[str, Any], spoken: str, target_duration_sec: Optional[int],
                              prod: Optional[Dict[str, Any]] = None, progress=None) -> None:
@@ -499,6 +508,8 @@ class ShortCrewPipeline:
                     style_hint=" · ".join(x for x in ((plugin or {}).get("name"), (plugin or {}).get("tagline"), (topic or "")[:120]) if x),
                     voices_hint=script.get("voices") if isinstance(script.get("voices"), list) else None,
                 )
+            for _w in cls._voice_warnings(cp["voice_res"]):
+                _prog(46, "⚠️ " + _w)
             # Style à narration dense (Stickman) : voix accélérée + silences raccourcis, puis durée calée sur la cible,
             # AVANT le calage mot à mot
             _prod = (plugin or {}).get("production") or {}
@@ -591,6 +602,7 @@ class ShortCrewPipeline:
             "retention_boost": retention_boost,
             # voix réellement utilisée (pour relier plus tard la voix aux vues, et varier d'une vidéo à l'autre)
             "voice_casting": cls._casting_summary(voice_res),
+            "warnings": cls._voice_warnings(voice_res),
             "voice_timing": {k: voice_res.get(k) for k in ("provider", "el_speed", "total_speedup", "final_duration_s", "measured_wps") if voice_res.get(k) is not None},
         }
         if cp.get("plan"):

@@ -4,6 +4,12 @@
 
 Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste court. Chercher ici (grep) avant de modifier une fonction ; ajouter les nouveautés ici, pas dans CLAUDE.md.
 
+## Moteur vidéo corrigé après les rendus de test (28/11/2026)
+- Sous-titres : on affiche les mots du script et Whisper ne sert qu'au calage (`core/script_align.py`, alignement difflib sur mots normalisés ; si moins de 30 % de mots communs, on garde Whisper). Fini « UN MAÎTRE DIX » pour « un mètre dix ».
+- Plans trop longs : `align_shots` découpait avec un pas fixe de 3,2 s, refusé par le minimum de Parabole (3 s) → plan de 13,6 s. Le pas suit maintenant min/max du style, et un plan court n'est plus fusionné au-delà du maximum.
+- Caméras Blender : `tilt` ne finit plus sur le ciel, `pov` filme le perso de trois-quarts (et non de dos), un perso qui tombe est filmé en large, un perso assis en plan moyen, un grand mot affiché force le plan moyen.
+- ElevenLabs : aucune voix de la bibliothèque n'est ajoutée au compte sans `elevenlabs.add_library_voices: true` ; compte gratuit = voix de la bibliothèque exclues (l'API les refuse). Si ElevenLabs refuse, la voix de secours est annoncée dans la carte de la tâche (`warnings` du résultat).
+
 ## Fabrique, barre latérale, TikTok et styles (27/11/2026)
 
 - Qualité du rendu « Haute qualité / Rapide » proposée pour tous les styles intégrés (pas Ciné, pas les styles copiés sur mesure). Ce que change le choix : Roblox et Stickman = EEVEE 720x1280 contre Workbench 540x960 (aucun token en plus) ; Explainer 2D et Fête en folie = Workbench 720x1280 contre 540x960 (`BlenderEngine.create_scene_from_spec`) ; Dessin à compteur = une image toutes les ~0,7 s contre ~1,4 s en Rapide (`toon_engine.FAST_PANEL_TIMING`), donc environ 2x moins de tokens et de dessins. Le long texte est remplacé par une bulle (i) dont le contenu dépend du style (`RQ_INFO` dans index.html).
