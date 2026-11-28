@@ -83,6 +83,7 @@ jobs:
           name: clipoa-windows-${{ inputs.version || github.ref_name }}
           path: |
             dist/*.msix
+            dist/*.cer
             dist/clipoa-*-windows-x64.zip
             dist/latest-windows.json
             dist/install.ps1

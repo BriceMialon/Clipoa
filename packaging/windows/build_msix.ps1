@@ -122,7 +122,27 @@ try {
         Where-Object { $_.Name -notmatch '^(nuitka|Nuitka|ordered_set|zstandard|imageio_ffmpeg)' } |
         ForEach-Object { Copy-Item -Recurse -Force $_.FullName $SitePkgs }
     Get-ChildItem -Path $PyDist -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+    # Gabarits .exe de pip/setuptools/distlib (lanceurs de scripts, certains arm64 ou à données
+    # ajoutées) : inutiles à l'exécution et refusés par SignTool (0x800700C1, « bad PE »).
+    foreach ($pkg in @("pip", "setuptools", "distlib", "wheel")) {
+        $d = Join-Path $SitePkgs $pkg
+        if (Test-Path $d) { Get-ChildItem -Path $d -Recurse -File -Include "*.exe" | Remove-Item -Force }
+    }
+    Remove-Item -Recurse -Force (Join-Path $PyDist "Scripts") -ErrorAction SilentlyContinue
+    # Tcl/Tk (tkinter) : inutile à ClipRoll, et ses DLL sont refusées par SignTool (bad PE)
+    foreach ($rel in @("DLLs\tcl86t.dll", "DLLs\tk86t.dll", "DLLs\_tkinter.pyd", "tcl", "Lib\tkinter", "Lib\idlelib", "Lib\turtledemo")) {
+        Remove-Item -Recurse -Force (Join-Path $PyDist $rel) -ErrorAction SilentlyContinue
+    }
     if (-not (Test-Path (Join-Path $PyDist "pythonw.exe"))) { throw "pythonw.exe introuvable dans $PyDist" }
+
+    # Runtime Visual C++ : les copies fournies avec le Python de uv sont refusées par SignTool
+    # (0x800700C1) et rendent tout le .msix impossible à signer. On les remplace par celles,
+    # redistribuables, du runtime VC++ installé sur la machine de build.
+    foreach ($dll in @("vcruntime140.dll", "vcruntime140_1.dll")) {
+        $sys = Join-Path $env:WINDIR "System32\$dll"
+        if (-not (Test-Path $sys)) { continue }
+        Get-ChildItem -Path $DistDir -Recurse -File -Filter $dll | ForEach-Object { Copy-Item -Force $sys $_.FullName }
+    }
 
     Write-Host "▸ Code ClipRoll (modules compilés .pyd + fichiers)" -ForegroundColor Magenta
     Copy-Item (Join-Path $Root "packaging\windows\launcher.py") -Destination (Join-Path $Src "launcher.py")
@@ -200,9 +220,57 @@ for name, (w, h) in sizes.items():
         $pfx = Join-Path $BuildDir "test.pfx"
         $pwd = ConvertTo-SecureString -String "clipoa-test" -Force -AsPlainText
         Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pwd | Out-Null
-        & $signtool.FullName sign /fd SHA256 /a /f $pfx /p "clipoa-test" $MsixOut
+        # Certificat public (sans clé) à importer sur la VM d'essai avant d'installer le .msix
+        Export-Certificate -Cert $cert -FilePath (Join-Path $Dist "ClipRoll-test-certificate.cer") | Out-Null
+        & $signtool.FullName sign /fd SHA256 /f $pfx /p "clipoa-test" $MsixOut
+        if ($LASTEXITCODE -ne 0) {
+            # Diagnostic : quels binaires du paquet SignTool refuse-t-il ? (« bad PE »)
+            Write-Host "▸ Recherche des binaires refusés par SignTool" -ForegroundColor Yellow
+            $probe = Join-Path $BuildDir "probe"
+            New-Item -ItemType Directory -Force -Path $probe | Out-Null
+            $bad = @()
+            Get-ChildItem -Path $DistDir -Recurse -File -Include "*.exe","*.dll","*.pyd" | Where-Object { $_.Name -notmatch '^vcruntime' } | ForEach-Object {
+                $copy = Join-Path $probe ("f" + [System.Guid]::NewGuid().ToString("N") + $_.Extension)
+                Copy-Item $_.FullName $copy
+                & $signtool.FullName sign /q /fd SHA256 /f $pfx /p "clipoa-test" $copy 2>&1 | Out-Null
+                if ($LASTEXITCODE -ne 0) { $bad += $_.FullName.Substring($DistDir.Length + 1) }
+                Remove-Item -Force $copy -ErrorAction SilentlyContinue
+            }
+            Write-Host ("Binaires refusés (" + $bad.Count + ") :") -ForegroundColor Yellow
+            $bad | Select-Object -First 80 | ForEach-Object { Write-Host "  $_" }
+
+            # Diagnostic : paquets d'essai réduits
+            function Test-Variant($label, [scriptblock]$fill, $extra) {
+                $vdir = Join-Path $BuildDir ("v_" + [System.Guid]::NewGuid().ToString("N").Substring(0, 6))
+                New-Item -ItemType Directory -Force -Path $vdir | Out-Null
+                Copy-Item (Join-Path $DistDir "AppxManifest.xml") $vdir
+                Copy-Item -Recurse (Join-Path $DistDir "Assets") $vdir
+                & $fill $vdir
+                $vmsix = "$vdir.msix"
+                & $makeappx.FullName pack /d $vdir /p $vmsix /o 2>&1 | Out-Null
+                $packed = $LASTEXITCODE
+                $out = & $signtool.FullName sign /fd SHA256 @extra $vmsix 2>&1
+                $res = if ($LASTEXITCODE -eq 0) { "signé" } else { "REFUSÉ : " + (($out | Select-String "Error") -join " | ") }
+                Write-Host ("  [" + $label + "] pack=" + $packed + " -> " + $res)
+                Remove-Item -Recurse -Force $vdir, $vmsix -ErrorAction SilentlyContinue
+            }
+            $pfxArgs = @("/f", $pfx, "/p", "clipoa-test")
+            $storeArgs = @("/sha1", $cert.Thumbprint)
+            Test-Variant "exe seul" { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d } $pfxArgs
+            Test-Variant "exe seul, magasin" { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d } $storeArgs
+            Test-Variant "notepad" { param($d) Copy-Item "$env:WINDIR\System32\notepad.exe" (Join-Path $d "ClipRoll.exe") } $pfxArgs
+            Test-Variant "socle sans vcruntime" { param($d) Get-ChildItem -Path $DistDir -File | Where-Object { $_.Name -notmatch '^vcruntime' -and $_.Name -ne 'AppxManifest.xml' } | Copy-Item -Destination $d } $pfxArgs
+            Get-ChildItem -Path $DistDir -File | Where-Object { $_.Name -ne 'AppxManifest.xml' } | ForEach-Object {
+                $f = $_
+                Test-Variant ("exe + " + $f.Name) { param($d) Copy-Item (Join-Path $DistDir "ClipRoll.exe") $d; Copy-Item $f.FullName $d -Force } $pfxArgs
+            }
+            Write-Warning "Signature d'essai impossible : le .msix est livré NON signé."
+            Rename-Item $MsixOut ($MsixOut -replace '\.msix$', '-unsigned.msix')
+            $global:LASTEXITCODE = 0
+        }
     }
 
+    Get-ChildItem -Path $Dist -Filter "*.msix" | ForEach-Object { Write-Host ("  " + $_.Name + " : " + [math]::Round($_.Length / 1MB) + " Mo") }
     Write-Host "✓ Paquet prêt : $MsixOut" -ForegroundColor Green
 } finally {
     Remove-Item -Recurse -Force $BuildDir -ErrorAction SilentlyContinue
