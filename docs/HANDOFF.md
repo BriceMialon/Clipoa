@@ -15,6 +15,13 @@ Modèle :
 
 ---
 
+## 2026-11-28 13:10 — Claude — Style « Carte animée » (géographie)
+- Branche / PR : claude/project-thread-u5zcp0 (brouillon)
+- En cours : nouveau style `carte_geo` (moteur Geo Kit MIT téléchargé au premier usage, voir HISTORIQUE). Rendu d'exemple sur le Mac dans le worktree `../cliproll-claude-geo`.
+- Fichiers touchés : core/geo_engine.py, core/geo_kit_manifest.json, core/style_plugins.py, core/pipeline.py, core/production_method.py, tests/test_geo_map.py, assets/style_covers/carte_geo.jpg, assets/style_refs/carte_geo.mp4
+- Aussi dans cette PR : pub fictive dans les scripts corrigée (`core/personality.py` : fiche Entreprise vide ou restée sur un exemple = aucun bloc ; `cliproll_personality.js` : un exemple remplit le formulaire sans l'enregistrer).
+- Prochaine étape : choix Haute qualité/Rapide pas encore proposé dans la Fabrique pour ce style (index.html non touché). Exemple `assets/style_refs/carte_geo.mp4` = rendu muet de démo (13 s) : Brice ne veut plus de rendus d'exemple (tokens).
+
 ## 2026-11-28 13:20 — Antigravity — Préparation lancement ClipRoll + soumission TikTok
 - Branche / PR : `main` (à pousser après validation de Brice)
 - Fait :
