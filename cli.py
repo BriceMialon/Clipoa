@@ -23,7 +23,7 @@ console = Console()
 
 def main():
     parser = argparse.ArgumentParser(
-        description="ShortCrew Local - Clone autonome pour créer tes shorts à partir de ce qui marche chez tes concurrents."
+        description="ClipRoll Local - Studio autonome pour créer tes shorts à partir de ce qui marche chez tes concurrents."
     )
     subparsers = parser.add_subparsers(dest="command", help="Commandes disponibles")
 
@@ -80,7 +80,7 @@ def main():
 
     if not args.command:
         console.print(Panel(
-            "[bold white]ShortCrew Local[/bold white] · [bold red]L'app qui crée tes shorts à ta place[/bold red]\n"
+            "[bold white]ClipRoll Local[/bold white] · [bold red]L'app qui crée tes shorts à ta place[/bold red]\n"
             "Piloté par ton abonnement Claude Pro/Max, voix locale gratuite, rendu 1080x1920 Submagic.\n\n"
             "Commandes : [cyan]status[/cyan] · [cyan]scan[/cyan] · [cyan]clone[/cyan] · [cyan]make[/cyan] · [cyan]cut[/cyan] · [cyan]revise[/cyan] · [cyan]week[/cyan] · [cyan]ui[/cyan]\n"
             "Lance [cyan]python cli.py --help[/cyan] pour le détail.",
@@ -97,7 +97,7 @@ def main():
             f"[bold]Claude CLI :[/bold] {st['cli_path']} ({st['cli_version'] or 'absent'})\n"
             f"[bold]FFmpeg :[/bold] {FFMPEG_PATH}\n"
             f"[bold]yt-dlp :[/bold] {YT_DLP_PATH}",
-            title="Diagnostic ShortCrew Local",
+            title="Diagnostic ClipRoll Local",
             border_style=color
         ))
 

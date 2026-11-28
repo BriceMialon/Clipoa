@@ -17,7 +17,7 @@ SUBTITLE_STYLES: Dict[str, Dict[str, str]] = {
         "bar_color": "#FFE600",
     },
     "shortcrew_red": {
-        "label": "ShortCrew Tomate",
+        "label": "ClipRoll Tomate",
         "active_color": "&H002E4AFF",   # #FF4A2E
         "base_color": "&H00FFFFFF",
         "outline_color": "&H000A0B0F",
@@ -76,7 +76,7 @@ SUBTITLE_STYLES: Dict[str, Dict[str, str]] = {
 
 THEMES: Dict[str, Dict[str, str]] = {
     "dark_luxury": {
-        "label": "Dark Luxury (ShortCrew)",
+        "label": "Dark Luxury (ClipRoll)",
         "description": "Fond noir profond avec halo rouge/ambre animé et grain cinéma",
     },
     "cyber_grid": {

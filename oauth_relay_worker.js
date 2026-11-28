@@ -109,22 +109,23 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
-function isAllowedReturnTo(rawUrl, allowedOriginEnv) {
+function isAllowedReturnTo(rawUrl, allowedOriginEnv, expectedProvider = "") {
   if (!rawUrl || String(rawUrl).length > 512) return false;
   try {
     const u = new URL(rawUrl);
     if (u.username || u.password) return false;
-    if (!u.pathname.startsWith("/oauth/") || u.pathname.includes("..") || u.pathname.includes("//")) {
-      return false;
-    }
+    if (u.pathname.includes("..") || u.pathname.includes("//")) return false;
+    const validPath = expectedProvider
+      ? u.pathname === `/oauth/${expectedProvider}/relay-done`
+      : /^\/oauth\/(youtube|tiktok|meta)\/relay-done$/.test(u.pathname);
+    if (!validPath) return false;
     if (
       u.protocol === "http:" &&
       (u.hostname === "localhost" || u.hostname === "127.0.0.1")
     ) {
-      if (u.port) {
-        const portNum = Number(u.port);
-        if (!Number.isInteger(portNum) || portNum < 1024 || portNum > 65535) return false;
-      }
+      if (!u.port) return false;
+      const portNum = Number(u.port);
+      if (!Number.isInteger(portNum) || portNum < 1024 || portNum > 65535) return false;
       return true;
     }
     if (u.protocol === "https:" && allowedOriginEnv) {
@@ -176,42 +177,45 @@ async function getStateSigningKey(env) {
 }
 
 async function encodeSignedState(obj, env) {
+  const key = await getStateSigningKey(env);
+  if (!key) throw new Error("state_secret_missing");
   const payload = { ...obj, iat: Date.now() };
   const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
   const payloadB64 = toBase64Url(payloadBytes);
-  const key = await getStateSigningKey(env);
-  if (!key) return payloadB64;
   const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payloadB64));
   return `${payloadB64}.${toBase64Url(new Uint8Array(sigBuf))}`;
 }
 
-async function decodeAndVerifyState(raw, env) {
+async function decodeAndVerifyState(raw, env, expectedProvider = "") {
   if (!raw || typeof raw !== "string" || raw.length > 2048) return null;
   const parts = raw.split(".");
   const key = await getStateSigningKey(env);
+  // Fail-closed: never accept an unsigned state
+  if (!key || parts.length !== 2) return null;
 
-  let payloadB64 = parts[0];
-  if (key) {
-    if (parts.length !== 2) return null;
-    try {
-      const sigBytes = fromBase64Url(parts[1]);
-      const valid = await crypto.subtle.verify(
-        "HMAC",
-        key,
-        sigBytes,
-        new TextEncoder().encode(payloadB64)
-      );
-      if (!valid) return null;
-    } catch {
-      return null;
-    }
+  const payloadB64 = parts[0];
+  try {
+    const sigBytes = fromBase64Url(parts[1]);
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      sigBytes,
+      new TextEncoder().encode(payloadB64)
+    );
+    if (!valid) return null;
+  } catch {
+    return null;
   }
 
   try {
     const parsed = JSON.parse(new TextDecoder().decode(fromBase64Url(payloadB64)));
     if (!parsed || typeof parsed !== "object") return null;
-    if (parsed.iat && Date.now() - Number(parsed.iat) > STATE_TTL_MS) {
-      return null; // Expired state
+    const iat = Number(parsed.iat);
+    if (!Number.isFinite(iat) || iat <= 0 || Date.now() - iat > STATE_TTL_MS || iat > Date.now() + 60_000) {
+      return null; // Missing, expired, or future-dated state
+    }
+    if (expectedProvider && parsed.provider !== expectedProvider) {
+      return null; // Cross-provider state replay
     }
     return parsed;
   } catch {
@@ -699,12 +703,12 @@ export default {
       const provider = startMatch[1];
       const defaultReturn = `http://localhost:8080/oauth/${provider}/relay-done`;
       const rawReturn = url.searchParams.get("return_to") || defaultReturn;
-      const returnTo = isAllowedReturnTo(rawReturn, env.ALLOWED_RETURN_ORIGIN)
+      const returnTo = isAllowedReturnTo(rawReturn, env.ALLOWED_RETURN_ORIGIN, provider)
         ? rawReturn
         : defaultReturn;
       const nonce = (url.searchParams.get("nonce") || crypto.randomUUID()).slice(0, 128);
       const target = (url.searchParams.get("target") || provider).slice(0, 32);
-      const state = await encodeSignedState({ returnTo, nonce, target }, env);
+      const state = await encodeSignedState({ returnTo, nonce, target, provider }, env);
       const redirectUri = `${origin}/oauth/${provider}/callback`;
 
       console.log(JSON.stringify({ event: "oauth_start", provider, target }));
@@ -764,13 +768,13 @@ export default {
       const err = url.searchParams.get("error_description") || url.searchParams.get("error");
       const defaultReturn = `http://localhost:8080/oauth/${provider}/relay-done`;
 
-      const parsedState = await decodeAndVerifyState(url.searchParams.get("state") || "", env);
+      const parsedState = await decodeAndVerifyState(url.searchParams.get("state") || "", env, provider);
       if (!parsedState) {
         return buildAutoPostPage(defaultReturn, { error: "state_invalide_ou_expire", target: provider });
       }
 
       const returnTo =
-        parsedState.returnTo && isAllowedReturnTo(parsedState.returnTo, env.ALLOWED_RETURN_ORIGIN)
+        parsedState.returnTo && isAllowedReturnTo(parsedState.returnTo, env.ALLOWED_RETURN_ORIGIN, provider)
           ? parsedState.returnTo
           : defaultReturn;
       const nonce = parsedState.nonce ? String(parsedState.nonce).slice(0, 128) : "";

@@ -68,6 +68,10 @@ class LeScenariste:
         )
         if da_context:
             prompt += f"\n{da_context}\n"
+        from core.personality import build_personality_prompt_block
+        p_block = build_personality_prompt_block()
+        if p_block:
+            prompt += f"\n{p_block}\n"
         if recipe:
             prompt += f"\nRecette d'une vidéo qui marche (piste de rythme et de style, l'idée prime) :\n{json.dumps(recipe, ensure_ascii=False, indent=2)}\n"
         if user_style:

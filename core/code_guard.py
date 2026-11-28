@@ -19,16 +19,25 @@ from typing import List
 ALLOWED_MODULES = {
     "bpy", "bmesh", "mathutils", "math", "random", "json", "colorsys", "itertools", "functools",
     "collections", "re", "string", "time", "typing", "dataclasses", "enum", "statistics", "copy",
-    "operator", "textwrap", "heapq", "bisect", "numpy",
+    "textwrap", "heapq", "bisect", "numpy",
 }
-ALLOWED_PREFIXES = ("mathutils.", "bpy_extras.object_utils", "bpy_extras.view3d_utils")
+ALLOWED_SUBMODULES = {
+    "mathutils.geometry", "mathutils.noise", "mathutils.kdtree", "mathutils.bvhtree",
+    "mathutils.interpolate", "bpy.types", "bpy.data", "bpy.context", "bpy.ops", "bpy.utils",
+    "bpy_extras.object_utils", "bpy_extras.view3d_utils",
+    "numpy.linalg", "numpy.random", "numpy.fft",
+}
 ALLOWED_FROM_BPY_EXTRAS = {"object_utils", "view3d_utils"}
 
 FORBIDDEN_CALLS = {
     "exec", "eval", "compile", "open", "__import__", "input", "breakpoint", "globals", "locals",
     "vars", "delattr", "memoryview",
 }
-FORBIDDEN_NAMES = {"__builtins__", "__loader__", "__spec__", "__import__", "__file__"}
+FORBIDDEN_NAMES = FORBIDDEN_CALLS | {
+    "__builtins__", "__loader__", "__spec__", "__file__",
+    "attrgetter", "methodcaller", "itemgetter",
+}
+_SAFE_REFLECT_FUNCS = {"getattr", "setattr", "hasattr"}
 # bpy.ops.<module> qui touchent aux fichiers, aux préférences, aux scripts ou au navigateur
 FORBIDDEN_OPS_MODULES = {
     "wm", "script", "preferences", "import_scene", "export_scene", "import_mesh", "export_mesh",
@@ -36,9 +45,12 @@ FORBIDDEN_OPS_MODULES = {
 }
 # attributs qui chargent/écrivent des fichiers ou exécutent du code
 FORBIDDEN_ATTRS = {
-    "load", "execfile", "as_module", "driver_namespace", "addon_install", "addon_enable",
+    "load", "execfile", "as_module", "driver_namespace", "driver_add", "addon_install", "addon_enable",
     "fromfile", "tofile", "save", "savez", "savetxt", "loadtxt", "genfromtxt", "memmap",
     "url_open", "system", "popen", "load_scripts", "script_paths", "use_autoexec",
+    "write", "save_render", "save_as_mainfile", "python_file_run",
+    "DataSource", "ctypes", "ctypeslib", "modules", "sys", "_os",
+    "attrgetter", "methodcaller", "itemgetter",
 }
 
 
@@ -47,7 +59,7 @@ class UnsafeCodeError(RuntimeError):
 
 
 def _module_ok(name: str) -> bool:
-    return name.split(".")[0] in ALLOWED_MODULES or name.startswith(ALLOWED_PREFIXES)
+    return name in ALLOWED_MODULES or name in ALLOWED_SUBMODULES
 
 
 def check_bpy_code(code: str) -> List[str]:
@@ -60,6 +72,12 @@ def check_bpy_code(code: str) -> List[str]:
 
     def add(node, msg):
         problems.append(f"ligne {getattr(node, 'lineno', '?')} : {msg}")
+
+    # Map parent nodes so we can detect aliasing of `getattr`/`bpy.ops` and allow `super().__init__()`.
+    parents = {}
+    for parent in ast.walk(tree):
+        for child in ast.iter_child_nodes(parent):
+            parents[child] = parent
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -76,29 +94,53 @@ def check_bpy_code(code: str) -> List[str]:
                         add(node, f"import interdit « bpy_extras.{a.name} »")
             elif not _module_ok(mod):
                 add(node, f"import interdit « {mod} »")
+            else:
+                for a in node.names:
+                    if a.name == "*":
+                        add(node, f"import générique interdit depuis « {mod} »")
+                    elif a.name in FORBIDDEN_NAMES or a.name in FORBIDDEN_ATTRS or (mod == "bpy.ops" and a.name in FORBIDDEN_OPS_MODULES):
+                        add(node, f"symbole interdit « {mod}.{a.name} »")
         elif isinstance(node, ast.Name):
             if node.id in FORBIDDEN_NAMES:
                 add(node, f"nom interdit « {node.id} »")
+            elif node.id in _SAFE_REFLECT_FUNCS:
+                parent = parents.get(node)
+                if not (isinstance(parent, ast.Call) and parent.func is node):
+                    add(node, f"référence directe interdite « {node.id} »")
         elif isinstance(node, ast.Attribute):
             attr = node.attr
+            parent = parents.get(node)
             if attr.startswith("__") and attr.endswith("__"):
-                add(node, f"attribut interne interdit « {attr} »")
+                is_super_init = (
+                    attr == "__init__"
+                    and isinstance(node.value, ast.Call)
+                    and isinstance(node.value.func, ast.Name)
+                    and node.value.func.id == "super"
+                )
+                if not is_super_init:
+                    add(node, f"attribut interne interdit « {attr} »")
             elif attr in FORBIDDEN_ATTRS:
                 add(node, f"accès interdit « .{attr} »")
+            elif attr == "ops":
+                # Prevent aliasing `o = bpy.ops; o.wm...`: `.ops` must only be traversed directly.
+                if not (isinstance(parent, ast.Attribute) and parent.value is node):
+                    add(node, "alias de bpy.ops interdit")
             elif attr in FORBIDDEN_OPS_MODULES and isinstance(node.value, ast.Attribute) and node.value.attr == "ops":
                 add(node, f"opérateur interdit « bpy.ops.{attr} »")
         elif isinstance(node, ast.Call):
             fn = node.func
-            if isinstance(fn, ast.Name) and fn.id in FORBIDDEN_CALLS:
-                add(node, f"fonction interdite « {fn.id}() »")
-            if isinstance(fn, ast.Name) and fn.id in ("getattr", "setattr", "hasattr") and len(node.args) >= 2:
-                key = node.args[1]
-                if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
-                    add(node, f"{fn.id}() avec un nom calculé interdit")
+            if isinstance(fn, ast.Name) and fn.id in _SAFE_REFLECT_FUNCS:
+                has_starred = any(isinstance(arg, ast.Starred) for arg in node.args)
+                if has_starred or node.keywords or len(node.args) < 2:
+                    add(node, f"{fn.id}() avec arguments dynamiques interdit")
                 else:
-                    k = key.value
-                    if (k.startswith("__") or k in FORBIDDEN_ATTRS or k in FORBIDDEN_OPS_MODULES):
-                        add(node, f"{fn.id}() vers « {k} » interdit")
+                    key = node.args[1]
+                    if not (isinstance(key, ast.Constant) and isinstance(key.value, str)):
+                        add(node, f"{fn.id}() avec un nom calculé interdit")
+                    else:
+                        k = key.value
+                        if (k.startswith("_") or k in FORBIDDEN_ATTRS or k in FORBIDDEN_OPS_MODULES or k == "ops"):
+                            add(node, f"{fn.id}() vers « {k} » interdit")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             v = node.value
             if "__import__" in v or "__builtins__" in v or "__subclasses__" in v:

@@ -2,7 +2,7 @@
 // - POST /checkout            {plan}            -> URL Stripe Checkout (abonnement, essai 3 j, carte demandée)
 // - GET  /success?session_id=                    -> page qui affiche la clé de licence
 // - POST /portal              {key}             -> URL du portail client Stripe (carte, factures, résiliation)
-// - POST /stripe/webhook                         -> événements Stripe (signature vérifiée)
+// - POST /stripe/webhook                         -> événements Stripe (signature vérifiée + envoi email clé)
 // - POST /license/activate    {key, device, device_name}
 // - POST /license/refresh     {key, device}     -> nouveau jeton, ou {revoked:true}
 // - POST /license/deactivate  {key, device}     -> libère un appareil
@@ -11,12 +11,92 @@
 const OK_STATUSES = ["active", "trialing", "past_due"];
 const KEY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sans 0/O/1/I
 const enc = new TextEncoder();
+const DEFAULT_ALLOWED_ORIGINS = [
+  "https://cliproll.app",
+  "https://www.cliproll.app",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+];
 
-function json(data, status = 200) {
+// ---------- In-Isolate Bounded Rate Limiter ----------
+const _rateBuckets = new Map();
+const MAX_RATE_BUCKETS = 2000;
+const _ISOLATE_SALT = crypto.randomUUID();
+
+async function hashIp(request) {
+  const raw =
+    request.headers.get("CF-Connecting-IP") ||
+    (request.headers.get("X-Forwarded-For") || "").split(",")[0].trim() ||
+    "unknown";
+  const digest = await crypto.subtle.digest("SHA-256", enc.encode(`${_ISOLATE_SALT}:${raw}`));
+  return b64url(digest).slice(0, 22);
+}
+
+function allowRate(key, maxHits, windowMs) {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+  if (_rateBuckets.size > MAX_RATE_BUCKETS) {
+    for (const [k, hits] of _rateBuckets) {
+      if (!hits.length || hits[hits.length - 1] < cutoff) _rateBuckets.delete(k);
+      if (_rateBuckets.size <= MAX_RATE_BUCKETS * 0.8) break;
+    }
+    if (_rateBuckets.size > MAX_RATE_BUCKETS) {
+      const oldest = _rateBuckets.keys().next().value;
+      if (oldest) _rateBuckets.delete(oldest);
+    }
+  }
+  let hits = _rateBuckets.get(key);
+  if (!hits) {
+    hits = [];
+    _rateBuckets.set(key, hits);
+  }
+  while (hits.length && hits[0] < cutoff) hits.shift();
+  if (hits.length >= maxHits) {
+    return { allowed: false, retryAfter: Math.max(1, Math.ceil((windowMs - (now - hits[0])) / 1000)) };
+  }
+  hits.push(now);
+  return { allowed: true, retryAfter: 0 };
+}
+
+// ---------- CORS & Security Helpers ----------
+function allowedOrigins(env) {
+  const raw = String((env && env.ALLOWED_ORIGINS) || "").trim();
+  if (!raw) return DEFAULT_ALLOWED_ORIGINS;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function corsHeaders(request, env) {
+  const origin = request ? (request.headers.get("Origin") || "") : "";
+  if (!origin) return {};
+  if (!allowedOrigins(env).includes(origin)) return {};
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-headers": "Content-Type, X-Clipoa-License",
+    "access-control-max-age": "600",
+    vary: "Origin",
+  };
+}
+
+function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      ...extraHeaders,
+    },
   });
+}
+
+function escapeHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function b64url(bytes) {
@@ -58,7 +138,12 @@ async function stripe(env, method, path, params) {
     },
     body: method === "GET" ? undefined : body,
   });
-  const data = await r.json();
+  let data = {};
+  try {
+    data = await r.json();
+  } catch {
+    data = {};
+  }
   if (!r.ok) throw new Error((data.error && data.error.message) || "Stripe HTTP " + r.status);
   return data;
 }
@@ -71,6 +156,7 @@ function assertTestMode(env) {
 }
 
 async function verifyStripeSignature(env, payload, header) {
+  if (!env.STRIPE_WEBHOOK_SECRET) return false;
   const parts = Object.fromEntries(
     String(header || "").split(",").map((p) => p.split("=").map((x) => x.trim()))
   );
@@ -102,39 +188,114 @@ function periodEnd(sub) {
   return sub.current_period_end || (sub.items && sub.items.data && sub.items.data[0] && sub.items.data[0].current_period_end) || null;
 }
 
+async function sendLicenseEmail(env, email, key, maxDevices) {
+  // Envoi automatique via Resend si RESEND_API_KEY est configuré ; sans impact sinon.
+  if (!env.RESEND_API_KEY || !email) return false;
+  const from = env.MAIL_FROM || "ClipRoll <licence@cliproll.app>";
+  const safeKey = escapeHtml(key);
+  const html = `
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:520px;margin:24px auto;color:#111;line-height:1.55;">
+      <h1 style="font-size:22px;margin:0 0 12px;">Bienvenue sur ClipRoll</h1>
+      <p>Merci pour votre abonnement ! Voici votre clé de licence personnelle :</p>
+      <p style="font-size:20px;font-weight:700;letter-spacing:0.06em;background:#f4f4f6;padding:12px 16px;border-radius:10px;display:inline-block;">${safeKey}</p>
+      <p><strong>Comment l'activer :</strong> ouvrez ClipRoll → <em>Connexions</em> → <em>Licence ClipRoll</em>, collez cette clé et cliquez sur <em>Activer</em>.</p>
+      <p style="color:#555;font-size:13px;">Valable sur ${Number(maxDevices || 2)} ordinateurs. Conservez cet email en lieu sûr.</p>
+    </div>`;
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + env.RESEND_API_KEY,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: "Votre clé de licence ClipRoll",
+        html,
+        text: `Bienvenue sur ClipRoll !\n\nVotre clé de licence : ${key}\n\nCollez-la dans ClipRoll (Connexions -> Licence ClipRoll). Valable sur ${Number(maxDevices || 2)} ordinateurs.`,
+      }),
+    });
+    if (!res.ok) {
+      console.error(JSON.stringify({ event: "license_email_failed", status: res.status }));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error(JSON.stringify({ event: "license_email_error", error: String(err && err.message || err) }));
+    return false;
+  }
+}
+
 async function upsertFromSubscription(env, sub, email) {
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
-  const existing = await env.DB.prepare("SELECT key FROM licenses WHERE customer_id = ?").bind(customer).first();
-  if (existing) {
-    await env.DB.prepare(
-      "UPDATE licenses SET subscription_id = ?, status = ?, plan = ?, period_end = ?, email = COALESCE(?, email) WHERE customer_id = ?"
-    ).bind(sub.id, sub.status, planOf(env, sub), periodEnd(sub), email || null, customer).run();
-    return existing.key;
+  const subId = sub.id || null;
+  const subStatus = sub.status || "incomplete";
+  const plan = planOf(env, sub);
+  const pEnd = periodEnd(sub);
+  const now = Math.floor(Date.now() / 1000);
+  const candidateKey = newKey();
+
+  // Atomique : empêche les races UNIQUE(customer_id) entre webhook et /success,
+  // et empêche un webhook tardif d'un ancien abonnement résilié d'écraser un nouvel abonnement actif.
+  const existingBefore = await env.DB.prepare(
+    "SELECT key, subscription_id, status FROM licenses WHERE customer_id = ?"
+  ).bind(customer).first();
+
+  if (
+    existingBefore &&
+    existingBefore.subscription_id &&
+    subId &&
+    existingBefore.subscription_id !== subId &&
+    OK_STATUSES.includes(existingBefore.status) &&
+    !OK_STATUSES.includes(subStatus)
+  ) {
+    // Ancien abonnement résilié/expiré arrivant en retard : on conserve l'abonnement actif le plus récent.
+    return { key: existingBefore.key, created: false };
   }
-  const key = newKey();
+
   await env.DB.prepare(
-    "INSERT INTO licenses (key, customer_id, subscription_id, email, plan, status, period_end, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(key, customer, sub.id, email || null, planOf(env, sub), sub.status, periodEnd(sub), Math.floor(Date.now() / 1000)).run();
-  return key;
+    `INSERT INTO licenses (key, customer_id, subscription_id, email, plan, status, period_end, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(customer_id) DO UPDATE SET
+       subscription_id = excluded.subscription_id,
+       status = excluded.status,
+       plan = COALESCE(excluded.plan, licenses.plan),
+       period_end = COALESCE(excluded.period_end, licenses.period_end),
+       email = COALESCE(excluded.email, licenses.email)`
+  ).bind(candidateKey, customer, subId, email || null, plan, subStatus, pEnd, now).run();
+
+  const row = await env.DB.prepare("SELECT key FROM licenses WHERE customer_id = ?").bind(customer).first();
+  const actualKey = row ? row.key : candidateKey;
+  return { key: actualKey, created: !existingBefore && actualKey === candidateKey };
 }
 
 async function handleWebhook(request, env) {
+  assertTestMode(env);
   const payload = await request.text();
   if (!(await verifyStripeSignature(env, payload, request.headers.get("stripe-signature")))) {
     return json({ error: "signature" }, 400);
   }
   const event = JSON.parse(payload);
-  const seen = await env.DB.prepare("SELECT id FROM stripe_events WHERE id = ?").bind(event.id).first();
-  if (seen) return json({ received: true, duplicate: true });
+  // Idempotence atomique via INSERT OR IGNORE
+  const ins = await env.DB.prepare(
+    "INSERT OR IGNORE INTO stripe_events (id, at) VALUES (?, ?)"
+  ).bind(event.id, Math.floor(Date.now() / 1000)).run();
+  if (!ins.meta || ins.meta.changes === 0) {
+    return json({ received: true, duplicate: true });
+  }
 
   const obj = event.data.object;
   if (event.type === "checkout.session.completed" && obj.mode === "subscription" && obj.subscription) {
     const sub = await stripe(env, "GET", "subscriptions/" + obj.subscription);
-    await upsertFromSubscription(env, sub, obj.customer_details && obj.customer_details.email);
+    const email = (obj.customer_details && obj.customer_details.email) || null;
+    const { key, created } = await upsertFromSubscription(env, sub, email);
+    if (created && email) {
+      await sendLicenseEmail(env, email, key, env.MAX_DEVICES || 2);
+    }
   } else if (event.type.startsWith("customer.subscription.")) {
     await upsertFromSubscription(env, obj, null);
   }
-  await env.DB.prepare("INSERT INTO stripe_events (id, at) VALUES (?, ?)").bind(event.id, Math.floor(Date.now() / 1000)).run();
   return json({ received: true });
 }
 
@@ -142,9 +303,15 @@ async function handleWebhook(request, env) {
 async function signToken(env, lic, device) {
   const now = Math.floor(Date.now() / 1000);
   const days = Number(env.TOKEN_DAYS || 7);
-  // Le jeton n'est jamais valable au-delà de la fin de période + 3 jours (sauf relances past_due).
-  let exp = now + days * 86400;
-  if (lic.period_end && lic.status !== "past_due") exp = Math.min(exp, lic.period_end + 3 * 86400);
+  // Plafond : jamais au-delà de period_end + 3 j ; en past_due, jeton court de 3 j max.
+  let exp = now + (lic.status === "past_due" ? Math.min(days, 3) : days) * 86400;
+  if (lic.period_end) {
+    const cap = Number(lic.period_end) + 3 * 86400;
+    exp = Math.min(exp, cap);
+  }
+  if (exp <= now) {
+    return null;
+  }
   const payload = {
     key: (await sha256hex(lic.key)).slice(0, 16),
     dev: device,
@@ -165,66 +332,94 @@ async function getLicense(env, key) {
   return key ? env.DB.prepare("SELECT * FROM licenses WHERE key = ?").bind(key).first() : null;
 }
 
-async function handleActivate(env, body) {
+async function handleActivate(env, body, cors) {
   const key = normKey(body.key);
   const device = cleanDevice(body.device);
-  if (!key || !device) return json({ error: "Clé ou appareil invalide." }, 400);
+  if (!key || !device) return json({ error: "Clé ou appareil invalide." }, 400, cors);
   const lic = await getLicense(env, key);
-  if (!lic) return json({ error: "Clé inconnue." }, 404);
-  if (!OK_STATUSES.includes(lic.status)) return json({ error: "Abonnement inactif. Réabonnez-vous depuis le site." }, 403);
+  if (!lic) return json({ error: "Clé inconnue." }, 404, cors);
+  if (!OK_STATUSES.includes(lic.status)) return json({ error: "Abonnement inactif. Réabonnez-vous depuis le site." }, 403, cors);
 
-  const known = await env.DB.prepare("SELECT device FROM devices WHERE key = ? AND device = ?").bind(key, device).first();
-  if (!known) {
-    const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM devices WHERE key = ?").bind(key).first();
-    if (n >= Number(env.MAX_DEVICES || 2)) {
-      return json({ error: "Nombre maximal d'appareils atteint. Libérez un appareil depuis ClipRoll sur l'autre ordinateur." }, 409);
+  const now = Math.floor(Date.now() / 1000);
+  const maxDevices = Number(env.MAX_DEVICES || 2);
+  const devName = String(body.device_name || "").slice(0, 60);
+
+  // Mise à jour si déjà enregistré, sinon insertion atomique conditionnée à COUNT(*) < MAX_DEVICES
+  const upd = await env.DB.prepare(
+    "UPDATE devices SET last_seen = ?, name = ? WHERE key = ? AND device = ?"
+  ).bind(now, devName, key, device).run();
+  if (!upd.meta || upd.meta.changes === 0) {
+    const ins = await env.DB.prepare(
+      `INSERT OR IGNORE INTO devices (key, device, name, last_seen)
+       SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM devices WHERE key = ?) < ?`
+    ).bind(key, device, devName, now, key, maxDevices).run();
+    if (!ins.meta || ins.meta.changes === 0) {
+      return json({ error: "Nombre maximal d'appareils atteint. Libérez un appareil depuis ClipRoll sur l'autre ordinateur." }, 409, cors);
     }
   }
-  await env.DB.prepare(
-    "INSERT INTO devices (key, device, name, last_seen) VALUES (?, ?, ?, ?) ON CONFLICT(key, device) DO UPDATE SET last_seen = excluded.last_seen, name = excluded.name"
-  ).bind(key, device, String(body.device_name || "").slice(0, 60), Math.floor(Date.now() / 1000)).run();
-  return json({ token: await signToken(env, lic, device) });
+  const token = await signToken(env, lic, device);
+  if (!token) return json({ error: "Période d'abonnement expirée. Vérifiez votre paiement Stripe." }, 403, cors);
+  return json({ token }, 200, cors);
 }
 
-async function handleRefresh(env, body) {
+async function handleRefresh(env, body, cors) {
   const key = normKey(body.key);
   const device = cleanDevice(body.device);
   const lic = await getLicense(env, key);
   const known = lic && (await env.DB.prepare("SELECT device FROM devices WHERE key = ? AND device = ?").bind(key, device).first());
-  if (!lic || !known || !OK_STATUSES.includes(lic.status)) return json({ revoked: true });
+  if (!lic || !known || !OK_STATUSES.includes(lic.status)) return json({ revoked: true }, 200, cors);
+  const token = await signToken(env, lic, device);
+  if (!token) return json({ revoked: true }, 200, cors);
   await env.DB.prepare("UPDATE devices SET last_seen = ? WHERE key = ? AND device = ?").bind(Math.floor(Date.now() / 1000), key, device).run();
-  return json({ token: await signToken(env, lic, device) });
+  return json({ token }, 200, cors);
 }
 
-async function handleDeactivate(env, body) {
+async function handleDeactivate(env, body, cors) {
   const key = normKey(body.key);
   const device = cleanDevice(body.device);
   if (key && device) await env.DB.prepare("DELETE FROM devices WHERE key = ? AND device = ?").bind(key, device).run();
-  return json({ ok: true });
+  return json({ ok: true }, 200, cors);
 }
 
 // ---------------------------------------------------------------- Pages
 function page(title, html) {
   return new Response(
-    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>
 <style>body{font-family:system-ui,sans-serif;max-width:560px;margin:60px auto;padding:0 16px;color:#111}code{font-size:1.3em;background:#f2f2f2;padding:8px 12px;border-radius:8px;display:inline-block;user-select:all}</style>${html}`,
-    { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
+    {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'",
+        "x-frame-options": "DENY",
+        "x-content-type-options": "nosniff",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+      },
+    }
   );
 }
 
 async function handleSuccess(env, url) {
+  assertTestMode(env);
   const sid = String(url.searchParams.get("session_id") || "");
   if (!/^cs_[A-Za-z0-9_]+$/.test(sid)) return page("ClipRoll", "<p>Lien invalide.</p>");
   const session = await stripe(env, "GET", "checkout/sessions/" + sid);
   if (session.status !== "complete" || !session.subscription) return page("ClipRoll", "<p>Paiement non finalisé.</p>");
   // Le webhook peut arriver après la redirection : on crée la licence ici aussi (idempotent).
   const sub = await stripe(env, "GET", "subscriptions/" + session.subscription);
-  const key = await upsertFromSubscription(env, sub, session.customer_details && session.customer_details.email);
-  return page("Votre licence ClipRoll", `<h1>Merci !</h1><p>Votre clé de licence :</p><p><code>${key}</code></p>
-<p>Collez-la dans ClipRoll (Réglages, Licence). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>`);
+  const email = (session.customer_details && session.customer_details.email) || null;
+  const { key, created } = await upsertFromSubscription(env, sub, email);
+  if (created && email) {
+    await sendLicenseEmail(env, email, key, env.MAX_DEVICES || 2);
+  }
+  const safeKey = escapeHtml(key);
+  return page("Votre licence ClipRoll", `<h1>Merci !</h1><p>Votre clé de licence :</p><p><code>${safeKey}</code></p>
+<p>Collez-la dans ClipRoll (Connexions → Licence ClipRoll). Elle fonctionne sur ${Number(env.MAX_DEVICES || 2)} ordinateurs.</p>`);
 }
 
-async function handleCheckout(env, body) {
+async function handleCheckout(env, body, cors) {
+  assertTestMode(env);
   const plan = body.plan === "yearly" ? "yearly" : "monthly";
   const price = plan === "yearly" ? env.PRICE_YEARLY : env.PRICE_MONTHLY;
   const base = env.PUBLIC_URL;
@@ -239,34 +434,55 @@ async function handleCheckout(env, body) {
     success_url: base + "/success?session_id={CHECKOUT_SESSION_ID}",
     cancel_url: base + "/",
   });
-  return json({ url: session.url });
+  return json({ url: session.url }, 200, cors);
 }
 
-async function handlePortal(env, body) {
+async function handlePortal(env, body, cors) {
+  assertTestMode(env);
   const lic = await getLicense(env, normKey(body.key));
-  if (!lic) return json({ error: "Clé inconnue." }, 404);
+  if (!lic) return json({ error: "Clé inconnue." }, 404, cors);
   const s = await stripe(env, "POST", "billing_portal/sessions", { customer: lic.customer_id, return_url: env.PUBLIC_URL + "/" });
-  return json({ url: s.url });
+  return json({ url: s.url }, 200, cors);
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const cors = corsHeaders(request, env);
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: cors });
+    }
     try {
-      assertTestMode(env);
-      if (request.method === "GET" && url.pathname === "/") return json({ service: "clipoa-license", ok: true });
-      if (request.method === "GET" && url.pathname === "/success") return handleSuccess(env, url);
-      if (request.method !== "POST") return json({ error: "not found" }, 404);
-      if (url.pathname === "/stripe/webhook") return handleWebhook(request, env);
+      if (request.method === "GET" && url.pathname === "/") {
+        return json({ service: "clipoa-license", ok: true }, 200, cors);
+      }
+      if (request.method === "GET" && url.pathname === "/success") {
+        return await handleSuccess(env, url);
+      }
+      if (request.method !== "POST") return json({ error: "not found" }, 404, cors);
+      if (url.pathname === "/stripe/webhook") return await handleWebhook(request, env);
+
+      // Rate-limit par IP hachée (anti-spam Stripe & brute-force clés)
+      const ipHash = await hashIp(request);
+      const isCheckout = url.pathname === "/checkout" || url.pathname === "/portal";
+      const rl = allowRate(`${isCheckout ? "pay" : "lic"}:${ipHash}`, isCheckout ? 10 : 30, 60_000);
+      if (!rl.allowed) {
+        return json({ error: "Trop de requêtes. Réessayez dans une minute." }, 429, {
+          ...cors,
+          "retry-after": String(rl.retryAfter),
+        });
+      }
+
       const body = await request.json().catch(() => ({}));
-      if (url.pathname === "/checkout") return handleCheckout(env, body);
-      if (url.pathname === "/portal") return handlePortal(env, body);
-      if (url.pathname === "/license/activate") return handleActivate(env, body);
-      if (url.pathname === "/license/refresh") return handleRefresh(env, body);
-      if (url.pathname === "/license/deactivate") return handleDeactivate(env, body);
-      return json({ error: "not found" }, 404);
+      if (url.pathname === "/checkout") return await handleCheckout(env, body, cors);
+      if (url.pathname === "/portal") return await handlePortal(env, body, cors);
+      if (url.pathname === "/license/activate") return await handleActivate(env, body, cors);
+      if (url.pathname === "/license/refresh") return await handleRefresh(env, body, cors);
+      if (url.pathname === "/license/deactivate") return await handleDeactivate(env, body, cors);
+      return json({ error: "not found" }, 404, cors);
     } catch (e) {
-      return json({ error: String((e && e.message) || e) }, 500);
+      console.error(JSON.stringify({ event: "license_worker_error", path: url.pathname, error: String((e && e.message) || e) }));
+      return json({ error: "Erreur interne du serveur de licence." }, 500, cors);
     }
   },
 };
