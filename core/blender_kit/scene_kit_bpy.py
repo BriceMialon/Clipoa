@@ -1047,8 +1047,10 @@ CAM_OFF = {
     "back":   ((0.9, -3.6, 3.1), (0.6, -3.1, 3.0), 2.4),
     "high":   ((2.6, -5.5, 8.5), (1.9, -4.6, 7.6), 1.0),
     "low":    ((1.0, -3.4, 0.6), (0.6, -3.0, 0.8), 2.2),
-    "pov":    ((0.5, 1.4, 2.7), (0.4, 0.4, 2.7), 2.4),
-    "tilt":   ((0.0, -14.0, 1.5), (0.0, -14.0, 16.0), 3.0),
+    # « pov » : trois-quarts face (l'ancienne caméra derrière la tête ne montrait qu'un dos sans tête)
+    "pov":    ((2.4, -4.4, 3.0), (1.8, -3.8, 2.9), 1.9),
+    # « tilt » : montée jusqu'au haut des bâtiments, sans finir sur un ciel vide
+    "tilt":   ((0.0, -12.0, 1.5), (0.0, -12.0, 7.0), 3.0),
 }
 if STYLE == "paper2d":
     # références : caméra à hauteur d'yeux, persos grands dans le cadre, jamais de dos (découpes face caméra)
@@ -1165,16 +1167,26 @@ for si, S in enumerate(SHOTS):
             animate(parts, "idle", f0, f1)
             set_emotion(parts, emo if emo in ("sad", "cry", "happy", "scared") else "neutral", f0)
     kind = S.get("camera", "medium") if S.get("camera") in CAM_OFF else "medium"
-    if P2_FLOW and S.get("show") and kind in ("face", "close"):
-        kind = "medium"  # l'objet qui illustre la phrase doit être dans le cadre
+    _act = S.get("action", "idle")
+    _show = S.get("show") if isinstance(S.get("show"), dict) else {}
+    if (P2_FLOW and _show or _show.get("kind") == "text") and kind in ("face", "close"):
+        kind = "medium"  # l'objet ou le grand mot qui illustre la phrase doit être dans le cadre
+    if _act == "fall" and kind in ("face", "close", "low", "pov", "back", "medium"):
+        kind = "wide"  # le perso bascule vers la caméra : de près, il sort du cadre
+    if _act == "sit" and kind in ("face", "close", "low"):
+        kind = "medium"
     a, b, aim_z = CAM_OFF[kind]
+    if _act == "fall":
+        aim_z = 0.9
+    elif _act == "sit":
+        aim_z = max(0.8, aim_z - 0.5)
     side = -1 if si % 2 else 1
     p0 = focus_pos + Vector((a[0] * side, a[1], a[2]))
     p1 = focus_pos + Vector((b[0] * side, b[1], b[2]))
-    tgt = focus_pos + Vector((0, 0, aim_z)) if kind != "pov" else focus_pos + Vector((0, -6, 1.8))
+    tgt = focus_pos + Vector((0, 0, aim_z))
     if kind == "back" and STYLE != "paper2d":
         tgt = focus_pos + Vector((0, 4.5, aim_z))
-    tgt1 = focus_pos + Vector((0, 7, 22)) if kind == "tilt" else tgt
+    tgt1 = focus_pos + Vector((0, 6, 8)) if kind == "tilt" else tgt
     if STYLE == "paper2d":
         try:
             cam_d.dof.focus_distance = max(1.0, (focus_pos + Vector((0, 0, 2.3)) - p0).length)

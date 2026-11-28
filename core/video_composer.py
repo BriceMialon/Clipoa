@@ -177,7 +177,7 @@ class VideoComposer:
         fallback_script: str,
         duration: float
     ) -> List[Dict[str, Any]]:
-        """Flattens Whisper transcript into a clean list of {word, start, end}."""
+        """Liste {word, start, end} : mots du script si connu, temps de Whisper."""
         all_words: List[Dict[str, Any]] = []
         if transcript_data and transcript_data.get("segments"):
             for seg in transcript_data["segments"]:
@@ -205,6 +205,10 @@ class VideoComposer:
                             })
         if all_words:
             all_words = cls._merge_word_fragments(all_words)
+            if fallback_script.strip():
+                # Mots du script (connus) + calage Whisper : évite « UN MAÎTRE DIX » pour « un mètre dix »
+                from core.script_align import align_script_to_words
+                all_words = align_script_to_words(fallback_script, all_words)
             return all_words
         if fallback_script.strip():
             raw_words = fallback_script.strip().split()

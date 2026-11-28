@@ -553,6 +553,9 @@ def _finish_job(job_id: str, result=None, error: str = None):
                         _tag_render_account(result["session_id"], (JOBS[job_id].get("params") or {}).get("account"))
                         JOBS[job_id]["session_id"] = result["session_id"]
                         JOBS[job_id]["video_title"] = (result.get("script") or {}).get("title") or result["session_id"]
+                        if result.get("warnings"):
+                            JOBS[job_id]["warnings"] = [str(w)[:300] for w in result["warnings"]][:3]
+                            JOBS[job_id]["step"] = "Vidéo prête, avec une voix de secours" if any("secours" in str(w) for w in result["warnings"]) else "Vidéo prête"
                     elif result.get("clips"):
                         first = result["clips"][0]
                         JOBS[job_id]["session_id"] = first.get("session_id", "")

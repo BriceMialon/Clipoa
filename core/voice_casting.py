@@ -269,7 +269,37 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
     return [v for v in voices if v.get("free_users_allowed") or not free_only]
 
 
+def library_add_allowed() -> bool:
+    """Ajouter une voix de la bibliothèque au compte ElevenLabs de l'utilisateur : seulement s'il l'a autorisé
+    (réglage elevenlabs.add_library_voices). Par défaut, ClipRoll ne touche pas à son compte."""
+    try:
+        from core.settings_store import load_settings
+        return (load_settings().get("elevenlabs") or {}).get("add_library_voices") is True
+    except Exception:
+        return False
+
+
+def _added_ids() -> set:
+    added = _read_json(ADDED_FILE, {})
+    if not isinstance(added, dict):
+        return set()
+    return set(added.keys()) | set(str(v) for v in added.values())
+
+
 def build_candidates(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
+    """Voix utilisables. Bibliothèque : seulement si le compte est payant (l'API refuse ces voix aux comptes
+    gratuits, même ajoutées) ET si la voix est déjà sur le compte ou que l'utilisateur autorise l'ajout."""
+    added_ids = _added_ids()
+    allow_add = library_add_allowed()
+
+    def _usable(v: Dict[str, Any]) -> bool:
+        from_lib = v.get("source") == "library" or v.get("voice_id") in added_ids
+        if not from_lib:
+            return True
+        if free_only:
+            return False
+        return allow_add or bool(v.get("is_added_by_user")) or v.get("voice_id") in added_ids
+
     acc = account_voices(key)
     by_id = {v["voice_id"]: v for v in acc}
     lib = library_voices(key, language, free_only=free_only)
@@ -289,7 +319,7 @@ def build_candidates(key: str, language: str, free_only: bool = False) -> List[D
     for group in (roster, own[:8], lib, premade, DEFAULT_VOICES):
         for v in group:
             vid = v.get("voice_id")
-            if vid and vid not in seen:
+            if vid and vid not in seen and _usable(v):
                 seen.add(vid)
                 out.append(dict({"source": "default", "language": "en"}, **v))
     for i, v in enumerate(out):
@@ -458,6 +488,9 @@ def resolve_voice_id(key: str, v: Dict[str, Any]) -> str:
         added = _read_json(ADDED_FILE, {})
         if isinstance(added, dict) and added.get(v["voice_id"]):
             return added[v["voice_id"]]
+    if not library_add_allowed():
+        print(f"Voix « {v.get('name')} » non ajoutée : ClipRoll n'ajoute pas de voix à ton compte ElevenLabs sans ton accord.")
+        return ""
     try:
         res = requests.post(
             f"{API}/voices/add/{v.get('public_owner_id')}/{v['voice_id']}",

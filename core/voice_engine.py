@@ -346,11 +346,14 @@ class VoiceEngine:
         target_dir.mkdir(parents=True, exist_ok=True)
         parts = []
         providers = set()
+        notes: List[str] = []
         for i, (v, texts) in enumerate(groups):
             r = cls.generate_voice(text=" ".join(texts), output_name=f"{output_name}/part_{i:02d}", voice=v, model_id=model_id,
                                    voice_settings=settings_of.get(v or ""))
             parts.append(r["audio_wav"])
             providers.add(r.get("provider", ""))
+            if r.get("fallback_note") and r["fallback_note"] not in notes:
+                notes.append(r["fallback_note"])
         audio_wav = target_dir / "speech.wav"
         audio_mp3 = target_dir / "speech.mp3"
         # Petit silence entre deux personnages, puis concaténation
@@ -370,6 +373,7 @@ class VoiceEngine:
             "voices_by_character": assigned,
             "casting": cast or None,
             "el_speed": float((main_settings or {}).get("speed") or cls._default_el_speed()) if any("elevenlabs" in p for p in providers) else 1.0,
+            **({"fallback_note": " ".join(notes)} if notes else {}),
         }
 
     @classmethod
@@ -548,6 +552,7 @@ class VoiceEngine:
             provider = "elevenlabs"
 
         raw_audio_in = audio_mp3
+        fallback_note = ""
         # Voix HD locale gratuite : utilisée dès qu'elle est installée, sauf si une autre voix gratuite est choisie
         if provider in ("gemini_tts", "edge_tts") and not explicit_free:
             try:
@@ -575,6 +580,7 @@ class VoiceEngine:
                 cls._generate_elevenlabs(text, audio_mp3, el_key, voice_id, el_model, settings=el_settings)
             except Exception as e:
                 print(f"ElevenLabs indisponible ({e}) — bascule vers Gemini 3.8 TTS / Edge-TTS.")
+                fallback_note = cls._el_fallback_note(e, (cast or {}).get("narrator", {}).get("name") or voice_id)
                 if gem_key:
                     provider = "gemini_tts"
                     raw_audio_in = target_dir / "speech_raw.wav"
@@ -621,9 +627,28 @@ class VoiceEngine:
         }
         if provider == "elevenlabs":
             out["el_speed"] = float(el_settings.get("speed") or 1.0)
+        if fallback_note:
+            out["fallback_note"] = fallback_note.replace("{to}", {"gemini_tts": "Gemini", "edge_tts": "Edge-TTS (voix gratuite Microsoft)"}.get(provider, provider))
+            print("⚠️ " + out["fallback_note"])
         if cast:
             out["casting"] = cast
         return out
+
+    @staticmethod
+    def _el_fallback_note(err: Exception, voice_name: str) -> str:
+        """Message clair pour l'utilisateur quand ElevenLabs refuse la voix et qu'on bascule sur une voix de secours."""
+        msg = str(err or "")
+        low = msg.lower()
+        who = f"« {voice_name} »" if voice_name else "choisie"
+        if "402" in msg or "paid" in low or "payment" in low or "subscription" in low or "free users" in low or "upgrade" in low:
+            why = f"La voix ElevenLabs {who} demande une offre ElevenLabs payante"
+        elif "401" in msg or "invalid_api_key" in low or "unauthorized" in low:
+            why = "La clé ElevenLabs est refusée"
+        elif "quota" in low or "credits" in low or "character_limit" in low:
+            why = "Le crédit ElevenLabs du mois est épuisé"
+        else:
+            why = f"ElevenLabs n'a pas pu lire le texte avec la voix {who}"
+        return why + " : la vidéo a été faite avec la voix de secours {to}. Choisis une autre voix dans Voix pour la refaire."
 
     @classmethod
     def _generate_gemini_tts(cls, text: str, voice_name: str, out_wav: Path, api_key: str, style_prompt: str = ""):
