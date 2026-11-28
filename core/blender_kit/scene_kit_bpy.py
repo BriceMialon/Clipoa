@@ -1115,14 +1115,18 @@ def show_item(sh, at, f0, f1, idx):
     txt = str(sh.get("text") or "")
     if kind == "text":
         col = hex_rgba(sh.get("color"), ACCENT)
-        _tz = 3.6 if STYLE == "paper2d" else 4.3
-        o = text3d(txt, (at.x, at.y - 1.2, _tz), 0.62, col)
+        _cs = float(globals().get("_SHOW_SCALE", 1.0) or 1.0)
+        _tz = 3.6 if STYLE == "paper2d" else (3.3 + 0.45) * _cs
+        _ty = 1.2 if STYLE == "paper2d" else 1.2 * _cs
+        # mot long : taille réduite pour tenir dans la largeur du plan (« SCROLL = MOINS » sortait des deux côtés)
+        _ts = 0.62 if STYLE == "paper2d" else min(0.62, float(globals().get("_SHOW_WIDTH", 1.5)) / (0.62 * max(1, len(txt[:28])))) * _cs
+        o = text3d(txt, (at.x, at.y - _ty, _tz), _ts, col)
         try:
             o.data.extrude = 0.06
             o.data.bevel_depth = 0.015
         except Exception:
             pass
-        pivot = Vector((at.x, at.y - 1.2, _tz))
+        pivot = Vector((at.x, at.y - _ty, _tz))
     else:
         _dx, _dy = (1.05, -0.9) if STYLE == "paper2d" else (1.9, -0.6)
         if kind in BIG_SHOW_PROPS:
@@ -1183,19 +1187,33 @@ for si, S in enumerate(SHOTS):
     if _act == "sit" and kind in ("face", "close", "low"):
         kind = "medium"
     a, b, aim_z = CAM_OFF[kind]
+    # perso petit (90 cm, enfant) ou géant : cadrage à sa taille, sinon visage en bas du cadre ou tête coupée
+    _fs = 1.0
+    if STYLE != "paper2d":
+        try:
+            _fs = max(0.35, min(2.5, float((CHARS.get(S.get("focus")) or {}).get("scale", 1.0) or 1.0)))
+        except (TypeError, ValueError):
+            _fs = 1.0
+    if abs(_fs - 1.0) > 0.05:
+        aim_z *= _fs
+        if kind not in ("drone", "high"):
+            a = tuple(v * _fs for v in a)
+            b = tuple(v * _fs for v in b)
+    _SHOW_SCALE = _fs
+    _SHOW_WIDTH = 3.2 if kind in ("wide", "drone", "high", "tilt") else 1.5  # largeur visible au niveau du perso
     if _show.get("kind") == "text" and kind == "medium" and STYLE != "paper2d":
-        aim_z += 0.6  # le grand mot flotte au-dessus de la tête : sans ça il sort par le haut du cadre
+        aim_z += 0.6 * _fs  # le grand mot flotte au-dessus de la tête : sans ça il sort par le haut du cadre
     if _act == "fall":
-        aim_z = 0.9
+        aim_z = 0.9 * _fs
     elif _act == "sit":
-        aim_z = max(0.8, aim_z - 0.5)
+        aim_z = max(0.8 * _fs, aim_z - 0.5 * _fs)
     side = -1 if si % 2 else 1
     p0 = focus_pos + Vector((a[0] * side, a[1], a[2]))
     p1 = focus_pos + Vector((b[0] * side, b[1], b[2]))
     tgt = focus_pos + Vector((0, 0, aim_z))
     if kind == "back" and STYLE != "paper2d":
         tgt = focus_pos + Vector((0, 4.5, aim_z))
-    tgt1 = focus_pos + Vector((0, 0, 2.7)) if kind == "tilt" else tgt
+    tgt1 = focus_pos + Vector((0, 0, 2.7 * _fs)) if kind == "tilt" else tgt
     if STYLE == "paper2d":
         try:
             cam_d.dof.focus_distance = max(1.0, (focus_pos + Vector((0, 0, 2.3)) - p0).length)
