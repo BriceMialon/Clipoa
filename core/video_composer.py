@@ -149,7 +149,39 @@ class VideoComposer:
 
     @staticmethod
     def _escape_ass_text(text: str) -> str:
+        text = VideoComposer._ass_symbols(text)
         return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+    # Emoji couleur que libass ne sait pas dessiner (carré vide à l'écran) → symbole simple qu'il dessine
+    _EMOJI_MAP = {
+        "✅": "✔", "☑": "✔", "✔": "✔", "👍": "✔", "🆗": "✔",
+        "❌": "✘", "❎": "✘", "👎": "✘", "💔": "✘", "🚫": "✘", "⛔": "✘",
+        "⭐": "★", "🌟": "★", "✨": "★", "🔥": "★", "💯": "★", "🏆": "★",
+        "💰": "€", "💵": "€", "💶": "€", "💸": "€", "🪙": "€",
+        "📈": "↗", "📉": "↘", "🚀": "↑", "👆": "↑", "⬆": "↑", "👇": "↓", "⬇": "↓", "👉": "→", "➡": "→", "👈": "←", "⬅": "←",
+        "💀": "☠", "👑": "♛", "😀": "☺", "😃": "☺", "😄": "☺", "😁": "☺", "😊": "☺", "🙂": "☺", "😂": "☺", "🤣": "☺",
+        "💖": "❤", "💗": "❤", "💕": "❤", "💘": "❤", "💓": "❤", "💞": "❤", "💙": "❤", "💚": "❤", "💛": "❤",
+        "🧡": "❤", "💜": "❤", "🖤": "❤", "🤍": "❤", "🤎": "❤", "♥": "♥", "♡": "♡",
+    }
+
+    @staticmethod
+    def _ass_symbols(text: str) -> str:
+        """Remplace les emoji (dessinés en carrés vides par libass) par un symbole qu'il sait dessiner, retire les autres."""
+        if not text or text.isascii():
+            return text
+        out = []
+        for ch in text:
+            cp = ord(ch)
+            if cp in (0xFE0F, 0xFE0E, 0x200D) or 0x1F3FB <= cp <= 0x1F3FF:  # sélecteurs de variante, ZWJ, teintes
+                continue
+            rep = VideoComposer._EMOJI_MAP.get(ch)
+            if rep is not None:
+                out.append(rep)
+            elif cp >= 0x1F000 or ch in "⚡⏰⏳⌛⌚⭕❗❓❕❔⛳⚽⚾⛔✊✋✌":
+                continue  # emoji sans équivalent dessinable : retiré
+            else:
+                out.append(ch)
+        return re.sub(r"[ \t]{2,}", " ", "".join(out)).strip() if out else ""
 
     @staticmethod
     def _wrap_hook_text(text: str, max_chars_per_line: int = 22) -> str:

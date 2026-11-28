@@ -46,6 +46,18 @@ class CartonWrapTest(unittest.TestCase):
         self.assertEqual(VideoComposer._wrap_hook_text("1 000 likes = 10 m", 16), "1 000 LIKES =\\N10 M")
 
 
+class CartonEmojiTest(unittest.TestCase):
+    def test_color_emoji_become_drawable_symbols(self):
+        self.assertEqual(VideoComposer._escape_ass_text("❤️ OU 💔 ?"), "❤ OU ✘ ?")
+        self.assertEqual(VideoComposer._escape_ass_text("🔥 TOP 3"), "★ TOP 3")
+        self.assertEqual(VideoComposer._escape_ass_text("👍🏽 OK"), "✔ OK")
+
+    def test_unknown_emoji_removed_and_plain_text_kept(self):
+        self.assertEqual(VideoComposer._escape_ass_text("💥 BOUM"), "BOUM")
+        self.assertEqual(VideoComposer._escape_ass_text("100 € → 200 €"), "100 € → 200 €")
+        self.assertEqual(VideoComposer._escape_ass_text("a {b}"), "a \\{b\\}")
+
+
 class ShotLengthTest(unittest.TestCase):
     def test_parabole_long_shot_is_split(self):
         words = _w(["mot"] * 162, 0.35)
