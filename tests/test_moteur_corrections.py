@@ -41,6 +41,11 @@ class ScriptAlignTest(unittest.TestCase):
         self.assertEqual([x["word"] for x in w], ["Le", "troisième,", "Théo,", "achète"])
 
 
+class CartonWrapTest(unittest.TestCase):
+    def test_number_stays_with_unit(self):
+        self.assertEqual(VideoComposer._wrap_hook_text("1 000 likes = 10 m", 16), "1 000 LIKES =\\N10 M")
+
+
 class ShotLengthTest(unittest.TestCase):
     def test_parabole_long_shot_is_split(self):
         words = _w(["mot"] * 162, 0.35)
@@ -77,6 +82,21 @@ class VoiceLibraryTest(unittest.TestCase):
         self.assertNotIn("lib2", free)
         self.assertIn("lib1", paid)      # déjà sur le compte payant : utilisable
         self.assertNotIn("lib2", paid)   # pas encore ajoutée : on ne l'ajoute pas sans accord
+
+    def test_refused_and_clipRoll_named_voices_excluded(self):
+        acc = [{"voice_id": "mine", "name": "Ma voix", "category": "cloned", "source": "account"},
+               {"voice_id": "ana", "name": "ClipRoll · Anatole", "category": "professional", "source": "account"},
+               {"voice_id": "refus", "name": "Autre", "category": "cloned", "source": "account"}]
+        with patch.object(vc, "account_voices", return_value=acc), \
+             patch.object(vc, "library_voices", return_value=[]), \
+             patch.object(vc, "load_roster", return_value=[]), \
+             patch.object(vc, "_added_ids", return_value=set()), \
+             patch.object(vc, "paid_only_ids", return_value={"refus"}), \
+             patch.object(vc, "library_add_allowed", return_value=False):
+            free = {v["voice_id"] for v in vc.build_candidates("k", "fr", free_only=True)}
+        self.assertIn("mine", free)
+        self.assertNotIn("ana", free)
+        self.assertNotIn("refus", free)
 
     def test_fallback_note_is_clear(self):
         from core.voice_engine import VoiceEngine

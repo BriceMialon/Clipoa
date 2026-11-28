@@ -154,7 +154,9 @@ class VideoComposer:
     @staticmethod
     def _wrap_hook_text(text: str, max_chars_per_line: int = 22) -> str:
         """Wraps hook text cleanly across up to 2-3 balanced lines using ASS \\N."""
-        words = text.strip().upper().split()
+        # « 10 M », « 100 € », « 3 ANS » : le chiffre reste collé à son unité
+        glued = re.sub(r"(\d) (?=[^\W\d_]{1,4}\b|[€%$£]|\d{3}\b)", "\\1\u0001", text.strip().upper())
+        words = [w.replace("\u0001", " ") for w in glued.split()]
         if not words:
             return ""
         lines: List[str] = []

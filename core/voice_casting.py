@@ -279,6 +279,26 @@ def library_add_allowed() -> bool:
         return False
 
 
+def paid_only_ids() -> set:
+    """Voix refusées par l'API pour ce compte (offre payante demandée) : écartées des castings suivants."""
+    cache = _read_json(LIBRARY_CACHE, {})
+    ids = cache.get("_paid_only_ids") if isinstance(cache, dict) else None
+    return set(ids) if isinstance(ids, list) else set()
+
+
+def mark_voice_paid_only(voice_id: str) -> None:
+    if not voice_id:
+        return
+    with _LOCK:
+        cache = _read_json(LIBRARY_CACHE, {})
+        cache = cache if isinstance(cache, dict) else {}
+        ids = cache.get("_paid_only_ids") if isinstance(cache.get("_paid_only_ids"), list) else []
+        if voice_id not in ids:
+            ids.append(voice_id)
+        cache["_paid_only_ids"] = ids[-200:]
+        _write_json(LIBRARY_CACHE, cache)
+
+
 def _added_ids() -> set:
     added = _read_json(ADDED_FILE, {})
     if not isinstance(added, dict):
@@ -292,8 +312,14 @@ def build_candidates(key: str, language: str, free_only: bool = False) -> List[D
     added_ids = _added_ids()
     allow_add = library_add_allowed()
 
+    refused = paid_only_ids()
+
     def _usable(v: Dict[str, Any]) -> bool:
-        from_lib = v.get("source") == "library" or v.get("voice_id") in added_ids
+        if v.get("voice_id") in refused:
+            return False
+        # voix de la bibliothèque déjà ajoutée au compte (par ClipRoll : nom « ClipRoll · … »)
+        from_lib = (v.get("source") == "library" or v.get("voice_id") in added_ids
+                    or str(v.get("name") or "").startswith("ClipRoll ·"))
         if not from_lib:
             return True
         if free_only:
