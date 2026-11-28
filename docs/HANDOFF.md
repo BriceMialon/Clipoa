@@ -15,6 +15,13 @@ Modèle :
 
 ---
 
+## 2026-11-28 12:40 — Claude — Écran de publication TikTok conforme à la revue + script de démo
+- Branche / PR : claude/project-thread-b80lyc (brouillon)
+- En cours : panneau TikTok dans « Publier » (compte via creator_info, visibilité sans défaut, interactions, contenu commercial, consentement musique), route `GET /api/social/tiktok/creator-info`, `tiktok_options` transmis jusqu'à `_publish_tiktok`. Script d'enregistrement : `docs/TIKTOK_REVIEW_DEMO.md`.
+- Fichiers touchés : app.py, core/social_publisher.py, templates/index.html, tests/test_tiktok_publish_ux.py, docs/TIKTOK_REVIEW_DEMO.md
+- Prochaine étape : tester sur le Mac avec le compte Sandbox, Brice enregistre la démo ; ensuite vidéo promo.
+- Attention : les publications automatiques (Mode Nuit/pilote auto) passent encore sans ces choix (ancien comportement) ; retirer `video.upload` du Worker demande l'accord de Brice.
+
 ## 2026-11-28 11:58 — Antigravity — Fusion des 6 lots sur `main` (base commune Claude ↔ Antigravity)
 - Branche / PR : `main` — fusionné et poussé sur `origin/main` avec l'accord explicite de Brice.
 - En cours : **tous les 6 lots validés** (`security-core`, `security-app`, `workers-hardening`, `public-edition`, `ui-polish`, `personalities-competitors`) sont maintenant dans `main` (sans la waitlist). `http://localhost:8080/` tourne directement depuis `main` (`/Users/brice/.gemini/antigravity/scratch/shortcrew_clone`).
