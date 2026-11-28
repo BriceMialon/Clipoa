@@ -16,7 +16,7 @@ Modèle :
 ---
 
 ## 2026-11-28 12:40 — Claude — Écran de publication TikTok conforme à la revue + script de démo
-- Branche / PR : claude/project-thread-b80lyc (brouillon)
+- Branche / PR : claude/project-thread-b80lyc — #22 (fusionnée)
 - En cours : panneau TikTok dans « Publier » (compte via creator_info, visibilité sans défaut, interactions, contenu commercial, consentement musique), route `GET /api/social/tiktok/creator-info`, `tiktok_options` transmis jusqu'à `_publish_tiktok`. Script d'enregistrement : `docs/TIKTOK_REVIEW_DEMO.md`.
 - Fichiers touchés : app.py, core/social_publisher.py, templates/index.html, tests/test_tiktok_publish_ux.py, docs/TIKTOK_REVIEW_DEMO.md
 - Prochaine étape : tester sur le Mac avec le compte Sandbox, Brice enregistre la démo ; ensuite vidéo promo.
