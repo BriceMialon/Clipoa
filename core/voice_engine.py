@@ -595,6 +595,12 @@ class VoiceEngine:
             except Exception as e:
                 print(f"ElevenLabs indisponible ({e}) — bascule vers Gemini 3.8 TTS / Edge-TTS.")
                 fallback_note = cls._el_fallback_note(e, (cast or {}).get("narrator", {}).get("name") or voice_id)
+                if "offre ElevenLabs payante" in fallback_note:
+                    try:
+                        from core import voice_casting
+                        voice_casting.mark_voice_paid_only(voice_id)
+                    except Exception:
+                        pass
                 if gem_key:
                     provider = "gemini_tts"
                     raw_audio_in = target_dir / "speech_raw.wav"
