@@ -79,7 +79,7 @@ from core.timing_tracker import (
     estimate_job_seconds,
     record_actual_timing,
 )
-from core.social_publisher import FreeSocialPublisher, PLATFORMS
+from core.social_publisher import FreeSocialPublisher, PLATFORMS, tiktok_options_error
 from core.browser_auth import BrowserPortalAuth
 from core.analytics_engine import AnalyticsEngine, PRESET_NICHES
 from core.night_factory import NightFactory
@@ -1770,6 +1770,14 @@ def api_thumb_proxy():
         return "Error", 502
 
 
+@app.route("/api/social/tiktok/creator-info", methods=["GET"])
+def api_social_tiktok_creator_info():
+    try:
+        return jsonify(FreeSocialPublisher.tiktok_creator_info(request.args.get("account", "")))
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)}), 400
+
+
 @app.route("/api/social/tiktok/status/<path:publish_id>", methods=["GET"])
 def api_social_tiktok_status(publish_id):
     if len(publish_id) > 200:
@@ -1797,8 +1805,14 @@ def api_social_publish():
     public_video_url = (data.get("public_video_url") or "").strip() or None
     async_publish = bool(data.get("async", False))
 
+    tiktok_options = data.get("tiktok_options") if isinstance(data.get("tiktok_options"), dict) else None
+
     if not render_id or not platforms:
         return jsonify({"error": "Choisis une vidéo et au moins une plateforme"}), 400
+    if "tiktok" in platforms:
+        tt_err = tiktok_options_error(tiktok_options or {})
+        if tt_err:
+            return jsonify({"error": tt_err}), 400
     if not _is_safe_id(render_id):
         return jsonify({"error": "ID vidéo invalide"}), 400
     if not publish_now and not scheduled_at:
@@ -1833,6 +1847,7 @@ def api_social_publish():
             publish_now=publish_now,
             public_video_url=public_video_url,
             async_publish=async_publish,
+            tiktok_options=tiktok_options,
         )
         return jsonify({"post": post})
     except Exception as e:

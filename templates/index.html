@@ -961,6 +961,38 @@
                   {% endfor %}
                 </div>
               </div>
+              <!-- Panneau TikTok : choix exigés par les règles Content Posting API (Direct Post) -->
+              <div class="field" id="pub-tiktok-panel" style="display:none; border:1px solid var(--line, rgba(0,0,0,.12)); border-radius:14px; padding:12px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                  <img id="tt-avatar" alt="" style="width:36px; height:36px; border-radius:50%; object-fit:cover; display:none;">
+                  <div style="flex:1; min-width:0;">
+                    <div style="font-size:12px; color:var(--muted);">Publié sur le compte TikTok</div>
+                    <div id="tt-nickname" style="font-weight:700; color:var(--ink);">Chargement…</div>
+                  </div>
+                </div>
+                <div id="tt-error" style="display:none; color:var(--danger); font-size:12.5px; margin-bottom:8px;"></div>
+                <label for="tt-privacy">Qui peut voir cette vidéo ?</label>
+                <select id="tt-privacy" class="input-sm" onchange="syncTikTokPanel()">
+                  <option value="" selected disabled>Choisis la visibilité</option>
+                </select>
+                <div style="font-size:12px; color:var(--muted); margin:10px 0 4px;">Autoriser les utilisateurs à :</div>
+                <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:13px;">
+                  <label><input type="checkbox" id="tt-allow-comment"> Commenter</label>
+                  <label><input type="checkbox" id="tt-allow-duet"> Duo</label>
+                  <label><input type="checkbox" id="tt-allow-stitch"> Collage</label>
+                </div>
+                <div style="margin-top:12px; font-size:13px;">
+                  <label><input type="checkbox" id="tt-commercial" onchange="syncTikTokPanel()"> Divulguer le contenu commercial</label>
+                  <div style="font-size:12px; color:var(--muted);">Indique si cette vidéo fait la promotion de toi-même, d'une marque, d'un produit ou d'un service.</div>
+                  <div id="tt-commercial-opts" style="display:none; margin:6px 0 0 18px;">
+                    <label style="display:block;"><input type="checkbox" id="tt-brand-organic" onchange="syncTikTokPanel()"> Ta marque <span style="color:var(--muted); font-size:12px;">(tu fais ta propre promotion)</span></label>
+                    <label style="display:block;"><input type="checkbox" id="tt-brand-content" onchange="syncTikTokPanel()"> Contenu de marque <span style="color:var(--muted); font-size:12px;">(partenariat avec une marque tierce)</span></label>
+                    <div id="tt-commercial-label" style="font-size:12px; color:var(--indigo); margin-top:4px;"></div>
+                  </div>
+                </div>
+                <div id="tt-declaration" style="font-size:12px; color:var(--muted); margin-top:12px;"></div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Après la publication, TikTok peut mettre quelques minutes à traiter la vidéo avant qu'elle apparaisse sur ton profil.</div>
+              </div>
               <div class="field"><label>Titre</label><input type="text" id="pub-title" class="input-sm" placeholder="Titre accrocheur #Shorts"></div>
               <div class="field"><label>Description</label><textarea id="pub-caption" class="input-sm" rows="3" placeholder="Description et hashtags (#Shorts #Reels #TikTok)…"></textarea></div>
               <div class="field"><label>Plus tard ? (sinon tout de suite)</label><input type="datetime-local" id="pub-schedule" class="input-sm"></div>
@@ -4815,6 +4847,7 @@
     function togglePulsePlatform(el) {
       if (el.dataset.connected === '1') {
         el.classList.toggle('selected');
+        refreshTikTokPanel();
         return;
       }
       connectSocialOAuth(el.dataset.plat, 'auto', el.dataset.ready === '1');
@@ -5110,11 +5143,118 @@
       }, 2500);
     }
 
+    // ---- Panneau TikTok (règles Content Posting API : compte affiché, visibilité choisie, interactions, contenu commercial, consentement)
+    const TT_PRIVACY_LABELS = { PUBLIC_TO_EVERYONE: 'Tout le monde', MUTUAL_FOLLOW_FRIENDS: 'Amis', FOLLOWER_OF_CREATOR: 'Abonnés', SELF_ONLY: 'Moi uniquement' };
+    let ttCreator = null;
+    function tiktokSelected() {
+      return !!document.querySelector('#pub-platforms .plat-pill.selected[data-plat="tiktok"]');
+    }
+    async function refreshTikTokPanel() {
+      const panel = document.getElementById('pub-tiktok-panel');
+      if (!panel) return;
+      if (!tiktokSelected()) { panel.style.display = 'none'; return; }
+      panel.style.display = '';
+      const err = document.getElementById('tt-error');
+      err.style.display = 'none';
+      document.getElementById('tt-nickname').textContent = 'Chargement…';
+      let d;
+      try { d = await apiJson('/api/social/tiktok/creator-info'); } catch (e) { d = { ok: false, message: String(e) }; }
+      if (!d || !d.ok) {
+        ttCreator = null;
+        document.getElementById('tt-nickname').textContent = 'Compte indisponible';
+        err.textContent = (d && (d.message || d.error)) || 'TikTok ne répond pas : réessaie plus tard.';
+        err.style.display = '';
+        syncTikTokPanel();
+        return;
+      }
+      ttCreator = d;
+      const av = document.getElementById('tt-avatar');
+      if (d.creator_avatar_url) { av.src = d.creator_avatar_url; av.style.display = ''; } else { av.style.display = 'none'; }
+      document.getElementById('tt-nickname').textContent = d.creator_nickname + (d.creator_username ? ' (@' + d.creator_username + ')' : '');
+      const sel = document.getElementById('tt-privacy');
+      sel.innerHTML = '<option value="" selected disabled>Choisis la visibilité</option>' +
+        (d.privacy_level_options || []).map(p => `<option value="${escHtml(p)}">${escHtml(TT_PRIVACY_LABELS[p] || p)}</option>`).join('');
+      [['tt-allow-comment', d.comment_disabled], ['tt-allow-duet', d.duet_disabled], ['tt-allow-stitch', d.stitch_disabled]].forEach(([id, off]) => {
+        const cb = document.getElementById(id);
+        cb.checked = false;
+        cb.disabled = !!off;
+        cb.parentElement.title = off ? 'Désactivé dans les réglages de ton compte TikTok' : '';
+        cb.parentElement.style.opacity = off ? '0.5' : '';
+      });
+      checkTikTokDuration();
+      syncTikTokPanel();
+    }
+    function checkTikTokDuration() {
+      const max = ttCreator && ttCreator.max_video_post_duration_sec;
+      const id = val('pub-video');
+      if (!max || !id) return;
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      v.onloadedmetadata = () => {
+        if (v.duration > max) {
+          const err = document.getElementById('tt-error');
+          err.textContent = `Cette vidéo dure ${Math.round(v.duration)} s : ce compte TikTok accepte au maximum ${max} s.`;
+          err.style.display = '';
+        }
+      };
+      v.src = '/stream/' + encodeURIComponent(id);
+    }
+    function syncTikTokPanel() {
+      const commercial = document.getElementById('tt-commercial')?.checked;
+      const opts = document.getElementById('tt-commercial-opts');
+      if (!opts) return;
+      opts.style.display = commercial ? '' : 'none';
+      const organic = commercial && document.getElementById('tt-brand-organic').checked;
+      const branded = commercial && document.getElementById('tt-brand-content').checked;
+      // Contenu de marque : « Moi uniquement » interdit
+      const sel = document.getElementById('tt-privacy');
+      Array.from(sel.options).forEach(o => {
+        if (o.value === 'SELF_ONLY') {
+          o.disabled = branded;
+          o.textContent = branded ? 'Moi uniquement (impossible pour un contenu de marque)' : TT_PRIVACY_LABELS.SELF_ONLY;
+        }
+      });
+      if (branded && sel.value === 'SELF_ONLY') sel.value = '';
+      document.getElementById('tt-commercial-label').textContent = branded
+        ? 'Ta vidéo sera étiquetée « Partenariat rémunéré ».'
+        : (organic ? 'Ta vidéo sera étiquetée « Contenu promotionnel ».' : (commercial ? 'Choisis au moins une option.' : ''));
+      const music = '<a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Confirmation d\'utilisation de la musique</a>';
+      const bc = '<a href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noopener">Politique relative au contenu de marque</a>';
+      document.getElementById('tt-declaration').innerHTML = branded
+        ? `En publiant, tu acceptes la ${bc} et la ${music} de TikTok.`
+        : `En publiant, tu acceptes la ${music} de TikTok.`;
+      const btnNow = document.getElementById('btn-pub-now');
+      const btnSch = document.getElementById('btn-pub-schedule');
+      const blocked = tiktokSelected() && (!ttCreator || !sel.value || (commercial && !organic && !branded));
+      [btnNow, btnSch].forEach(b => { if (b) { b.disabled = blocked; b.title = blocked ? 'Termine les réglages TikTok' : ''; } });
+    }
+    function tiktokOptionsPayload() {
+      const commercial = document.getElementById('tt-commercial').checked;
+      return {
+        privacy_level: val('tt-privacy'),
+        allow_comment: document.getElementById('tt-allow-comment').checked,
+        allow_duet: document.getElementById('tt-allow-duet').checked,
+        allow_stitch: document.getElementById('tt-allow-stitch').checked,
+        commercial,
+        brand_organic: commercial && document.getElementById('tt-brand-organic').checked,
+        brand_content: commercial && document.getElementById('tt-brand-content').checked,
+        consent: true,
+      };
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      refreshTikTokPanel();
+      document.getElementById('pub-video')?.addEventListener('change', () => { if (tiktokSelected()) checkTikTokDuration(); });
+    });
+
     async function submitPostiz(now) {
       const render_id = val('pub-video');
       const platforms = Array.from(document.querySelectorAll('#pub-platforms .plat-pill.selected')).map(e => e.dataset.plat);
       if (!render_id) return toast('Pas encore de vidéo à publier.');
       if (!platforms.length) return toast('Connecte YouTube ou TikTok pour publier.');
+      if (platforms.includes('tiktok') && !val('tt-privacy')) {
+        document.getElementById('tt-privacy')?.focus();
+        return toast('TikTok : choisis qui peut voir la vidéo.');
+      }
       const scheduled_at = val('pub-schedule');
       if (!now && !scheduled_at) {
         document.getElementById('pub-schedule')?.focus();
@@ -5136,6 +5276,7 @@
             scheduled_at: now ? '' : scheduled_at,
             publish_now: now,
             async: now,
+            tiktok_options: platforms.includes('tiktok') ? tiktokOptionsPayload() : undefined,
           })
         });
         if (data.error) return toast(data.error);
@@ -5152,6 +5293,7 @@
       } finally {
         if (btnNow) btnNow.disabled = false;
         if (btnSch) btnSch.disabled = false;
+        if (platforms.includes('tiktok')) syncTikTokPanel();
       }
     }
 

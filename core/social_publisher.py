@@ -209,6 +209,40 @@ def _account_key(platform: str, entry: Dict[str, Any]) -> str:
     return f"label:{label}" if label else "default"
 
 
+TIKTOK_PRIVACY_LEVELS = ("PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY")
+
+
+def clean_tiktok_options(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Garde seulement les choix TikTok connus (visibilité, interactions, contenu commercial)."""
+    raw = raw if isinstance(raw, dict) else {}
+    privacy = str(raw.get("privacy_level") or "").strip().upper()
+    commercial = bool(raw.get("commercial"))
+    return {
+        "privacy_level": privacy if privacy in TIKTOK_PRIVACY_LEVELS else "",
+        "allow_comment": bool(raw.get("allow_comment")),
+        "allow_duet": bool(raw.get("allow_duet")),
+        "allow_stitch": bool(raw.get("allow_stitch")),
+        "commercial": commercial,
+        "brand_organic": commercial and bool(raw.get("brand_organic")),
+        "brand_content": commercial and bool(raw.get("brand_content")),
+        "consent": bool(raw.get("consent")),
+    }
+
+
+def tiktok_options_error(raw: Dict[str, Any]) -> str:
+    """Message d'erreur si les choix TikTok ne respectent pas les règles de publication, sinon chaîne vide."""
+    o = clean_tiktok_options(raw)
+    if not o["privacy_level"]:
+        return "TikTok : choisis qui peut voir la vidéo."
+    if o["commercial"] and not (o["brand_organic"] or o["brand_content"]):
+        return "TikTok : indique si le contenu fait la promotion de ta marque ou d'un partenaire."
+    if o["brand_content"] and o["privacy_level"] == "SELF_ONLY":
+        return "TikTok : un contenu sponsorisé ne peut pas être publié en « Moi uniquement »."
+    if not o["consent"]:
+        return "TikTok : accepte la confirmation d'utilisation de la musique avant de publier."
+    return ""
+
+
 # Noms par défaut posés quand TikTok n'a pas donné le nom du compte : jamais affichés comme un vrai compte
 _GENERIC_TIKTOK_NAMES = {"", "compte tiktok", "tiktok", "tiktok connecté", "tiktok (connecté)", "connecté", "compte"}
 
@@ -1112,6 +1146,7 @@ class FreeSocialPublisher:
         publish_now: bool = False,
         public_video_url: Optional[str] = None,
         async_publish: bool = False,
+        tiktok_options: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         valid_platforms = [p for p in platforms if p in PLATFORMS]
         if not valid_platforms:
@@ -1143,6 +1178,8 @@ class FreeSocialPublisher:
             "results": initial_results,
             "created_at": time.strftime("%Y-%m-%d %H:%M"),
         }
+        if "tiktok" in valid_platforms and tiktok_options:
+            post["tiktok_options"] = clean_tiktok_options(tiktok_options)
         queue = cls.load_queue()
         queue.insert(0, post)
         cls.save_queue(queue)
@@ -1236,7 +1273,9 @@ class FreeSocialPublisher:
                 elif plat == "youtube":
                     results[plat] = cls._publish_youtube(cfg, video_path, target["title"], target["caption"])
                 elif plat == "tiktok":
-                    results[plat] = cls._publish_tiktok(cfg, video_path, target["title"], target["caption"])
+                    results[plat] = cls._publish_tiktok(
+                        cfg, video_path, target["title"], target["caption"], target.get("tiktok_options")
+                    )
                 elif plat == "instagram":
                     results[plat] = cls._publish_instagram(
                         cfg,
@@ -1481,8 +1520,14 @@ class FreeSocialPublisher:
         return {"ok": False, "message": f"YouTube upload {up_res.status_code}: {up_res.text[:220]}"}
 
     @classmethod
-    def _publish_tiktok(cls, cfg: Dict[str, Any], video_path: str, title: str, caption: str) -> Dict[str, Any]:
+    def _publish_tiktok(
+        cls, cfg: Dict[str, Any], video_path: str, title: str, caption: str,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         token = cls._ensure_tiktok_token(cfg)
+        # Choix faits par l'utilisateur dans le panneau TikTok (exigé par les règles Content Posting API).
+        opts = clean_tiktok_options(options or {}) if options else {}
+        user_privacy = opts.get("privacy_level", "")
         file_size = os.path.getsize(video_path)
         chunk_size = min(file_size, 64 * 1024 * 1024)
         total_chunks = max(1, math.ceil(file_size / chunk_size))
@@ -1507,11 +1552,15 @@ class FreeSocialPublisher:
                     timeout=12,
                 )
             if ci.status_code == 200:
-                opts = ((ci.json().get("data") or {}).get("privacy_level_options")) or []
-                if opts and "PUBLIC_TO_EVERYONE" not in opts:
-                    preferred_privacy = "SELF_ONLY" if "SELF_ONLY" in opts else opts[0]
+                levels = ((ci.json().get("data") or {}).get("privacy_level_options")) or []
+                if levels and "PUBLIC_TO_EVERYONE" not in levels:
+                    preferred_privacy = "SELF_ONLY" if "SELF_ONLY" in levels else levels[0]
+                if user_privacy and levels and user_privacy not in levels:
+                    return {"ok": False, "message": "Cette visibilité n'est plus autorisée par TikTok pour ce compte : choisis-en une autre."}
         except Exception:
             pass
+        if user_privacy:
+            preferred_privacy = user_privacy
 
         def _init_tiktok(privacy: str):
             return requests.post(
@@ -1524,9 +1573,11 @@ class FreeSocialPublisher:
                     "post_info": {
                         "title": (caption or title or "ClipRoll")[:2200],
                         "privacy_level": privacy,
-                        "disable_duet": False,
-                        "disable_comment": False,
-                        "disable_stitch": False,
+                        "disable_duet": not opts.get("allow_duet", True) if opts else False,
+                        "disable_comment": not opts.get("allow_comment", True) if opts else False,
+                        "disable_stitch": not opts.get("allow_stitch", True) if opts else False,
+                        "brand_content_toggle": bool(opts.get("brand_content")),
+                        "brand_organic_toggle": bool(opts.get("brand_organic")),
                     },
                     "source_info": {
                         "source": "FILE_UPLOAD",
@@ -1540,7 +1591,7 @@ class FreeSocialPublisher:
 
         used_privacy = preferred_privacy
         init_res = _init_tiktok(used_privacy)
-        if init_res.status_code != 200 and used_privacy != "SELF_ONLY" and (
+        if init_res.status_code != 200 and not user_privacy and used_privacy != "SELF_ONLY" and (
             "unaudited" in init_res.text.lower() or "privacy" in init_res.text.lower()
         ):
             used_privacy = "SELF_ONLY"
@@ -1629,6 +1680,43 @@ class FreeSocialPublisher:
             else "Envoyé sur TikTok (en visibilité Privée car l'app TikTok n'est pas encore auditée en production)."
         )
         return {"ok": True, "publish_id": publish_id, "privacy": used_privacy, "message": note}
+
+    @classmethod
+    def tiktok_creator_info(cls, account_key: str = "") -> Dict[str, Any]:
+        """Infos créateur TikTok à afficher avant publication (nom, avatar, visibilités permises,
+        interactions coupées, durée max) : exigé par les règles Content Posting API (Direct Post)."""
+        cfg = cls.get_account_config("tiktok", account_key)
+        if not cfg.get("access_token"):
+            return {"ok": False, "message": "TikTok non connecté."}
+        token = cls._ensure_tiktok_token(cfg)
+        url = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}
+        res = requests.post(url, headers=headers, json={}, timeout=12)
+        if res.status_code == 401 and cfg.get("refresh_token"):
+            headers["Authorization"] = "Bearer " + cls._ensure_tiktok_token(cfg, force=True)
+            res = requests.post(url, headers=headers, json={}, timeout=12)
+        try:
+            body = res.json()
+        except Exception:
+            body = {}
+        data = body.get("data") or {}
+        err = body.get("error") or {}
+        if res.status_code != 200 or err.get("code") not in (None, "", "ok"):
+            msg = err.get("message") or f"HTTP {res.status_code}"
+            if err.get("code") == "spam_risk_too_many_posts":
+                msg = "Ce compte TikTok a atteint sa limite de publications pour aujourd'hui. Réessaie plus tard."
+            return {"ok": False, "message": f"TikTok : {msg}", "error_code": err.get("code")}
+        return {
+            "ok": True,
+            "creator_avatar_url": data.get("creator_avatar_url") or "",
+            "creator_nickname": data.get("creator_nickname") or "",
+            "creator_username": data.get("creator_username") or "",
+            "privacy_level_options": [p for p in (data.get("privacy_level_options") or []) if p in TIKTOK_PRIVACY_LEVELS],
+            "comment_disabled": bool(data.get("comment_disabled")),
+            "duet_disabled": bool(data.get("duet_disabled")),
+            "stitch_disabled": bool(data.get("stitch_disabled")),
+            "max_video_post_duration_sec": int(data.get("max_video_post_duration_sec") or 0),
+        }
 
     @classmethod
     def tiktok_publish_status(cls, publish_id: str, account_key: str = "") -> Dict[str, Any]:
