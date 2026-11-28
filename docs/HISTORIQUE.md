@@ -178,6 +178,9 @@ Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste cou
 - S'inspirer : « Cloner la vidéo » remplacé par « S'inspirer du style » (on garde sa propre idée). Montage : 2 options, fond flou remis.
 - `mcp_server/` : serveur MCP stdio, `CLIPROLL_URL` limitée aux adresses locales ; tests `tests/test_agent_team.py`.
 
+## 26/11/2026 — Voix ElevenLabs en compte gratuit
+- Réglage `elevenlabs.default_voice_id` vide : on prend une voix de base (George) au lieu d'appeler l'API sans voix (404).
+- Compte gratuit : le casting IA ne propose plus les voix de la bibliothèque ni celles déjà ajoutées au compte (catégorie « professional »), que l'API refuse (402). Restent les voix de base et les voix clonées/générées de l'utilisateur.
 ## 27/11/2026 — Accroches variées, durées justes, casting des voix par emploi (audit création vidéo)
 - Constat sur le Mac : 8 accroches sur 8 commençaient par « Dans ma ville / mon village » (formule imposée dans `STYLE_BIBLE_ROBLOX_3D` « Ouverture obligatoire » + règles narratives Roblox, Stickman, Fête en folie) ; vidéos de 60 s livrées en 44-53 s (script calibré à 2,65 mots/s) ; voix par défaut Liam (anglophone).
 - Accroches : formule retirée des styles (migration des styles installés via `STARTER_DEFAULT_UPDATES`, qui accepte maintenant une liste d'anciennes valeurs). `avoid_titles_block` liste aussi les premières phrases des 10 dernières vidéos ; `LeScenariste._ensure_new_opening` réécrit une fois l'accroche si elle reprend les 3 premiers mots ou la tournure « dans ma/mon ville/village… » d'une vidéo récente.

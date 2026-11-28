@@ -271,18 +271,26 @@ def library_voices(key: str, language: str, free_only: bool = False) -> List[Dic
 
 def build_candidates(key: str, language: str, free_only: bool = False) -> List[Dict[str, Any]]:
     acc = account_voices(key)
+    # Compte gratuit : l'API refuse toute voix de la bibliothèque (402 paid_plan_required), même
+    # « free_users_allowed » et même déjà ajoutée au compte (catégorie « professional »).
+    free_cats = ("premade", "cloned", "generated")
+    default_ids = {v["voice_id"] for v in DEFAULT_VOICES}
     by_id = {v["voice_id"]: v for v in acc}
-    lib = library_voices(key, language, free_only=free_only)
+    lib = [] if free_only else library_voices(key, language, free_only=free_only)
     lib_by_id = {v["voice_id"]: v for v in lib}
     roster = []
     for r in load_roster():
+        if free_only and r["voice_id"] not in default_ids and \
+                (by_id.get(r["voice_id"]) or {}).get("category") not in free_cats:
+            continue
         # voix validée pas encore ajoutée au compte : si elle vient de la bibliothèque, elle sera ajoutée au 1er usage
         base = dict(by_id.get(r["voice_id"]) or lib_by_id.get(r["voice_id"])
                     or {"voice_id": r["voice_id"], "name": r["name"], "source": "account"})
         base.update({"roles": r["roles"], "validated": True, "note": r.get("note", "")})
         base["name"] = base.get("name") or r["name"]
         roster.append(base)
-    own = [v for v in acc if v.get("category") in ("cloned", "professional", "generated")]
+    own_cats = ("cloned", "generated") if free_only else ("cloned", "professional", "generated")
+    own = [v for v in acc if v.get("category") in own_cats]
     premade = [v for v in acc if v.get("category") == "premade"]
     seen = set()
     out: List[Dict[str, Any]] = []
