@@ -47,6 +47,8 @@ STYLE_DESCRIPTIONS: Dict[str, str] = {
                       "sous-titres blancs avec le mot prononcé en rose."),
     "parabole_3_destins": ("Une fable dessinée : le même départ, trois choix, trois destins en chapitres de 4 à 6 s, "
                            "puis la question « Et toi ? » à la fin."),
+    "carte_geo": ("Une vidéo géographie sur carte animée : la caméra survole le monde, les pays se colorent, drapeaux, "
+                  "flèches et dates qui claquent, calés mot à mot sur la voix. Pour l'histoire, la géopolitique, les « pourquoi tel pays… »."),
     "roblox_cine": ("Le même univers que 3D Roblox en qualité cinéma : vraie lumière, visages vivants, 1080p. "
                     "Rendu long (20 à 60 min) et plus de tokens."),
 }
@@ -389,6 +391,32 @@ NARRATIVE_RULES_PARABOLE = r"""Structure « parabole à 3 destins » (phrases de
 7. « Et toi ? » (dernières secondes) : rappelle les 3 choix en un mot chacun et demande lequel est le tien, en commentaire."""
 
 
+STYLE_BIBLE_CARTE_GEO = r"""# STYLE BIBLE — « Carte animée » (vidéo géographie, Shorts / Reels / TikTok 9:16)
+
+> Moteur de carte : Geo Kit de Caesar (@caesarscales), licence MIT. Cartes NASA Blue Marble et Natural Earth (domaine public).
+
+## 1. L'ADN
+Une question de géographie ou d'histoire (« Pourquoi la Russie a vendu l'Alaska ? ») expliquée en survolant UNE carte du monde.
+Tout est sur la carte : pays colorés, drapeaux, flèches de déplacement, dates qui claquent, petits personnages chibi.
+
+## 2. FORMAT
+- 9:16, 1080×1920, 30 i/s, 45 à 75 s. Un seul plan continu : la caméra ne s'arrête jamais et ne coupe jamais.
+- Satellite et nuages au début, carte « atlas » claire pour l'histoire, globe à la fin.
+- Un nouvel élément toutes les 1 à 2 s, toujours accroché à un mot de la voix.
+
+## 3. VOIX & SON
+- Narration documentaire rapide (~3 mots/s), phrases courtes, chiffres et dates précis. Musique discrète, bruitage à chaque apparition.
+"""
+
+NARRATIVE_RULES_CARTE_GEO = r"""Structure « carte animée » (phrases de 6 à 14 mots, ~3 mots/s, 45 à 75 s) :
+1. Accroche (0-4 s) : un fait surprenant sur un lieu précis (« Ce territoire immense a été vendu pour 7 millions de dollars. »).
+2. Le contexte (4-15 s) : qui, où, quand ; cite les pays, les villes et les années (ils seront montrés sur la carte).
+3. Le déroulé (15-50 s) : 3 à 5 étapes, chacune avec un lieu et une date ; mouvements (armées, routes, frontières) décrits concrètement.
+4. Le twist (50-60 s) : la conséquence inattendue, aujourd'hui.
+5. Fin (dernières secondes) : une question au spectateur.
+Noms de lieux réels et vérifiables uniquement (pas de lieux inventés), faits historiques exacts."""
+
+
 STARTER_PLUGINS: List[Dict[str, Any]] = [
     {
         "id": "roblox_3d",
@@ -553,6 +581,33 @@ STARTER_PLUGINS: List[Dict[str, Any]] = [
         "starter": True,
     },
     {
+        "id": "carte_geo",
+        "name": "Carte animée (géographie)",
+        "category": "2D",
+        "icon": "🗺️",
+        "gradient": "2d",
+        "tagline": "Histoire et géopolitique sur une carte du monde animée : pays colorés, drapeaux, flèches, dates.",
+        "da_prompt": STYLE_BIBLE_CARTE_GEO,
+        "narrative_rules": NARRATIVE_RULES_CARTE_GEO,
+        "render_mode": "motion",
+        "theme": "pop_flat",
+        "subtitle_style": "submagic_yellow",
+        "est_time_sec": 240,
+        "est_time_label": "~3 à 5 min",
+        "script_language": "python",
+        "script_filename": "",
+        "script_content": "",
+        "model_sheets": [
+            {
+                "filename": "carte_geo.jpg",
+                "original_name": "carte_geo.jpg",
+                "role": "reference",
+                "uploaded_at": "2026-11-28 14:00",
+            }
+        ],
+        "starter": True,
+    },
+    {
         "id": "roblox_cine",
         "name": "Roblox 3D Ciné (haute qualité)",
         "category": "3D",
@@ -605,6 +660,9 @@ STARTER_PRODUCTION: Dict[str, Dict[str, Any]] = {
     "parabole_3_destins": {"shot_min_s": 3.0, "shot_max_s": 6.5, "caption_mode": "one_word", "keyword_colors": False, "music_db": -21.0,
                            "mood": "calm", "visual_style": "toon_svg", "toon_mode": "parable", "sfx_max": 12,
                            "whoosh_min_gap_s": 6.0, "sfx_repeat_gap_s": 3.0},
+    # Carte animée (Geo Kit) : une caméra continue sur la carte, un élément toutes les 1-2 s, sous-titres 3-4 mots
+    "carte_geo": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "chunk", "keyword_colors": False, "music_db": -20.0,
+                  "mood": "tension", "visual_style": "geo_map", "sfx_max": 30, "whoosh_min_gap_s": 3.0, "sfx_repeat_gap_s": 1.5},
     # Qualité cinéma : moteur three.js ciné (rendu long, plus de tokens), un mot à la fois, mots-clés colorés
     "roblox_cine": {"shot_min_s": 1.5, "shot_max_s": 4.0, "caption_mode": "one_word", "music_db": -17.0, "character_style": "r6", "visual_style": "cine3d"},
 }
@@ -621,7 +679,7 @@ _PRODUCTION_SPEC: Dict[str, Any] = {
     "caption_mode": ("enum", ("chunk", "one_word", "two_words", "none")),
     "keyword_colors": ("bool", None),
     "character_style": ("enum", ("r6", "flat2d")),
-    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d", "custom", "toon_svg")),
+    "visual_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d", "cine3d", "custom", "toon_svg", "geo_map")),
     "fallback_style": ("enum", ("roblox", "paper2d", "flat_vector", "explainer2d")),
     "note_color": ("hex", None),
     "note_look": ("enum", ("text", "card")),

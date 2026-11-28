@@ -574,7 +574,7 @@ def build_plan(
         },
         "character_style": ov.get("character_style") or "r6",
         # le moteur Ciné étalonne déjà l'image (vignettage, grain) : pas de second assombrissement au montage
-        "grade": "clean" if ov.get("visual_style") in ("explainer2d", "flat_vector", "cine3d", "toon_svg") else ("glow" if ov.get("visual_style") == "paper2d" else "cinema"),
+        "grade": "clean" if ov.get("visual_style") in ("explainer2d", "flat_vector", "cine3d", "toon_svg", "geo_map") else ("glow" if ov.get("visual_style") == "paper2d" else "cinema"),
         "stats": {
             "shots": len(segs),
             "avg_shot_s": round(sum(lens) / len(lens), 2),
