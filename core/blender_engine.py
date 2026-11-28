@@ -1,7 +1,8 @@
 import json
+import queue
 import re
-import select
 import subprocess
+import threading
 import time
 import os
 import logging
@@ -230,31 +231,50 @@ _cs.render.use_file_extension = False
         last_reported_frame = 0
         fra_re = re.compile(r"(?:CLIPOA_FRAME\s+|Fra:|Append frame\s+)(\d+)")
 
+        line_q: "queue.Queue[Optional[str]]" = queue.Queue()
+
+        def _drain_stdout():
+            try:
+                if proc.stdout is not None:
+                    for raw in proc.stdout:
+                        line_q.put(raw)
+            finally:
+                line_q.put(None)
+
+        reader_t = threading.Thread(target=_drain_stdout, daemon=True)
+        reader_t.start()
+        eof_seen = False
+
         try:
             while True:
-                if proc.stdout is not None:
-                    ready, _, _ = select.select([proc.stdout], [], [], 2.0)
-                    if ready:
-                        line = proc.stdout.readline()
-                        if line:
-                            last_activity = time.time()
-                            tail_lines.append(line.rstrip())
-                            if len(tail_lines) > 40:
-                                tail_lines.pop(0)
-                            m = fra_re.search(line)
-                            if m and progress_cb:
-                                fnum = int(m.group(1))
-                                if fnum != last_reported_frame:
-                                    last_reported_frame = fnum
-                                    try:
-                                        progress_cb(fnum, max(1, int(frames)))
-                                    except Exception:
-                                        pass
-                            continue
+                if not eof_seen:
+                    try:
+                        line = line_q.get(timeout=2.0)
+                    except queue.Empty:
+                        line = ""
+                    if line is None:
+                        eof_seen = True
+                    elif line:
+                        last_activity = time.time()
+                        tail_lines.append(line.rstrip())
+                        if len(tail_lines) > 40:
+                            tail_lines.pop(0)
+                        m = fra_re.search(line)
+                        if m and progress_cb:
+                            fnum = int(m.group(1))
+                            if fnum != last_reported_frame:
+                                last_reported_frame = fnum
+                                try:
+                                    progress_cb(fnum, max(1, int(frames)))
+                                except Exception:
+                                    pass
+                        continue
                 if proc.poll() is not None:
-                    # Drain any remaining buffered lines
-                    if proc.stdout is not None:
-                        for rem in proc.stdout.readlines():
+                    # Drain any remaining queued lines
+                    reader_t.join(timeout=2.0)
+                    while not line_q.empty():
+                        rem = line_q.get_nowait()
+                        if rem:
                             tail_lines.append(rem.rstrip())
                     break
 

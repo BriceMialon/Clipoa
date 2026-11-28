@@ -1519,6 +1519,20 @@ class FreeSocialPublisher:
             }
         return {"ok": False, "message": f"YouTube upload {up_res.status_code}: {up_res.text[:220]}"}
 
+    @staticmethod
+    def tiktok_chunk_plan(file_size: int) -> tuple:
+        """Plan de découpage conforme à la spec TikTok Content Posting API :
+        - <= 64 Mo : 1 seul chunk (= file_size)
+        - > 64 Mo  : chunks de 10 Mo, total_chunk_count = floor(file_size / chunk_size),
+                     le dernier chunk absorbe le reste (< 20 Mo <= 128 Mo, jamais < 5 Mo).
+        """
+        max_single = 64 * 1024 * 1024
+        if file_size <= max_single:
+            return (max(1, int(file_size)), 1)
+        chunk_size = 10 * 1024 * 1024
+        total_chunks = max(1, int(file_size) // chunk_size)
+        return (chunk_size, total_chunks)
+
     @classmethod
     def _publish_tiktok(
         cls, cfg: Dict[str, Any], video_path: str, title: str, caption: str,
@@ -1529,10 +1543,7 @@ class FreeSocialPublisher:
         opts = clean_tiktok_options(options or {}) if options else {}
         user_privacy = opts.get("privacy_level", "")
         file_size = os.path.getsize(video_path)
-        chunk_size = min(file_size, 64 * 1024 * 1024)
-        total_chunks = max(1, math.ceil(file_size / chunk_size))
-        if total_chunks == 1:
-            chunk_size = file_size
+        chunk_size, total_chunks = cls.tiktok_chunk_plan(file_size)
 
         # Query creator_info to discover allowed privacy levels on this TikTok app/account
         preferred_privacy = "PUBLIC_TO_EVERYONE"
@@ -1629,7 +1640,8 @@ class FreeSocialPublisher:
 
         with open(video_path, "rb") as f:
             for idx in range(total_chunks):
-                chunk_bytes = f.read(chunk_size)
+                is_last = idx == total_chunks - 1
+                chunk_bytes = f.read() if is_last else f.read(chunk_size)
                 start_b = idx * chunk_size
                 end_b = start_b + len(chunk_bytes) - 1
                 up_res = requests.put(
