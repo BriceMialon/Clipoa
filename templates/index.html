@@ -195,14 +195,11 @@
             <button type="submit" id="ai-tb-send" class="ai-tb-send" title="Envoyer">→</button>
           </form>
 
-          <div class="ai-taskbar-drawer" id="ai-tb-drawer">
+          <div class="ai-taskbar-drawer ai-drawer-compact" id="ai-tb-drawer">
             <div class="ai-drawer-head">
               <div class="ai-drawer-title">
                 <span class="dot {{ 'ok' if claude_status.connected else 'warn' }}" id="ai-drawer-dot"></span>
-                <span id="ai-drawer-heading">Équipe d'agents IA ClipRoll</span>
-                <span style="font-size:12px; font-weight:500; color:var(--muted);" id="ai-drawer-sub">
-                  {{ 'Exécute tes missions (semaine, audit, hooks, vidéos) · validation humaine avant publication' if claude_status.connected else 'Connecte Claude pour activer ton équipe' }}
-                </span>
+                <span id="ai-drawer-heading">Équipe IA</span>
               </div>
               <div style="display:flex; gap:6px; align-items:center;">
                 {% if not claude_status.connected %}
@@ -213,35 +210,16 @@
               </div>
             </div>
 
-            <div class="ai-roster-strip" id="ai-roster-strip">
-              <span class="ai-roster-pill">Orchestrateur</span>
-              <span class="ai-roster-pill">Stratège Rétention</span>
-              <span class="ai-roster-pill">Scénariste</span>
-              <span class="ai-roster-pill">Producteur</span>
-              <span class="ai-roster-pill">Vérificateur</span>
-            </div>
-
-            <div class="ai-drawer-body" id="ai-tb-messages">
-              <div class="ai-msg assistant">
-                <div class="ai-msg-meta"><span>✦ Équipe ClipRoll</span></div>
-                {% if claude_status.connected %}
-                Demande-nous d'agir pour toi : « Génère mes 5 vidéos de la semaine », « Audite ma chaîne », « Refais ma pire vidéo » ou « Donne-moi 5 hooks 1.5s sur… ». Rien n'est publié sans ton accord.
-                {% else %}
-                Pour activer l'équipe d'agents IA, connecte Claude dans « Connexions ».
-                {% endif %}
-              </div>
-            </div>
+            <div class="ai-drawer-body" id="ai-tb-messages"></div>
 
             <div class="ai-quick-row" id="ai-quick-team">
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Génère mes 5 vidéos pour la semaine')">Générer ma semaine (5 vidéos)</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Audite ma chaîne sur mes 12 derniers Shorts')">Auditer ma chaîne (12 Shorts)</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Génère mes 5 vidéos pour la semaine')">Générer ma semaine</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Audite ma chaîne sur mes 12 derniers Shorts')">Auditer ma chaîne</button>
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Refais ma pire vidéo avec un hook 1.5s')">Refaire ma pire vidéo</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Donne-moi 5 hooks 1.5s sur une histoire courte virale')">5 hooks 1.5s</button>
             </div>
             <div class="ai-quick-row" id="ai-quick-help" style="display:none;">
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment créer une vidéo de A à Z ?')">Créer une vidéo</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment copier le style d’une vidéo que j’aime ?')">Copier le style d’une vidéo</button>
-              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment publier ma vidéo sur YouTube, TikTok et Instagram ?')">Publier ma vidéo</button>
+              <button type="button" class="ai-quick-chip" onclick="askAiQuick('Comment publier ma vidéo sur YouTube, TikTok et Instagram ?')">Publier un Short</button>
               <button type="button" class="ai-quick-chip" onclick="askAiQuick('Pourquoi certaines de mes vidéos marchent moins bien ?')">Comprendre mes stats</button>
             </div>
           </div>
@@ -449,17 +427,13 @@
             <input type="text" id="fab-custom-title" class="input-sm" style="display:none; margin-bottom:8px;" placeholder="Titre / texte d'accroche (optionnel)…">
 
             <!-- Un seul champ : idée OU script (détection automatique) -->
-            <textarea id="main-topic" class="big-input" rows="4" oninput="onMainTopicInput()" placeholder="Écris ton idée en quelques mots (ex : Dans ma ville, plus t'es riche plus ta maison est haute…) ou colle directement ton script."></textarea>
+            <textarea id="main-topic" class="big-input" rows="2" style="min-height:66px;" oninput="onMainTopicInput()" placeholder="Écris ton idée en quelques mots (ex : Dans ma ville, plus t'es riche plus ta maison est haute…) ou colle directement ton script."></textarea>
 
-            <!-- Un seul bouton : l'IA écrit le script (en direct) ; une fois écrit, on peut le modifier -->
-            <div id="fab-script-actions" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:8px;">
-              <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()"><svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/></svg> Générer le script avec l'IA</button>
+            <!-- Action IA + lien de style optionnel regroupés sur une ligne compacte -->
+            <div id="fab-script-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:6px;">
+              <button type="button" class="btn btn-primary btn-sm" id="fab-gen-script-btn" onclick="generateFabriqueScript()">Générer le script avec l'IA</button>
+              <input type="url" id="fab-ref-url" class="input-sm" style="flex:1; min-width:220px;" placeholder="Optionnel : lien d'une vidéo dont tu veux le style (YouTube, Short, Reel, TikTok)" oninput="syncRefUrlLock()">
               <span id="fab-gen-script-status" style="font-size:12px; color:var(--muted);"></span>
-            </div>
-
-            <!-- Vidéo d'exemple : l'agent regarde la vidéo, en déduit le style et le reproduit avec TON histoire -->
-            <div style="display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <input type="url" id="fab-ref-url" class="input-sm" style="flex:1; min-width:240px;" placeholder="Optionnel : lien d'une vidéo dont tu veux le style (YouTube, Short, Reel, TikTok)" oninput="syncRefUrlLock()">
             </div>
 
             <!-- Aperçu & édition du script généré (stream en direct + % d'avancement + aperçu mis en forme + valider / modifier) -->
@@ -1145,9 +1119,7 @@
           <div class="page-head">
             <div>
               <h1 class="page-title">Analyse des concurrents</h1>
-              <p class="page-sub">Les vidéos faites à l’IA qui cartonnent en ce moment chez les autres créateurs sur TikTok et Instagram Reels : leur score, pourquoi elles marchent, et un clic pour copier leur style.</p>
             </div>
-            <button type="button" class="btn btn-coral" id="insp-scan-btn" onclick="scanInspiration()">↻ Actualiser le radar</button>
           </div>
 
           <div class="card lg-sheen">
@@ -6212,7 +6184,7 @@
 <!-- Version publique : boutons des fonctions hors offre masqués (le serveur les refuse aussi, core/edition.py) -->
 <style>
   [data-sub="analyse"], [data-sub="equipe"], [onclick="showView('analyse')"], #view-analyse, #view-equipe, .subnav[aria-label="Créer"], [onclick="openModal('modal-week')"],
-    div:has(> #fab-ref-url), #cine-warning, #modal-gemini-connect, #cq-gemini-btn,
+    #fab-ref-url, #cine-warning, #modal-gemini-connect, #cq-gemini-btn,
     .ai-mode-seg, #ai-roster-strip, #ai-quick-team, div:has(> #cs-tiktok-handle) { display: none !important; }
 </style>
 {% endif %}
