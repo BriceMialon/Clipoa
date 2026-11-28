@@ -3790,8 +3790,11 @@
                ${window.ClipRollMoments ? ClipRollMoments.stepsHtml(job) : ''}`
             : '';
 
+          const warnHtml = job.status === 'done' && Array.isArray(job.warnings) && job.warnings.length
+            ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:rgba(255,170,0,.12); border:1px solid rgba(255,170,0,.45); font-size:12.5px; color:var(--ink);">⚠️ ${job.warnings.map(escHtml).join('<br>⚠️ ')}</div>`
+            : '';
           const actions = job.status === 'done' && job.session_id
-            ? `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+            ? `${warnHtml}<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
                  <button class="btn btn-coral btn-sm" onclick="openFinishedVideo('${job.session_id}')">Voir dans mes vidéos</button>
                  <a class="btn btn-ghost btn-sm" href="/download/${job.session_id}" download>Télécharger</a>
                  <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>

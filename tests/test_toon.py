@@ -231,3 +231,17 @@ class TestParable(unittest.TestCase):
         sub = next(p for p in STARTER_PLUGINS if p["id"] == "parabole_3_destins")["subtitle_style"]
         self.assertIn(sub, SUBTITLE_STYLES)
         self.assertTrue(os.path.exists(os.path.join(os.path.dirname(__file__), "..", "assets", "style_covers", "parabole_3_destins.jpg")))
+
+
+class ToonFramingTest(unittest.TestCase):
+    def test_wide_poses_fit_inside_frame(self):
+        for pose in K.ARM_POSES:
+            for x in (240.0, 375.0, 540.0, 705.0, 840.0):
+                ext = K._pose_extent(pose)
+                nx, sc = K.fit_in_frame(x, 1.45, ext)
+                self.assertGreaterEqual(nx - ext[0] * sc, K.EDGE_MARGIN - 0.01, pose)
+                self.assertLessEqual(nx + ext[1] * sc, K.W - K.EDGE_MARGIN + 0.01, pose)
+
+    def test_close_shrug_is_scaled_down(self):
+        svg = K.panel_svg({"frame": "close", "chars": [{"id": "a", "pose": "shrug"}]}, {"a": {}}, {"type": "camp"})
+        self.assertNotIn("scale(2.550)", svg)

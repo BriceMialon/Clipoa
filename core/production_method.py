@@ -224,34 +224,50 @@ def align_shots(
         if end - t > 0.05:
             segs.append({"start": round(t, 2), "end": round(end, 2), "desc": d})
 
-    # Découpe des plans trop longs (coupe aux débuts de mots)
+    # Découpe des plans trop longs (coupe aux débuts de mots). Le pas vient du style (min/max) : l'ancien pas fixe
+    # de 3,2 s était plus court que le minimum de Parabole (3 s), toutes les coupes étaient refusées → plan de 13,6 s.
+    target = (min_len + max_len) / 2.0
     split: List[Dict[str, Any]] = []
     for s in segs:
         length = s["end"] - s["start"]
         if length <= max_len:
             split.append(s)
             continue
-        n = int(math.ceil(length / 3.2))
+        n = max(int(math.ceil(length / max_len)), int(round(length / target)))
+        while n > 1 and length / n < min_len:
+            n -= 1
         bounds = [s["start"]]
         for k in range(1, n):
             raw = s["start"] + k * length / n
             snapped = _snap_to_word(raw, words, 0.5) if words else raw
-            if snapped - bounds[-1] >= min_len and s["end"] - snapped >= min_len:
-                bounds.append(snapped)
+            for cand in (snapped, raw):
+                if cand - bounds[-1] >= min_len and s["end"] - cand >= min_len:
+                    bounds.append(cand)
+                    break
         bounds.append(s["end"])
         for k in range(len(bounds) - 1):
             split.append({"start": round(bounds[k], 2), "end": round(bounds[k + 1], 2), "desc": s["desc"], "sub": k})
 
-    # Fusion des plans trop courts
+    # Fusion des plans trop courts : avec le précédent s'il reste sous le maximum, sinon avec le suivant
     merged: List[Dict[str, Any]] = []
+    carry: Optional[Dict[str, Any]] = None
     for s in split:
-        if merged and (s["end"] - s["start"]) < min_len:
-            merged[-1]["end"] = s["end"]
+        s = dict(s)
+        if carry is not None:
+            s["start"] = carry["start"]
+            carry = None
+        if (s["end"] - s["start"]) < min_len:
+            if merged and (s["end"] - merged[-1]["start"]) <= max_len:
+                merged[-1]["end"] = s["end"]
+                continue
+            carry = s
+            continue
+        merged.append(s)
+    if carry is not None:
+        if merged:
+            merged[-1]["end"] = carry["end"]
         else:
-            merged.append(dict(s))
-    if len(merged) > 1 and merged[-1]["end"] - merged[-1]["start"] < min_len:
-        last = merged.pop()
-        merged[-1]["end"] = last["end"]
+            merged.append(carry)
     for i, s in enumerate(merged):
         s["index"] = i
     return merged

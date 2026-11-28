@@ -127,15 +127,55 @@ class TestCasting(unittest.TestCase):
         self.assertEqual(c[0]["voice_id"], "orionID")
         self.assertIn("VALIDÉE", voice_casting._describe(c[0]))
 
-    def test_roster_voice_from_library_keeps_owner(self):
+    def _roster_lib_candidates(self, allow_add):
         with patch.object(voice_casting, "load_roster", return_value=[{"voice_id": "nico", "name": "Nicolas", "roles": ["narrateur_energique"]}]), \
                 patch.object(voice_casting, "account_voices", return_value=[]), \
+                patch.object(voice_casting, "_added_ids", return_value=set()), \
+                patch.object(voice_casting, "library_add_allowed", return_value=allow_add), \
                 patch.object(voice_casting, "library_voices", return_value=[
                     {"voice_id": "nico", "name": "Nicolas", "public_owner_id": "own", "language": "fr", "source": "library"}]):
-            c = voice_casting.build_candidates("k", "fr")
+            return voice_casting.build_candidates("k", "fr")
+
+    def test_roster_voice_from_library_keeps_owner(self):
+        c = self._roster_lib_candidates(allow_add=True)
         self.assertEqual(c[0]["source"], "library")
         self.assertEqual(c[0]["public_owner_id"], "own")
         self.assertTrue(c[0]["validated"])
+
+    def test_library_copy_on_account_skipped_on_free_tier(self):
+        acc = [{"voice_id": "ana", "name": "ClipRoll · Anatole", "category": "professional", "source": "account", "library_copy": True},
+               {"voice_id": "rog", "name": "Roger", "category": "premade", "source": "account", "library_copy": False}]
+        with patch.object(voice_casting, "load_roster", return_value=[]), \
+                patch.object(voice_casting, "account_voices", return_value=acc), \
+                patch.object(voice_casting, "_added_ids", return_value=set()), \
+                patch.object(voice_casting, "library_add_allowed", return_value=False), \
+                patch.object(voice_casting, "library_voices", return_value=[]):
+            free = [v["voice_id"] for v in voice_casting.build_candidates("k", "fr", free_only=True)]
+            paid = [v["voice_id"] for v in voice_casting.build_candidates("k", "fr", free_only=False)]
+        self.assertNotIn("ana", free)
+        self.assertIn("rog", free)
+        self.assertIn("ana", paid)
+
+    def test_is_library_copy(self):
+        self.assertTrue(voice_casting._is_library_copy({"sharing": {"status": "copied"}}))
+        self.assertTrue(voice_casting._is_library_copy({"is_owner": False, "category": "professional"}))
+        self.assertFalse(voice_casting._is_library_copy({"category": "premade"}))
+        self.assertFalse(voice_casting._is_library_copy({"is_owner": True, "category": "cloned"}))
+
+    def test_free_tier_foreign_voice_goes_to_free_french_voice(self):
+        from core.voice_engine import VoiceEngine
+        cast = {"narrator": {"voice_id": "rog", "name": "Roger", "foreign": True}, "characters": {}}
+        with patch.object(VoiceEngine, "get_elevenlabs_key", return_value="k"), \
+                patch.object(voice_casting, "is_free_tier", return_value=True):
+            self.assertIn("gratuit", VoiceEngine._free_tier_foreign_note(cast))
+        with patch.object(VoiceEngine, "get_elevenlabs_key", return_value="k"), \
+                patch.object(voice_casting, "is_free_tier", return_value=False):
+            self.assertEqual(VoiceEngine._free_tier_foreign_note(cast), "")
+        self.assertEqual(VoiceEngine._free_tier_foreign_note({"narrator": {"foreign": False}}), "")
+
+    def test_library_voice_skipped_when_add_not_allowed(self):
+        c = self._roster_lib_candidates(allow_add=False)
+        self.assertNotIn("nico", [v["voice_id"] for v in c])
 
     def test_heuristic_uses_role_not_always_orion(self):
         c = self._cands()

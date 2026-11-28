@@ -675,6 +675,27 @@ FRAMINGS = {
 }
 
 
+def _pose_extent(pose: str, flip: bool = False) -> Tuple[float, float]:
+    """Largeur du perso à gauche et à droite de son axe (unités du dessin) : tête + oreilles, ou bout des mains."""
+    la, ra = ARM_POSES.get(pose if pose in ARM_POSES else "idle")
+    left = max([165.0] + [-x + 26 for x, _ in la + ra])
+    right = max([165.0] + [x + 26 for x, _ in la + ra])
+    return (right, left) if flip else (left, right)
+
+
+# marge de bord : le léger zoom du montage (jusqu'à x1,09, toon_engine.ZOOMS) rogne ~45 px de chaque côté
+EDGE_MARGIN = 60.0
+
+
+def fit_in_frame(x: float, sc: float, ext: Tuple[float, float], margin: float = EDGE_MARGIN) -> Tuple[float, float]:
+    """Recale (x, échelle) pour que le perso, mains comprises, tienne entre les bords de l'image."""
+    left, right = ext
+    sc = min(sc, (W - 2 * margin) / (left + right))
+    x = max(x, margin + left * sc)
+    x = min(x, W - margin - right * sc)
+    return x, sc
+
+
 def _slots(n: int, gap: float) -> List[float]:
     if n <= 1:
         return [540.0]
@@ -744,12 +765,21 @@ def _panel_body(panel: Dict[str, Any], frame: str, cast: Dict[str, Dict[str, Any
         flip = x > 560 and c.get("pose") == "point"
         body = character(who, str(c.get("expr") or "neutral"), str(c.get("pose") or "idle"), cnt_txt,
                          ghost=float(c.get("ghost") or 0), flip=flip)
-        out.append(f'<g transform="translate({x:.0f},{foot}) scale({sc:.3f})">{body}</g>')
+        # bras levés / écartés : le perso reste entier dans l'image (avant, mains et épaules coupées au bord)
+        if frame == "close" and n == 1:
+            # gros plan : la largeur du perso (mains comprises) doit tenir, la tête garde sa place
+            half = max(_pose_extent(str(c.get("pose") or "idle"), flip))
+            c_sc = min(sc, (W / 2 - EDGE_MARGIN) / half)
+            c_x = 540.0
+        else:
+            c_x, c_sc = fit_in_frame(x, sc, _pose_extent(str(c.get("pose") or "idle"), flip))
+        c_foot = foot - 392 * (sc - c_sc)
+        out.append(f'<g transform="translate({c_x:.0f},{c_foot:.0f}) scale({c_sc:.3f})">{body}</g>')
         if c.get("say"):
-            head_top = foot - 600 * sc
-            bx = max(170, min(910, x + (90 if x <= 540 else -90)))
+            head_top = c_foot - 600 * c_sc
+            bx = max(170, min(910, c_x + (90 if c_x <= 540 else -90)))
             by = max(330, head_top - 70)
-            bubbles.append(bubble(bx, by, str(c["say"]), x, head_top + 40, 44 if frame != "close" else 52))
+            bubbles.append(bubble(bx, by, str(c["say"]), c_x, head_top + 40, 44 if frame != "close" else 52))
     out += bubbles
     return "".join(out)
 

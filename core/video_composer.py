@@ -149,12 +149,46 @@ class VideoComposer:
 
     @staticmethod
     def _escape_ass_text(text: str) -> str:
+        text = VideoComposer._ass_symbols(text)
         return text.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}")
+
+    # Emoji couleur que libass ne sait pas dessiner (carré vide à l'écran) → symbole simple qu'il dessine
+    _EMOJI_MAP = {
+        "✅": "✔", "☑": "✔", "✔": "✔", "👍": "✔", "🆗": "✔",
+        "❌": "✘", "❎": "✘", "👎": "✘", "💔": "✘", "🚫": "✘", "⛔": "✘",
+        "⭐": "★", "🌟": "★", "✨": "★", "🔥": "★", "💯": "★", "🏆": "★",
+        "💰": "€", "💵": "€", "💶": "€", "💸": "€", "🪙": "€",
+        "📈": "↗", "📉": "↘", "🚀": "↑", "👆": "↑", "⬆": "↑", "👇": "↓", "⬇": "↓", "👉": "→", "➡": "→", "👈": "←", "⬅": "←",
+        "💀": "☠", "👑": "♛", "😀": "☺", "😃": "☺", "😄": "☺", "😁": "☺", "😊": "☺", "🙂": "☺", "😂": "☺", "🤣": "☺",
+        "💖": "❤", "💗": "❤", "💕": "❤", "💘": "❤", "💓": "❤", "💞": "❤", "💙": "❤", "💚": "❤", "💛": "❤",
+        "🧡": "❤", "💜": "❤", "🖤": "❤", "🤍": "❤", "🤎": "❤", "♥": "♥", "♡": "♡",
+    }
+
+    @staticmethod
+    def _ass_symbols(text: str) -> str:
+        """Remplace les emoji (dessinés en carrés vides par libass) par un symbole qu'il sait dessiner, retire les autres."""
+        if not text or text.isascii():
+            return text
+        out = []
+        for ch in text:
+            cp = ord(ch)
+            if cp in (0xFE0F, 0xFE0E, 0x200D) or 0x1F3FB <= cp <= 0x1F3FF:  # sélecteurs de variante, ZWJ, teintes
+                continue
+            rep = VideoComposer._EMOJI_MAP.get(ch)
+            if rep is not None:
+                out.append(rep)
+            elif cp >= 0x1F000 or ch in "⚡⏰⏳⌛⌚⭕❗❓❕❔⛳⚽⚾⛔✊✋✌":
+                continue  # emoji sans équivalent dessinable : retiré
+            else:
+                out.append(ch)
+        return re.sub(r"[ \t]{2,}", " ", "".join(out)).strip() if out else ""
 
     @staticmethod
     def _wrap_hook_text(text: str, max_chars_per_line: int = 22) -> str:
         """Wraps hook text cleanly across up to 2-3 balanced lines using ASS \\N."""
-        words = text.strip().upper().split()
+        # « 10 M », « 100 € », « 3 ANS » : le chiffre reste collé à son unité
+        glued = re.sub(r"(\d) (?=[^\W\d_]{1,4}\b|[€%$£]|\d{3}\b)", "\\1\u0001", text.strip().upper())
+        words = [w.replace("\u0001", " ") for w in glued.split()]
         if not words:
             return ""
         lines: List[str] = []
@@ -177,7 +211,7 @@ class VideoComposer:
         fallback_script: str,
         duration: float
     ) -> List[Dict[str, Any]]:
-        """Flattens Whisper transcript into a clean list of {word, start, end}."""
+        """Liste {word, start, end} : mots du script si connu, temps de Whisper."""
         all_words: List[Dict[str, Any]] = []
         if transcript_data and transcript_data.get("segments"):
             for seg in transcript_data["segments"]:
@@ -205,6 +239,10 @@ class VideoComposer:
                             })
         if all_words:
             all_words = cls._merge_word_fragments(all_words)
+            if fallback_script.strip():
+                # Mots du script (connus) + calage Whisper : évite « UN MAÎTRE DIX » pour « un mètre dix »
+                from core.script_align import align_script_to_words
+                all_words = align_script_to_words(fallback_script, all_words)
             return all_words
         if fallback_script.strip():
             raw_words = fallback_script.strip().split()
