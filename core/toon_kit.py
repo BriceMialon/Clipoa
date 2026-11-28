@@ -797,7 +797,7 @@ def choices_svg(ch: Dict[str, Any]) -> str:
     xs = _slots(len(items), 330) if items else []
     for it, x in zip(items, xs):
         out.append(f'<g transform="translate({x:.0f},1180) scale(0.5)">{prop_svg(str(it.get("prop") or ""), "")}</g>')
-        lab = str(it.get("label") or "").upper()[:12]
+        lab = str(it.get("label") or "").upper()[:14]
         if lab:
             out.append(text(x, 1400, lab, fit_size(lab, 300, 46, 0.6), accent, 700))
     return "".join(out)
