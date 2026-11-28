@@ -186,8 +186,8 @@
 
             <!-- Mode : Aide ou Équipe d'agents IA -->
             <div class="ai-mode-seg" role="group" aria-label="Mode barre IA">
-              <button type="button" class="ai-mode-btn actif" id="ai-mode-team" onclick="setAiBarMode('team')">Équipe IA</button>
-              <button type="button" class="ai-mode-btn" id="ai-mode-help" onclick="setAiBarMode('help')">Aide</button>
+              <button type="button" class="ai-mode-btn actif" id="ai-mode-team" onclick="setAiBarMode('team', true)">Équipe IA</button>
+              <button type="button" class="ai-mode-btn" id="ai-mode-help" onclick="setAiBarMode('help', true)">Aide</button>
             </div>
 
             <input type="text" id="ai-tb-input" class="ai-tb-input" placeholder="{{ 'Demande à ton équipe (ex : génère mes 5 vidéos de la semaine…)' if claude_status.connected else 'Connecte Claude pour activer ton équipe IA…' }}" onfocus="toggleAiTaskbarDrawer(true)" autocomplete="off">
@@ -5741,31 +5741,29 @@
 
     const AGENT_TEAM_ENABLED = {{ 'false' if clipoa_edition == 'public' else 'true' }};
     let aiBarMode = AGENT_TEAM_ENABLED ? (localStorage.getItem('cliproll_ai_bar_mode') || 'team') : 'help';
-    function setAiBarMode(mode) {
+    function setAiBarMode(mode, openAndFocus) {
       aiBarMode = (mode === 'help' || !AGENT_TEAM_ENABLED) ? 'help' : 'team';
       try { localStorage.setItem('cliproll_ai_bar_mode', aiBarMode); } catch(e) {}
       document.getElementById('ai-mode-team')?.classList.toggle('actif', aiBarMode === 'team');
       document.getElementById('ai-mode-help')?.classList.toggle('actif', aiBarMode === 'help');
       const inp = document.getElementById('ai-tb-input');
       const head = document.getElementById('ai-drawer-heading');
-      const sub = document.getElementById('ai-drawer-sub');
-      const roster = document.getElementById('ai-roster-strip');
       const qTeam = document.getElementById('ai-quick-team');
       const qHelp = document.getElementById('ai-quick-help');
       if (aiBarMode === 'team') {
-        if (inp) inp.placeholder = 'Demande à ton équipe (ex : génère mes 5 vidéos de la semaine…)';
-        if (head) head.textContent = "Équipe d'agents IA ClipRoll";
-        if (sub) sub.textContent = 'Exécute tes missions (semaine, audit, hooks, vidéos) · validation humaine avant publication';
-        if (roster) roster.style.display = 'flex';
+        if (inp) inp.placeholder = 'Écris ce que tu veux que l’équipe IA fasse…';
+        if (head) head.textContent = 'Équipe IA';
         if (qTeam) qTeam.style.display = 'flex';
         if (qHelp) qHelp.style.display = 'none';
       } else {
-        if (inp) inp.placeholder = 'Une question sur ClipRoll ?';
-        if (head) head.textContent = 'Aide IA ClipRoll';
-        if (sub) sub.textContent = 'Réponses courtes, avec le nom exact des onglets et boutons';
-        if (roster) roster.style.display = 'none';
+        if (inp) inp.placeholder = 'Pose ta question sur ClipRoll…';
+        if (head) head.textContent = 'Aide';
         if (qTeam) qTeam.style.display = 'none';
         if (qHelp) qHelp.style.display = 'flex';
+      }
+      if (openAndFocus) {
+        toggleAiTaskbarDrawer(true);
+        if (inp) inp.focus();
       }
     }
 

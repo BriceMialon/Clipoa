@@ -15,12 +15,12 @@ Modèle :
 
 ---
 
-## 2026-11-28 11:48 — Antigravity — Lot 5 UI (tiroir Équipe IA/Aide compact, Créer remonté sans icône, Concurrents épuré, animations vidéos, KPIs, onboarding 8 étapes)
-- Branche / PR : `gemini/ui-polish` — PR brouillon (à fusionner dans `main` avec Lots 1–4 et Lot 6 pour que les redémarrages depuis `main` conservent tout !)
-- En cours : portage propre sur `origin/main` (`0b4e932`) + nouveaux ajustements de Brice : tiroir *Équipe IA* / *Aide* compact avec 3 exemples courts (plus de `#ai-roster-strip` ni pavé d'accueil), `#ai-tb-model` supprimé, bouton *Générer le script avec l'IA* sans icône + remonté sur la même ligne que `#fab-ref-url`, sous-titre *Analyse des concurrents* retiré, défilement fluide *À valider* (Accueil) + vitrine 9:16 animée *Mes vidéos*, bouton unique *Statistiques* + 6 KPIs, *Publier*/*Montage* nettoyés, onboarding 8 étapes, nettoyage ShortCrew.
-- Fichiers touchés : `templates/index.html`, `static/css/cliproll.css`, `static/js/cliproll_onboarding.js`, `static/js/cliproll_support.js`, `cli.py`, `core/video_composer.py`, `ShortCrew.command` (supprimé), `docs/HANDOFF.md`
-- Prochaine étape : fusionner les 6 PR (`security-core`, `security-app`, `workers-hardening`, `public-edition`, `ui-polish`, `personalities-competitors`) dans `main` dès validation de Brice, afin qu'un redémarrage depuis `main` garde tout.
-- Attention : `http://localhost:8080/` tourne sur `/Users/brice/.gemini/antigravity/scratch/cliproll-preview` (`gemini/preview-all-lots`) qui combine `main` + les 6 lots.
+## 2026-11-28 11:58 — Antigravity — Fusion des 6 lots sur `main` (base commune Claude ↔ Antigravity)
+- Branche / PR : `main` — fusionné et poussé sur `origin/main` avec l'accord explicite de Brice.
+- En cours : **tous les 6 lots validés** (`security-core`, `security-app`, `workers-hardening`, `public-edition`, `ui-polish`, `personalities-competitors`) sont maintenant dans `main` (sans la waitlist). `http://localhost:8080/` tourne directement depuis `main` (`/Users/brice/.gemini/antigravity/scratch/shortcrew_clone`).
+- Fichiers touchés : sécurité cœur + `app.py`, Workers sans waitlist, édition `public`, UI (barre IA compacte avec focus auto au clic *Équipe IA*/*Aide*, animations vidéos Accueil & Mes vidéos, KPIs Statistiques, onboarding 8 étapes, bouton *Générer le script* sans icône + remonté, nettoyage ShortCrew), personnalités (`core/personality.py` + `cliproll_personality.js`) + 5 comptes concurrents dans l'onglet Concurrents de `#12`.
+- Prochaine étape : Claude et Antigravity repartent exactement du même `main` à jour (`git pull`). Reste à faire : Windows (`install.ps1` / `launcher.py` / `updater.py` / `select.select` Blender), TikTok > 64 Mo, et déploiement Stripe/D1 quand Brice valide.
+- Attention : `cliproll.app` est en ligne sur Cloudflare (`https://cliproll.app`, SSL actif) avec `contact@cliproll.app`, `support@cliproll.app` et `brice@cliproll.app` redirigés vers `brice.mialon01800@gmail.com`. Waitlist toujours mise de côté en attente de validation offre/date/RGPD.
 
 ## 2026-11-27 — Claude — Règles de relais
 - Branche / PR : claude/project-thread-15q7fh (PR à fusionner)
