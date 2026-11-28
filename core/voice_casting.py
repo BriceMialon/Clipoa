@@ -160,6 +160,37 @@ def _write_json(path, data) -> None:
         pass
 
 
+def _is_library_copy(v: Dict[str, Any]) -> bool:
+    sharing = v.get("sharing") or {}
+    return str(sharing.get("status") or "").lower() == "copied" or (
+        v.get("is_owner") is False and v.get("category") == "professional")
+
+
+_TIER_CACHE: Dict[str, Any] = {}
+
+
+def is_free_tier(key: str) -> bool:
+    """Compte ElevenLabs gratuit ? (mis en cache 10 min ; en cas de doute : non)."""
+    if not key:
+        return False
+    hit = _TIER_CACHE.get(key)
+    if hit and time.time() - hit[1] < 600:
+        return hit[0]
+    free = False
+    try:
+        sub = requests.get(f"{API}/user/subscription", headers={"xi-api-key": key}, timeout=8)
+        free = sub.status_code == 200 and str(sub.json().get("tier") or "").lower() == "free"
+    except Exception:
+        return False
+    _TIER_CACHE[key] = (free, time.time())
+    return free
+
+
+def usable_on_free_tier(v: Dict[str, Any]) -> bool:
+    """Une voix copiée depuis la bibliothèque (même déjà sur le compte) est refusée par l'API en compte gratuit."""
+    return not (v.get("library_copy") or v.get("source") == "library" or _is_library_copy(v))
+
+
 def account_voices(key: str) -> List[Dict[str, Any]]:
     """Voix déjà présentes sur le compte ElevenLabs de l'utilisateur."""
     try:
@@ -181,6 +212,8 @@ def account_voices(key: str) -> List[Dict[str, Any]]:
                 "description": str(v.get("description") or "")[:120],
                 "category": v.get("category") or "premade",
                 "source": "account",
+                # voix de la bibliothèque copiée sur le compte : l'API la refuse aux comptes gratuits
+                "library_copy": _is_library_copy(v),
             })
         return [v for v in out if v["voice_id"]]
     except Exception:
@@ -293,12 +326,13 @@ def build_candidates(key: str, language: str, free_only: bool = False) -> List[D
     allow_add = library_add_allowed()
 
     def _usable(v: Dict[str, Any]) -> bool:
-        from_lib = v.get("source") == "library" or v.get("voice_id") in added_ids
+        from_lib = v.get("source") == "library" or v.get("voice_id") in added_ids or bool(v.get("library_copy"))
         if not from_lib:
             return True
         if free_only:
             return False
-        return allow_add or bool(v.get("is_added_by_user")) or v.get("voice_id") in added_ids
+        return (allow_add or bool(v.get("is_added_by_user")) or v.get("voice_id") in added_ids
+                or bool(v.get("library_copy")))
 
     acc = account_voices(key)
     by_id = {v["voice_id"]: v for v in acc}
@@ -524,12 +558,8 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
     if not key:
         return None
     language = detect_language(script_text)
-    if not free_only:
-        try:  # compte gratuit : seulement les voix de la bibliothèque ouvertes aux comptes gratuits
-            sub = requests.get(f"{API}/user/subscription", headers={"xi-api-key": key}, timeout=8)
-            free_only = sub.status_code == 200 and str(sub.json().get("tier") or "").lower() == "free"
-        except Exception:
-            pass
+    if not free_only:  # compte gratuit : aucune voix venue de la bibliothèque (l'API les refuse)
+        free_only = is_free_tier(key)
     cands = build_candidates(key, language, free_only=free_only)
     if not cands:
         return None
@@ -540,7 +570,8 @@ def cast_voices(key: str, script_text: str, speakers: Optional[List[Dict[str, An
     def _final(v: Dict[str, Any], raw: Dict[str, Any], used: set) -> Optional[Dict[str, Any]]:
         vid = resolve_voice_id(key, v)
         if not vid:  # ajout impossible (quota de voix, compte gratuit) : meilleure voix déjà utilisable
-            alt = heuristic_pick([c for c in cands if c.get("source") != "library" or c.get("is_added_by_user")],
+            alt = heuristic_pick([c for c in cands if (c.get("source") != "library" or c.get("is_added_by_user"))
+                                  and (not free_only or usable_on_free_tier(c))],
                                  language, script_text, exclude=used, role=narrator_role(script_text))
             if not alt:
                 return None
