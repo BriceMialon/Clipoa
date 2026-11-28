@@ -92,6 +92,26 @@ class TikTokPublishUsesUserChoices(unittest.TestCase):
                 {}, path, "t", "c", {"privacy_level": "PUBLIC_TO_EVERYONE", "consent": True})
         self.assertFalse(res["ok"])
 
+    def test_tiktok_chunk_plan(self):
+        MB = 1024 * 1024
+        # <= 64 MB -> single chunk equal to file_size
+        self.assertEqual(FreeSocialPublisher.tiktok_chunk_plan(5 * MB), (5 * MB, 1))
+        self.assertEqual(FreeSocialPublisher.tiktok_chunk_plan(64 * MB), (64 * MB, 1))
+        # 65 MB -> floor(65/10) = 6 chunks of 10 MB, last chunk absorbs 15 MB (<= 128 MB, >= 5 MB)
+        cs, tc = FreeSocialPublisher.tiktok_chunk_plan(65 * MB)
+        self.assertEqual((cs, tc), (10 * MB, 6))
+        last_chunk = 65 * MB - cs * (tc - 1)
+        self.assertGreaterEqual(last_chunk, 5 * MB)
+        self.assertLessEqual(last_chunk, 128 * MB)
+        # 130 MB -> 13 chunks of 10 MB
+        self.assertEqual(FreeSocialPublisher.tiktok_chunk_plan(130 * MB), (10 * MB, 13))
+
+    def test_blender_engine_no_select_on_windows_pipes(self):
+        src = (os.path.join(os.path.dirname(__file__), "..", "core", "blender_engine.py"))
+        with open(src, "r", encoding="utf-8") as f:
+            txt = f.read()
+        self.assertNotIn("select.select", txt)
+
 
 if __name__ == "__main__":
     unittest.main()

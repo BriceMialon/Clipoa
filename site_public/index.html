@@ -1,112 +1,734 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <title>ClipRoll — Create, edit and publish 9:16 shorts</title>
-  <meta name="description" content="Desktop studio for creating 9:16 short videos locally and publishing to YouTube Shorts, TikTok, Instagram Reels and Facebook Reels.">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClipRoll — Automatiser la création de contenu &amp; générer des vidéos IA avec Claude</title>
+  <meta name="description" content="ClipRoll est le studio desktop Mac &amp; Windows pour automatiser la création de contenu et générer des vidéos IA avec Claude (Blender 3D, Animation 2D, Montage auto). Shorts illimités dès 19 €/mois. Pré-inscris-toi pour 1 jour gratuit et -50 % le 1er mois." />
+  <meta name="keywords" content="ClipRoll, automatiser la création de contenu, comment générer des vidéos IA, générer des vidéos IA avec Claude, créer des Shorts IA, créer des TikTok IA, générateur vidéo IA macOS Windows" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-video-preview:-1" />
+  <link rel="canonical" href="https://cliproll.app/" />
+  <link rel="alternate" hreflang="fr" href="https://cliproll.app/" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/icon.svg" />
+
+  <!-- Open Graph & Twitter Cards -->
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="fr_FR" />
+  <meta property="og:site_name" content="ClipRoll" />
+  <meta property="og:url" content="https://cliproll.app/" />
+  <meta property="og:title" content="ClipRoll — Génère tes Shorts, TikTok &amp; Reels en illimité avec Claude" />
+  <meta property="og:description" content="Blender 3D, Animation 2D, Montage face-cam auto, Équipe IA &amp; publication multi-réseaux. 100 % local sur Mac &amp; Windows. Pré-inscription : 1 jour gratuit + -50 % le 1er mois." />
+  <meta property="og:image" content="https://cliproll.app/media/og-cliproll.jpg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ClipRoll — Automatise tes Shorts &amp; vidéos IA avec Claude" />
+  <meta name="twitter:description" content="Shorts illimités à 19 €/mois. Pré-inscris-toi avant le 4 décembre : 1 jour gratuit + -50 % le 1er mois + -10 % sur l'annuel." />
+  <meta name="twitter:image" content="https://cliproll.app/media/og-cliproll.jpg" />
+
+  <!-- Structured Data (SEO Rich Results: SoftwareApplication + Organization + VideoObject + FAQPage) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "ClipRoll",
+        "url": "https://cliproll.app",
+        "logo": "https://cliproll.app/icon.svg",
+        "email": "contact@cliproll.app"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "name": "ClipRoll",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "macOS, Windows",
+        "url": "https://cliproll.app",
+        "image": "https://cliproll.app/media/og-cliproll.jpg",
+        "description": "Application desktop pour automatiser la création de contenu et générer des vidéos IA 9:16 (YouTube Shorts, TikTok, Instagram Reels) avec Claude, Blender 3D, Animation 2D et montage automatique.",
+        "offers": {
+          "@type": "Offer",
+          "price": "19.00",
+          "priceCurrency": "EUR",
+          "availability": "https://schema.org/PreOrder"
+        }
+      },
+      {
+        "@type": "VideoObject",
+        "name": "ClipRoll — Présentation vidéo 3D (1 min 30)",
+        "description": "Découvrez comment ClipRoll automatise la création de Shorts, TikTok et Reels en 3D, 2D et montage automatique avec Claude.",
+        "thumbnailUrl": "https://cliproll.app/media/og-cliproll.jpg",
+        "contentUrl": "https://cliproll.app/media/cliproll-promo.mp4",
+        "uploadDate": "2026-11-28T12:00:00+01:00",
+        "duration": "PT1M30S"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Comment automatiser la création de contenu avec ClipRoll ?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Tu donnes une idée (ou un lien de vidéo inspirante) : ClipRoll rédige le script viral avec Claude, génère la voix, crée les visuels en Blender 3D, Animation 2D ou montage automatique, synchronise les sous-titres mot à mot et programme la publication sur YouTube Shorts, TikTok et Instagram Reels."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Comment générer des vidéos IA avec Claude dans ClipRoll ?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "ClipRoll s'intègre nativement avec Claude pour écrire des accroches virales, structurer le storyboard plan par plan et piloter les moteurs visuels (Blender 3D, Animation 2D, Montage face-cam) en illimité depuis ton Mac ou ton PC Windows."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Les Shorts sont-ils vraiment illimités à 19 €/mois ?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Oui. ClipRoll n'a aucun système de crédits internes ni de plafond mensuel de vidéos : tu crées autant de Shorts 1080p sans filigrane que tu veux. En te pré-inscrivant avant le 4 décembre, tu bénéficies d'1 jour d'essai gratuit, de -50 % sur le 1er mois (9,50 €) et de -10 % sur le plan annuel (134 €/an)."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Est-ce adapté si j'ai une entreprise et pas le temps de filmer ?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Oui. ClipRoll inclut un Mode Entreprise / Marque dédié qui transforme ton savoir-faire et ton offre en Shorts professionnels chaque semaine sans jamais avoir besoin de te filmer."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #07070F;
+      --bg2: #0E0E1D;
+      --card: #121226;
+      --bd: rgba(255,255,255,0.09);
+      --bd-hi: rgba(0,229,255,0.42);
+      --txt: #F7F9FF;
+      --mut: #949DBB;
+      --cyan: #00E5FF;
+      --coral: #FF3B5C;
+      --grad: linear-gradient(135deg, #00E5FF 0%, #FF3B5C 100%);
+      --cta: linear-gradient(135deg, #FF3B5C 0%, #FF1E6E 60%, #E02482 100%);
+      --disp: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      background:
+        radial-gradient(ellipse 65% 40% at 15% 0%, rgba(0,229,255,0.11), transparent 60%),
+        radial-gradient(ellipse 55% 40% at 85% 0%, rgba(255,59,92,0.13), transparent 60%),
+        var(--bg);
+      color: var(--txt);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; }
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+
+    /* NAV */
+    .nav {
+      position: sticky; top: 0; z-index: 60;
+      backdrop-filter: blur(18px);
+      background: rgba(7,7,15,0.82);
+      border-bottom: 1px solid var(--bd);
+    }
+    .nav-in { display: flex; align-items: center; justify-content: space-between; height: 66px; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: var(--disp); font-weight: 800; font-size: 21px; letter-spacing: -0.03em; }
+    .brand em { font-style: normal; color: var(--coral); }
+    .nav-links { display: flex; gap: 26px; font-size: 14px; font-weight: 500; color: var(--mut); }
+    .nav-links a { text-decoration: none; transition: color .15s; }
+    .nav-links a:hover { color: #fff; }
+    @media (max-width: 820px) { .nav-links { display: none; } }
+
+    /* BUTTONS & PILLS */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      font-family: var(--disp); font-weight: 700; font-size: 14px;
+      padding: 12px 22px; border-radius: 12px; border: 1px solid transparent;
+      cursor: pointer; text-decoration: none; transition: transform .16s, box-shadow .2s, background .2s;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-cta { background: var(--cta); color: #fff; box-shadow: 0 10px 30px -6px rgba(255,59,92,0.55); }
+    .btn-cta:hover { box-shadow: 0 14px 36px -4px rgba(255,59,92,0.72); }
+    .btn-ghost { background: rgba(255,255,255,0.05); border-color: var(--bd); color: #fff; }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.09); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 6px 12px; border-radius: 999px;
+      background: rgba(255,59,92,0.13); border: 1px solid rgba(255,59,92,0.38); color: #FF8399;
+    }
+    .pill.cyan { background: rgba(0,229,255,0.11); border-color: rgba(0,229,255,0.35); color: var(--cyan); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--coral); animation: pulse 1.8s infinite; }
+    @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(255,59,92,.7)} 70%{box-shadow:0 0 0 8px rgba(255,59,92,0)} 100%{box-shadow:0 0 0 0 rgba(255,59,92,0)} }
+
+    /* HERO */
+    .hero { padding: 54px 0 44px; }
+    .hero-grid { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 44px; align-items: center; }
+    @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; } }
+    h1 {
+      font-family: var(--disp); font-weight: 800;
+      font-size: clamp(34px, 4.7vw, 54px); line-height: 1.05; letter-spacing: -0.035em;
+      margin: 16px 0 16px;
+    }
+    .grad { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero-sub { font-size: 17px; color: var(--mut); max-width: 530px; margin-bottom: 20px; }
+
+    /* COUNTDOWN */
+    .cd-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+    .cd { display: inline-flex; align-items: baseline; gap: 4px; padding: 6px 11px; border-radius: 10px; background: var(--card); border: 1px solid var(--bd); font-family: var(--mono); }
+    .cd b { font-size: 16px; color: #fff; }
+    .cd span { font-size: 10.5px; color: var(--mut); text-transform: uppercase; }
+
+    /* WAITLIST CAPTURE */
+    .wl-box {
+      background: linear-gradient(var(--bg2), var(--bg2)) padding-box, var(--grad) border-box;
+      border: 1.5px solid transparent; border-radius: 18px; padding: 18px;
+      box-shadow: 0 24px 60px -16px rgba(0,0,0,0.75);
+      max-width: 560px;
+    }
+    .wl-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+    .wl-offer { font-size: 12.5px; font-weight: 700; color: var(--cyan); }
+    .seg { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--card); border: 1px solid var(--bd); }
+    .seg button { border: 0; background: transparent; color: var(--mut); font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; cursor: pointer; }
+    .seg button.on { background: rgba(255,255,255,0.12); color: #fff; }
+    .wl-row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .wl-input {
+      flex: 1 1 230px; padding: 13px 15px; border-radius: 12px;
+      border: 1px solid var(--bd); background: var(--card); color: #fff; font-size: 15px; outline: none;
+    }
+    .wl-input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0,229,255,0.18); }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .wl-msg { margin-top: 8px; font-size: 13px; color: #FF7A92; min-height: 18px; }
+    .wl-ok { display: none; padding: 14px 16px; border-radius: 12px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.38); }
+    .wl-ok h3 { font-family: var(--disp); font-size: 16px; color: #86EFAC; margin-bottom: 6px; }
+    .wl-ok ul { padding-left: 18px; font-size: 13px; color: #E8FCEF; line-height: 1.65; }
+    .wl-rgpd { font-size: 11.5px; color: var(--mut); margin-top: 4px; }
+    .wl-rgpd a { color: var(--cyan); }
+    .trust-row { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--mut); }
+
+    /* HERO VIDEO PLAYER */
+    .video-frame {
+      background: linear-gradient(180deg, #161630 0%, #0D0D1C 100%);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 20px; padding: 12px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 40px -16px rgba(0,229,255,0.3);
+    }
+    .vf-bar { display: flex; align-items: center; justify-content: space-between; padding: 2px 6px 10px; font-size: 12px; color: var(--mut); }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+    .vf-player { position: relative; border-radius: 13px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; }
+    .vf-player video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .vf-caption { display: flex; justify-content: space-between; align-items: center; padding: 10px 4px 2px; font-size: 12.5px; color: var(--mut); }
+
+    /* REAL SHORTS GALLERY (PROOF) */
+    section { padding: 64px 0; }
+    .sec-head { text-align: center; max-width: 720px; margin: 0 auto 40px; }
+    .sec-head h2 { font-family: var(--disp); font-weight: 800; font-size: clamp(26px, 3.8vw, 42px); line-height: 1.1; letter-spacing: -0.03em; margin: 14px 0 12px; }
+    .sec-head p { font-size: 16px; color: var(--mut); }
+
+    .reels-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+    @media (max-width: 860px) { .reels-grid { grid-template-columns: 1fr; max-width: 360px; margin: 0 auto; } }
+    .reel-card {
+      background: var(--card); border: 1px solid var(--bd); border-radius: 22px; padding: 14px;
+      transition: transform .2s, border-color .2s;
+    }
+    .reel-card:hover { transform: translateY(-4px); border-color: var(--bd-hi); }
+    .reel-screen {
+      position: relative; aspect-ratio: 9 / 16; border-radius: 16px; overflow: hidden;
+      background: #000; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .reel-screen video { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
+    .reel-tag {
+      position: absolute; top: 10px; left: 10px; z-index: 2;
+      padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; font-family: var(--mono);
+      background: rgba(7,7,15,0.78); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.16); color: #fff;
+    }
+    .mute-btn {
+      position: absolute; bottom: 10px; right: 10px; z-index: 2;
+      border: 1px solid rgba(255,255,255,0.25); background: rgba(7,7,15,0.78); backdrop-filter: blur(8px);
+      color: #fff; font-size: 12px; font-weight: 600; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+    }
+    .mute-btn:hover { background: var(--coral); border-color: var(--coral); }
+    .reel-meta { padding: 14px 4px 4px; }
+    .reel-meta h3 { font-family: var(--disp); font-size: 17px; margin-bottom: 4px; }
+    .reel-meta p { font-size: 13.5px; color: var(--mut); }
+
+    /* 3 STEPS + 2 MODES (CONCISE, ZERO WALL OF TEXT) */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    @media (max-width: 820px) { .steps { grid-template-columns: 1fr; } }
+    .step { background: var(--card); border: 1px solid var(--bd); border-radius: 18px; padding: 24px; }
+    .step-n { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--cyan); margin-bottom: 10px; display: block; }
+    .step h3 { font-family: var(--disp); font-size: 18px; margin-bottom: 8px; }
+    .step p { font-size: 14px; color: var(--mut); }
+
+    .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    @media (max-width: 820px) { .modes { grid-template-columns: 1fr; } }
+    .mode-card { background: linear-gradient(180deg, rgba(22,22,46,0.95), rgba(14,14,29,0.98)); border: 1px solid var(--bd); border-radius: 20px; padding: 28px; }
+    .mode-card.pro { border-color: rgba(0,229,255,0.35); }
+    .mode-card h3 { font-family: var(--disp); font-size: 22px; margin: 12px 0 10px; }
+    .mode-card p { font-size: 14.5px; color: var(--mut); margin-bottom: 16px; }
+    .chk { list-style: none; display: grid; gap: 9px; font-size: 14px; }
+    .chk li::before { content: "✓ "; color: var(--cyan); font-weight: 800; }
+
+    /* PRICING (SIMPLE 19€ ILLIMITÉ — NO CONFUSING CALCULATOR) */
+    .toggle-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
+    .toggle { display: inline-flex; gap: 6px; padding: 5px; border-radius: 999px; background: var(--card); border: 1px solid var(--bd); }
+    .toggle button { border: 0; background: transparent; color: var(--mut); font-size: 13px; font-weight: 700; padding: 9px 18px; border-radius: 999px; cursor: pointer; }
+    .toggle button.active { background: rgba(255,255,255,0.12); color: #fff; }
+    .p-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 22px; }
+    @media (max-width: 860px) { .p-grid { grid-template-columns: 1fr; } }
+    .p-card { background: linear-gradient(180deg, rgba(24,24,52,0.95), rgba(14,14,29,0.98)); border: 1px solid var(--bd); border-radius: 22px; padding: 30px; }
+    .p-card.perks { border-color: rgba(255,59,92,0.42); display: flex; flex-direction: column; justify-content: space-between; }
+    .big-price { font-family: var(--disp); font-size: 42px; font-weight: 800; margin: 14px 0 6px; letter-spacing: -0.03em; }
+    .old { text-decoration: line-through; color: var(--mut); font-size: 22px; margin-right: 10px; font-weight: 600; }
+
+    /* FAQ */
+    .faq { max-width: 780px; margin: 0 auto; display: grid; gap: 12px; }
+    details { background: var(--card); border: 1px solid var(--bd); border-radius: 14px; padding: 17px 20px; }
+    summary { font-family: var(--disp); font-weight: 700; font-size: 15.5px; cursor: pointer; }
+    details p { margin-top: 10px; font-size: 14px; color: var(--mut); }
+
+    /* CLOSING CTA */
+    .final {
+      text-align: center;
+      background: linear-gradient(135deg, rgba(0,229,255,0.11), rgba(255,59,92,0.14));
+      border: 1px solid var(--bd); border-radius: 24px; padding: 48px 24px;
+    }
+
+    footer { border-top: 1px solid var(--bd); padding: 28px 0; font-size: 13.5px; color: var(--mut); }
+    .f-in { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  </style>
 </head>
 <body>
-  <header>
-    <nav>
-      <a class="brand" href="./"><img class="logo" src="icon.svg" alt="" width="28" height="28">ClipRoll</a>
-      <div class="links">
-        <a href="./">Home</a>
-        <a href="#youtube-api">YouTube API</a>
-        <a href="privacy.html">Privacy</a>
-        <a href="terms.html">Terms</a>
+  <nav class="nav">
+    <div class="wrap nav-in">
+      <a class="brand" href="#inscription">
+        <img src="/icon.svg" width="34" height="34" alt="Logo ClipRoll" />
+        <span>Clip<em>Roll</em></span>
+      </a>
+      <div class="nav-links">
+        <a href="#exemples">Exemples vidéo</a>
+        <a href="#comment-ca-marche">Comment ça marche</a>
+        <a href="#tarifs">Tarifs (19 €/mois)</a>
+        <a href="#faq">FAQ</a>
       </div>
-    </nav>
+      <a class="btn btn-cta" href="#inscription" style="padding:9px 16px;font-size:13px">Pré-inscription · −50 %</a>
+    </div>
+  </nav>
+
+  <!-- HERO + VRAIE VIDÉO DE PRÉSENTATION -->
+  <header class="hero" id="inscription">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="pill"><span class="dot"></span>Sortie le 4 décembre · Mac &amp; Windows</span>
+        <h1>Crée et publie tes <span class="grad">Shorts en illimité</span> avec l'IA.</h1>
+        <p class="hero-sub">
+          Donne une idée : ClipRoll écrit le script viral avec <strong>Claude</strong>, génère la voix, rend la vidéo en <strong>Blender 3D, Animation 2D ou Montage auto</strong> et publie sur YouTube Shorts, TikTok et Reels.
+        </p>
+
+        <div class="cd-row" aria-label="Compte à rebours avant le lancement">
+          <div class="cd"><b id="cd-d">--</b><span>j</span></div>
+          <div class="cd"><b id="cd-h">--</b><span>h</span></div>
+          <div class="cd"><b id="cd-m">--</b><span>min</span></div>
+          <div class="cd"><b id="cd-s">--</b><span>s</span></div>
+          <span style="font-size:12.5px;color:var(--mut)">avant la sortie</span>
+        </div>
+
+        <div class="wl-box">
+          <form id="wl-form" novalidate>
+            <div class="wl-top">
+              <span class="wl-offer">Inscrits : 1 jour gratuit + −50 % le 1er mois + −10 % annuel</span>
+              <div class="seg" role="group" aria-label="Ton profil">
+                <button type="button" class="on" data-prof="creator">Créateur</button>
+                <button type="button" data-prof="business">Entreprise</button>
+              </div>
+            </div>
+            <input type="text" name="website" id="wl-hp" class="hp" tabindex="-1" autocomplete="off" />
+            <div class="wl-row">
+              <input type="email" id="wl-email" name="email" class="wl-input" required autocomplete="email" placeholder="Ton email pour bloquer −50 % au lancement…" aria-label="Ton adresse email" />
+              <button type="submit" class="btn btn-cta" id="wl-btn"><span>Réserver mon offre</span></button>
+            </div>
+            <div class="wl-msg" id="wl-msg" role="status" aria-live="polite"></div>
+            <p class="wl-rgpd">
+              Tu reçois uniquement ton lien d'accès et ton code promo le 4 décembre. Zéro spam, désinscription en 1 clic · <a href="/privacy.html">Confidentialité</a>.
+            </p>
+          </form>
+          <div class="wl-ok" id="wl-ok">
+            <h3>C'est bon, ton offre de lancement est bloquée ✓</h3>
+            <p id="wl-ok-sub" style="font-size:13px;color:#BBF7D0;margin-bottom:6px">Tu recevras ton accès prioritaire le 4 décembre avec :</p>
+            <ul>
+              <li><strong>1 jour d'essai gratuit</strong> complet</li>
+              <li><strong>−50 % sur ton 1er mois</strong> (9,50 € au lieu de 19 €)</li>
+              <li><strong>−10 % supplémentaires</strong> sur le plan annuel (134 € au lieu de 149 €)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="trust-row">
+          <span>✓ Shorts illimités · 19 €/mois</span>
+          <span>✓ 100 % local Mac &amp; Windows</span>
+          <span>✓ Sans filigrane</span>
+        </div>
+      </div>
+
+      <!-- VRAIE VIDÉO PROMO 3D LECTEUR DIRECT -->
+      <div class="video-frame">
+        <div class="vf-bar">
+          <div class="dots"><i style="background:#FF5F56"></i><i style="background:#FFBD2E"></i><i style="background:#27C93F"></i></div>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--cyan)">CLIPROLL STUDIO · DÉMO 1 MIN 30</span>
+        </div>
+        <div class="vf-player">
+          <video controls preload="metadata" playsinline poster="/media/og-cliproll.jpg">
+            <source src="/media/cliproll-promo.mp4" type="video/mp4" />
+          </video>
+        </div>
+        <div class="vf-caption">
+          <span>Découvre tout ce que fait ClipRoll en 90 secondes</span>
+          <a href="#exemples" style="color:var(--cyan);text-decoration:none;font-weight:600">Voir 3 vrais Shorts ↓</a>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <main>
-    <section class="hero">
-      <div>
-        <h1>Create, edit and publish 9:16 shorts.</h1>
-        <p class="lead">Cut long footage, burn subtitles locally on your Mac and schedule to YouTube Shorts, TikTok and Reels.</p>
-        <div class="hero-actions">
-          <a class="btn-cta" href="#youtube-api">Explore ClipRoll</a>
-          <a class="btn-sec" href="privacy.html">Privacy Policy</a>
-        </div>
-        <div class="hero-meta">macOS · 1080×1920 · Local FFmpeg &amp; Whisper</div>
+  <!-- PREUVES : 3 VRAIS SHORTS GÉNÉRÉS PAR CLIPROLL -->
+  <section id="exemples">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="pill cyan">Preuves réelles · 100 % générés par ClipRoll</span>
+        <h2>Regarde ce que ClipRoll sort tout seul — sans ouvrir un logiciel de montage.</h2>
+        <p>Clique sur « Activer le son » sur n'importe quel Short pour entendre la voix, le rythme et les sous-titres générés automatiquement.</p>
       </div>
 
-      <div class="studio-preview" aria-label="ClipRoll 9:16 Studio preview">
-        <div class="sp-bar">
-          <div class="sp-dots"><span></span><span></span><span></span></div>
-          <span>ClipRoll Studio · 9:16</span>
-          <span class="sp-tag">1080×1920</span>
-        </div>
-        <div class="sp-body">
-          <div class="sp-reel">
-            <span class="sp-tag">00:42</span>
-            <div class="sp-play">
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2L10 6L3 10Z"/></svg>
-            </div>
-            <div class="sp-caps">READY TO POST</div>
+      <div class="reels-grid">
+        <article class="reel-card">
+          <div class="reel-screen">
+            <span class="reel-tag">BLENDER 3D</span>
+            <video autoplay muted loop playsinline preload="metadata" poster="/media/demo-blender-3d.jpg">
+              <source src="/media/demo-blender-3d.mp4" type="video/mp4" />
+            </video>
+            <button type="button" class="mute-btn" onclick="toggleSound(this)">🔇 Son</button>
           </div>
-          <div class="sp-col">
-            <div class="sp-card">
-              <div class="sp-card-title">Episode 03 — Short Cut</div>
-              <div class="sp-card-sub">H.264 · 30 fps · Subtitles synced</div>
-              <div class="sp-track"><div class="sp-fill"></div></div>
-            </div>
-            <div class="sp-nets">
-              <span class="sp-net"><i></i>YouTube Shorts</span>
-              <span class="sp-net"><i></i>TikTok</span>
-              <span class="sp-net"><i></i>Instagram Reels</span>
-              <span class="sp-net"><i></i>Facebook Reels</span>
-            </div>
+          <div class="reel-meta">
+            <h3>Scènes 3D Blender</h3>
+            <p>Personnages, caméras dynamiques, gros mots à l'écran et sous-titres synchronisés automatiquement.</p>
+          </div>
+        </article>
+
+        <article class="reel-card">
+          <div class="reel-screen">
+            <span class="reel-tag">ANIMATION 2D</span>
+            <video autoplay muted loop playsinline preload="metadata" poster="/media/demo-animation-2d.jpg">
+              <source src="/media/demo-animation-2d.mp4" type="video/mp4" />
+            </video>
+            <button type="button" class="mute-btn" onclick="toggleSound(this)">🔇 Son</button>
+          </div>
+          <div class="reel-meta">
+            <h3>Parabole &amp; Compteur 2D</h3>
+            <p>Format viral à compteur qui grimpe, idéal pour le storytelling, les faits marquants et les marques.</p>
+          </div>
+        </article>
+
+        <article class="reel-card">
+          <div class="reel-screen">
+            <span class="reel-tag">DOCU &amp; CARTE GÉO</span>
+            <video autoplay muted loop playsinline preload="metadata" poster="/media/demo-docu-geo.jpg">
+              <source src="/media/demo-docu-geo.mp4" type="video/mp4" />
+            </video>
+            <button type="button" class="mute-btn" onclick="toggleSound(this)">🔇 Son</button>
+          </div>
+          <div class="reel-meta">
+            <h3>Storytelling &amp; Cartes animées</h3>
+            <p>Script rédigé par Claude, voix off calée au millimètre et montage rythmé prêt pour YouTube, TikTok et Reels.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENT ÇA MARCHE (ULTRA CLAIR, 3 ÉTAPES) -->
+  <section id="comment-ca-marche" style="padding-top:20px">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="pill cyan">Simple &amp; rapide</span>
+        <h2>Comment automatiser ta création de contenu en 3 étapes.</h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <span class="step-n">01 · TON IDÉE</span>
+          <h3>Écris une phrase (ou copie un style)</h3>
+          <p>Claude génère l'accroche, le script complet et le découpage plan par plan. Tu peux aussi donner un lien de vidéo virale pour en reprendre le rythme.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">02 · RENDU LOCAL AUTO</span>
+          <h3>3D, 2D ou Montage face-cam</h3>
+          <p>ClipRoll génère la voix, anime les scènes (ou coupe les blancs et ajoute les zooms sur ta vidéo filmée) et cale les sous-titres mot à mot sur ton ordinateur.</p>
+        </div>
+        <div class="step">
+          <span class="step-n">03 · PUBLICATION &amp; STATS</span>
+          <h3>Publie sur tous tes réseaux</h3>
+          <p>Programme tes Shorts sur YouTube, TikTok, Instagram et Facebook depuis un seul calendrier et suis tes vues dans l'onglet Statistiques.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 MODES : CRÉATEUR vs ENTREPRISE -->
+  <section style="padding-top:16px">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="pill">Pensé pour convertir</span>
+        <h2>Que tu sois créateur ou entreprise, ClipRoll travaille à ta place.</h2>
+      </div>
+      <div class="modes">
+        <div class="mode-card pro">
+          <span class="pill cyan">Mode Créateur</span>
+          <h3>Fais exploser tes chaînes Shorts &amp; TikTok</h3>
+          <p>Publie tous les jours sans jamais manquer d'idées ni passer tes soirées sur CapCut ou Premiere.</p>
+          <ul class="chk">
+            <li><strong>Équipe IA intégrée</strong> : demande ta semaine de vidéos en une phrase</li>
+            <li><strong>Radar 5 Concurrents</strong> : repère les vidéos à 2×–5× la moyenne et copie la recette</li>
+            <li><strong>Montage face-cam auto</strong> : coupe les silences, zooms dynamiques et sous-titres</li>
+            <li><strong>Multi-comptes</strong> YouTube, TikTok, Instagram et Facebook</li>
+          </ul>
+        </div>
+        <div class="mode-card">
+          <span class="pill">Mode Entreprise &amp; Marque</span>
+          <h3>Attire des clients sans jamais te filmer</h3>
+          <p>Commerce, indépendant, agence ou SaaS : ClipRoll transforme ton métier et ton offre en Shorts pros chaque semaine.</p>
+          <ul class="chk">
+            <li><strong>Personnalité Entreprise</strong> : ton ton, ton offre et ton appel à l'action intégrés</li>
+            <li><strong>Zéro caméra, zéro studio</strong> : rendu 3D, 2D ou storytelling 100 % automatisé</li>
+            <li><strong>Relecture avant publication</strong> : rien ne part sans ton clic de validation</li>
+            <li><strong>100 % privé sur ton Mac/PC</strong> : tes vidéos restent ta propriété à vie</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TARIF SIMPLE : 19 €/MOIS SHORTS ILLIMITÉS -->
+  <section id="tarifs">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="pill">Sortie le 4 décembre · Offre Pré-inscrits</span>
+        <h2>19 €/mois. Shorts illimités. Point final.</h2>
+        <p>Aucun compteur de crédits, aucune limite cachée. Pré-inscris ton email avant le 4 décembre pour payer moitié prix le 1er mois et tester gratuitement.</p>
+      </div>
+
+      <div class="toggle-wrap">
+        <div class="toggle" role="tablist">
+          <button id="btn-monthly" class="active" type="button">Mensuel (−50 % le 1er mois)</button>
+          <button id="btn-annual" type="button">Annuel (−35 % + −10 % liste)</button>
+        </div>
+      </div>
+
+      <div class="p-grid">
+        <div class="p-card">
+          <span class="pill cyan">Accès Complet · Shorts Illimités</span>
+          <div class="big-price" id="price-display">
+            <span class="old">19 €</span>9,50 € <small style="font-size:15px;color:var(--mut)">/ 1er mois (puis 19 €/mois)</small>
+          </div>
+          <p style="font-size:13.5px;color:var(--mut);margin-bottom:18px" id="price-note">Inclus : 1 jour d'essai gratuit + −50 % sur le 1er mois. Sans engagement.</p>
+          <ul class="chk" style="margin-bottom:24px">
+            <li><strong>Shorts illimités</strong> — zéro crédit, zéro quota mensuel</li>
+            <li><strong>Blender 3D, Animation 2D &amp; Montage face-cam</strong> inclus</li>
+            <li>Génération de vidéos IA avec <strong>Claude</strong> + voix pro / locale gratuite</li>
+            <li><strong>Équipe IA + Radar 5 Concurrents</strong> + Mode Créateur &amp; Entreprise</li>
+            <li>Export <strong>1080p sans filigrane</strong> + publication YouTube, TikTok, Reels</li>
+            <li>Compatible <strong>macOS &amp; Windows</strong> · Annulation 1 clic Stripe</li>
+          </ul>
+          <a class="btn btn-cta" href="#inscription" id="tarif-cta" style="width:100%"><span id="buy-label">Bloquer 9,50 € le 1er mois + 1 jour gratuit</span></a>
+        </div>
+
+        <div class="p-card perks">
+          <div>
+            <span class="pill">Pourquoi t'inscrire maintenant ?</span>
+            <h3 style="font-family:var(--disp);font-size:24px;margin:16px 0 10px">Tes 4 avantages réservés à la liste d'attente</h3>
+            <p style="font-size:14px;color:var(--mut);margin-bottom:18px">Ces réductions disparaissent après le lancement du 4 décembre :</p>
+            <ul class="chk" style="margin-bottom:22px">
+              <li><strong>Accès prioritaire</strong> dès l'ouverture des téléchargements</li>
+              <li><strong>1 jour d'essai gratuit</strong> pour tout tester en vrai</li>
+              <li><strong>−50 % sur le 1er mois</strong> (9,50 € au lieu de 19 €)</li>
+              <li><strong>−10 % en plus sur l'annuel</strong> (134 € au lieu de 149 €)</li>
+            </ul>
+          </div>
+          <div>
+            <a class="btn btn-ghost" href="#inscription" id="founder-cta" style="width:100%;border-color:rgba(0,229,255,0.45);color:var(--cyan)">Laisser mon email gratuitement →</a>
+            <p style="font-size:12px;color:var(--mut);text-align:center;margin-top:10px">Aucune carte bancaire demandée · Zéro spam</p>
           </div>
         </div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="section">
-      <h2>Local rendering. Direct publishing.</h2>
-      <p class="section-sub">Your footage stays on your computer. Connect your official accounts to publish or schedule from one place.</p>
-      <div class="grid">
-        <div class="card">
-          <h3>Create &amp; cut</h3>
-          <p>Turn a script or long recording into vertical 9:16 shorts with local Whisper subtitles and FFmpeg rendering.</p>
-        </div>
-        <div class="card">
-          <h3>Publish &amp; schedule</h3>
-          <p>Sign in with each platform's official OAuth screen, then upload now or schedule to the exact minute.</p>
-        </div>
-        <div class="card">
-          <h3>Multiple accounts</h3>
-          <p>Connect several channels per platform and switch in one click. Every scheduled post stays bound to its channel.</p>
-        </div>
+  <!-- FAQ SEO -->
+  <section id="faq" style="padding-top:16px">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="pill cyan">Questions fréquentes</span>
+        <h2>Tout savoir sur ClipRoll avant la sortie.</h2>
       </div>
-    </section>
+      <div class="faq">
+        <details open>
+          <summary>Comment automatiser la création de contenu avec ClipRoll ?</summary>
+          <p>Tu écris une simple idée (ou tu colles le lien d'une vidéo dont tu aimes le rythme) : ClipRoll rédige le script viral avec Claude, génère la voix, crée le visuel en 3D Blender, Animation 2D ou montage face-cam, synchronise les sous-titres et programme la publication sur YouTube Shorts, TikTok et Instagram Reels.</p>
+        </details>
+        <details>
+          <summary>Comment générer des vidéos IA avec Claude dans ClipRoll ?</summary>
+          <p>ClipRoll intègre nativement Claude pour écrire tes scripts, concevoir tes storyboards et orchestrer toute ton Équipe IA (scénario, réalisation, analyse de tes concurrents et de tes statistiques) directement depuis l'application Mac &amp; Windows.</p>
+        </details>
+        <details>
+          <summary>Pourquoi c'est 19 €/mois en illimité alors que les autres outils facturent aux crédits ?</summary>
+          <p>Parce que le rendu vidéo tourne directement sur ton ordinateur (macOS ou Windows) au lieu de louer des serveurs cloud hors de prix. Résultat : zéro limite de Shorts, zéro filigrane, et toutes tes vidéos restent chez toi.</p>
+        </details>
+        <details>
+          <summary>Comment je reçois mon jour gratuit et mes réductions (−50 % / −10 %) ?</summary>
+          <p>En laissant ton email sur cette page avant le 4 décembre. Le jour de la sortie, tu reçois un email unique avec le lien de téléchargement (Mac &amp; Windows) et tes codes promo personnels.</p>
+        </details>
+      </div>
+    </div>
+  </section>
 
-    <section class="section" id="youtube-api">
-      <h2>How ClipRoll uses your YouTube account</h2>
-      <div class="prose">
-        <p>When you connect YouTube, Google requests only two permissions:</p>
-        <ul>
-          <li><strong>Upload videos</strong> (<code>youtube.upload</code>) — uploads only the short videos you select, with your title and caption, at the time you choose.</li>
-          <li><strong>Read channel name</strong> (<code>youtube.readonly</code>) — displays the connected channel name and ID so you know where each short will publish.</li>
-        </ul>
-        <p>ClipRoll never deletes or edits existing videos, never reads comments or analytics, and never publishes without your action. Disconnect anytime in ClipRoll or revoke access in <a href="https://myaccount.google.com/permissions">Google Account permissions</a>.</p>
+  <!-- CLOSING CTA -->
+  <section style="padding-top:12px">
+    <div class="wrap">
+      <div class="final">
+        <span class="pill" style="margin-bottom:14px">Sortie le 4 décembre</span>
+        <h2 style="font-family:var(--disp);font-size:clamp(26px,3.6vw,40px);margin-bottom:12px">Prêt à automatiser tes Shorts ?</h2>
+        <p style="color:var(--mut);max-width:520px;margin:0 auto 24px">Rejoins la liste maintenant pour bloquer 1 jour gratuit, −50 % sur le 1er mois et −10 % sur le plan annuel.</p>
+        <a class="btn btn-cta" href="#inscription" id="closing-cta">Réserver mon offre de lancement</a>
       </div>
-      <div class="note">ClipRoll uses YouTube API Services. By connecting YouTube you agree to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>. Review the <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and our <a href="privacy.html">Privacy Policy</a>.</div>
-    </section>
-  </main>
+    </div>
+  </section>
+
+  <!-- TRANSPARENCE API (CONFORMITÉ GOOGLE / TIKTOK OAUTH) -->
+  <section id="youtube-api" style="padding:10px 0 36px">
+    <div class="wrap">
+      <div class="step" style="font-size:13px;color:var(--mut)">
+        <h3 style="font-size:15px;color:var(--txt);margin-bottom:6px">Transparence API YouTube &amp; TikTok</h3>
+        <p style="margin-bottom:6px">ClipRoll demande uniquement les permissions strictement nécessaires : <code>youtube.upload</code> et <code>youtube.readonly</code> (YouTube), <code>user.info.basic</code> et <code>video.publish</code> (TikTok). Aucune vidéo n'est publiée sans ton action explicite. Révocation à tout moment dans ClipRoll ou via <a href="https://myaccount.google.com/permissions" style="color:var(--cyan)">Google Account permissions</a>.</p>
+        <p style="font-size:12px">ClipRoll uses YouTube API Services (<a href="https://www.youtube.com/t/terms" style="color:var(--cyan)">YouTube Terms of Service</a> · <a href="https://policies.google.com/privacy" style="color:var(--cyan)">Google Privacy Policy</a> · <a href="/privacy.html" style="color:var(--cyan)">ClipRoll Privacy Policy</a>).</p>
+      </div>
+    </div>
+  </section>
 
   <footer>
-    <div>
-      <span>© 2026 ClipRoll</span>
-      <a href="privacy.html">Privacy Policy</a>
-      <a href="terms.html">Terms of Service</a>
-      <a href="mailto:brice.mialon01800@gmail.com">Contact</a>
+    <div class="wrap f-in">
+      <div style="display:flex;align-items:center;gap:8px">
+        <img src="/icon.svg" width="22" height="22" alt="ClipRoll" />
+        <strong>ClipRoll</strong> · cliproll.app
+      </div>
+      <div style="display:flex;gap:18px">
+        <a href="/terms.html">Conditions</a>
+        <a href="/privacy.html">Confidentialité</a>
+        <a href="mailto:contact@cliproll.app">Contact</a>
+      </div>
     </div>
   </footer>
+
+  <script>
+  function toggleSound(btn) {
+    var v = btn.parentElement.querySelector("video");
+    if (!v) return;
+    document.querySelectorAll(".reel-screen video").forEach(function (other) {
+      if (other !== v) {
+        other.muted = true;
+        var b = other.parentElement.querySelector(".mute-btn");
+        if (b) b.textContent = "🔇 Son";
+      }
+    });
+    v.muted = !v.muted;
+    if (!v.muted) { v.currentTime = 0; v.play().catch(function(){}); }
+    btn.textContent = v.muted ? "🔇 Son" : "🔊 Couper";
+  }
+
+  (function () {
+    // 1. Compte à rebours jusqu'au 4 décembre
+    var L = new Date("2026-12-04T09:00:00+01:00").getTime();
+    function tick() {
+      var d = Math.max(0, L - Date.now());
+      document.getElementById("cd-d").textContent = String(Math.floor(d / 864e5)).padStart(2, "0");
+      document.getElementById("cd-h").textContent = String(Math.floor(d % 864e5 / 36e5)).padStart(2, "0");
+      document.getElementById("cd-m").textContent = String(Math.floor(d % 36e5 / 6e4)).padStart(2, "0");
+      document.getElementById("cd-s").textContent = String(Math.floor(d % 6e4 / 1e3)).padStart(2, "0");
+    }
+    tick(); setInterval(tick, 1000);
+
+    // 2. Toggle Mensuel / Annuel
+    var bm = document.getElementById("btn-monthly"), ba = document.getElementById("btn-annual");
+    var pd = document.getElementById("price-display"), pn = document.getElementById("price-note"), bl = document.getElementById("buy-label");
+    bm.onclick = function () {
+      bm.classList.add("active"); ba.classList.remove("active");
+      pd.innerHTML = '<span class="old">19 €</span>9,50 € <small style="font-size:15px;color:var(--mut)">/ 1er mois (puis 19 €/mois)</small>';
+      pn.textContent = "Inclus : 1 jour d'essai gratuit + −50 % sur le 1er mois. Sans engagement.";
+      bl.textContent = "Bloquer 9,50 € le 1er mois + 1 jour gratuit";
+    };
+    ba.onclick = function () {
+      ba.classList.add("active"); bm.classList.remove("active");
+      pd.innerHTML = '<span class="old">149 €</span>134 € <small style="font-size:15px;color:var(--mut)">/ an (soit 11,17 €/mois)</small>';
+      pn.textContent = "Inclus : 1 jour d'essai gratuit + −10 % supplémentaires sur le plan annuel.";
+      bl.textContent = "Bloquer 134 €/an + 1 jour gratuit";
+    };
+
+    // 3. Focus champ email sur les CTA
+    ["tarif-cta", "founder-cta", "closing-cta"].forEach(function (id) {
+      var e = document.getElementById(id);
+      if (e) e.onclick = function () { setTimeout(function () { document.getElementById("wl-email")?.focus(); }, 300); };
+    });
+
+    // 4. Collecte email Waitlist -> Cloudflare D1 (/api/waitlist)
+    var profile = "creator";
+    document.querySelectorAll(".seg button").forEach(function (b) {
+      b.onclick = function () {
+        profile = b.dataset.prof || "creator";
+        document.querySelectorAll(".seg button").forEach(function (x) { x.classList.toggle("on", x === b); });
+      };
+    });
+
+    var form = document.getElementById("wl-form"), em = document.getElementById("wl-email"), hp = document.getElementById("wl-hp");
+    var btn = document.getElementById("wl-btn"), msg = document.getElementById("wl-msg"), ok = document.getElementById("wl-ok"), oks = document.getElementById("wl-ok-sub");
+    form.onsubmit = async function (ev) {
+      ev.preventDefault(); msg.textContent = "";
+      var email = (em.value || "").trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+        msg.textContent = "Entre une adresse email valide."; em.focus(); return;
+      }
+      btn.disabled = true; btn.querySelector("span").textContent = "Inscription…";
+      try {
+        var r = await fetch("/api/waitlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: email,
+            profile: profile,
+            source: new URLSearchParams(location.search).get("utm_source") || "cliproll.app",
+            website: (hp && hp.value) || ""
+          })
+        });
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok || d.error) { msg.textContent = d.error || "Impossible d'enregistrer ton email."; return; }
+        form.style.display = "none"; ok.style.display = "block";
+        if (d.already_registered && oks) oks.textContent = "Cet email est déjà inscrit — ton offre de lancement du 4 décembre est bien bloquée :";
+      } catch (e) {
+        msg.textContent = "Connexion impossible. Réessaie dans quelques secondes.";
+      } finally {
+        btn.disabled = false; btn.querySelector("span").textContent = "Réserver mon offre";
+      }
+    };
+  })();
+  </script>
 </body>
 </html>

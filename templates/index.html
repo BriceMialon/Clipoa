@@ -3701,6 +3701,9 @@
       if (target === 'analyse' && !INSP.data) loadInspiration();
       if (target === 'reglages') loadToolsStatus();
       if (target === 'perf' && !CS.data) { loadChannelStats().then(() => { if (!(CS.data.videos || []).length && !CS.data.syncing && !CS.data.error) syncChannelStats(); }); }
+      if (typeof renderJobsStack === 'function' && Array.isArray(window.__lastJobsSnapshot)) {
+        renderJobsStack(window.__lastJobsSnapshot);
+      }
       requestAnimationFrame(syncSidebarLiquidPill);
     }
 
@@ -3760,23 +3763,143 @@
       } catch (e) {}
     }
 
+    const JOB_BANNER_TTL_MS = 15000;
+    window.__jobBannerFirstSeen = window.__jobBannerFirstSeen || {};
+    window.__lastJobsSnapshot = window.__lastJobsSnapshot || [];
+    let _jobBannerHideTimer = null;
+
+    function isOnFabriqueView() {
+      return !!document.getElementById('view-fabrique')?.classList.contains('actif');
+    }
+
+    function renderJobsStack(jobs) {
+      const stack = document.getElementById('jobs-stack');
+      if (!stack) return;
+      const list = Array.isArray(jobs) ? jobs : [];
+      if (!list.length) {
+        stack.innerHTML = '';
+        if (_jobBannerHideTimer) { clearTimeout(_jobBannerHideTimer); _jobBannerHideTimer = null; }
+        return;
+      }
+      const onFab = isOnFabriqueView();
+      const nowMs = Date.now();
+      const nowSec = nowMs / 1000;
+      let soonestHideMs = null;
+
+      const visibleJobs = list.filter(job => {
+        const isActive = job.status === 'running' || job.status === 'queued' || job.status === 'pending';
+        if (!isActive) return true;
+        if (onFab) return true;
+        if (!(job.id in window.__jobBannerFirstSeen)) {
+          const ageSec = Math.max(0, nowSec - (job.created_at || nowSec));
+          window.__jobBannerFirstSeen[job.id] = ageSec >= (JOB_BANNER_TTL_MS / 1000) ? 0 : nowMs;
+        }
+        const firstSeen = window.__jobBannerFirstSeen[job.id];
+        if (!firstSeen) return false;
+        const remainingMs = JOB_BANNER_TTL_MS - (nowMs - firstSeen);
+        if (remainingMs <= 0) return false;
+        if (soonestHideMs === null || remainingMs < soonestHideMs) soonestHideMs = remainingMs;
+        return true;
+      });
+
+      if (_jobBannerHideTimer) { clearTimeout(_jobBannerHideTimer); _jobBannerHideTimer = null; }
+      if (soonestHideMs !== null) {
+        _jobBannerHideTimer = setTimeout(() => renderJobsStack(window.__lastJobsSnapshot), Math.max(100, soonestHideMs + 50));
+      }
+
+      stack.innerHTML = visibleJobs.map(job => {
+        const cls = job.status === 'done' ? 'done' : (job.status === 'error' ? 'error' : '');
+        const p = job.progress || 0;
+        const totalElapsed = Math.max(0, Math.floor(nowSec - (job.created_at || nowSec)));
+        const stepElapsed = Math.max(0, Math.floor(nowSec - (job.updated_at || job.created_at || nowSec)));
+
+        const rightBadge = job.status === 'done'
+          ? `<span style="color:var(--ok); font-weight:700; font-size:13px;">✓ Prêt</span>`
+          : (job.status === 'paused_restart'
+            ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Reprise auto (${p}%)</span>`
+            : job.status === 'paused_quota'
+            ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Pause quota (${p}%) · reprise auto</span>`
+            : (job.status === 'error'
+              ? `<span style="color:var(--danger); font-weight:700; font-size:13px;">Erreur</span>`
+              : `<b style="color:var(--ink); font-size:13.5px;">${p}%</b>`));
+
+        const estTotal = (job.params && job.params.est_total_sec) ? Number(job.params.est_total_sec) : 90;
+        const remEst = p >= 15 && p < 98
+          ? Math.max(5, Math.round((totalElapsed / Math.max(10, p)) * (100 - p)))
+          : Math.max(5, estTotal - totalElapsed);
+        const remEstTxt = remEst >= 60
+          ? `~${Math.floor(remEst / 60)}m${String(remEst % 60).padStart(2, '0')} restant`
+          : `~${remEst}s restantes`;
+
+        const liveIndicator = job.status === 'running'
+          ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
+               <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">${remEstTxt}</b>
+               ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
+                 ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
+             </div>
+             ${window.ClipRollMoments ? ClipRollMoments.stepsHtml(job) : ''}`
+          : '';
+
+        const warnHtml = job.status === 'done' && Array.isArray(job.warnings) && job.warnings.length
+          ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:rgba(255,170,0,.12); border:1px solid rgba(255,170,0,.45); font-size:12.5px; color:var(--ink);">⚠️ ${job.warnings.map(escHtml).join('<br>⚠️ ')}</div>`
+          : '';
+        const isActive = job.status === 'running' || job.status === 'queued' || job.status === 'pending';
+        const actions = job.status === 'done' && job.session_id
+          ? `${warnHtml}<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+               <button class="btn btn-coral btn-sm" onclick="openFinishedVideo('${job.session_id}')">Voir dans mes vidéos</button>
+               <a class="btn btn-ghost btn-sm" href="/download/${job.session_id}" download>Télécharger</a>
+               <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
+             </div>`
+          : (job.status === 'paused_quota'
+            ? `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
+                 <button class="btn btn-coral btn-sm" onclick="resumeJob('${job.id}')">Reprendre</button>
+                 <button class="btn btn-ghost btn-sm" onclick="showView('reglages')">Connexions</button>
+                 <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
+               </div>`
+            : (isActive
+              ? (!onFab
+                ? `<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                     <button type="button" class="btn btn-coral btn-sm" onclick="showView('fabrique')">Voir dans Fabrique</button>
+                   </div>`
+                : '')
+              : `<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                   ${job.kind && ['make','clone'].includes(job.kind) ? `<button class="btn btn-ghost btn-sm" onclick="resumeJob('${job.id}')">Reprendre</button>` : ''}
+                   ${job.status === 'error' && /^inc_[a-f0-9]+$/.test(job.incident_id || '') ? `<button class="btn btn-ghost btn-sm" onclick="window.ClipoaSupport && ClipoaSupport.open({incidentId:'${job.incident_id}'})">Envoyer le rapport</button>` : ''}
+                   <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
+                 </div>`));
+
+        // Titre propre : titre de la vidéo (sinon le libellé sans emoji ni préfixe technique)
+        const cleanTitle = cleanJobTitle(job);
+        return `<div class="job-card ${cls}">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+            <b style="color:var(--ink); font-size:14px;">${escHtml(cleanTitle)}</b>${job.status === 'done' ? '' : rightBadge}
+          </div>
+          ${job.status === 'done' ? '' : `<div style="font-size:12.5px; color:var(--muted); margin-top:4px;">${escHtml(stripEmoji(job.step || ''))}</div>`}
+          ${job.status === 'running' ? `<div class="progress-track"><div class="progress-fill" style="width:${p || 5}%;"></div></div>${liveIndicator}` : ''}
+          ${actions}
+        </div>`;
+      }).join('');
+    }
+
     async function refreshJobs() {
       refreshClaudeQuota();
       refreshElevenLabsCredits(true);
       try {
         const data = await (await fetch('/api/jobs')).json();
         const jobs = data.jobs || [];
+        window.__lastJobsSnapshot = jobs;
         updateFabriqueUI(jobs);
-        const stack = document.getElementById('jobs-stack');
         const homeLive = document.getElementById('home-fab-live-box');
         if (!jobs.length) {
-          stack.innerHTML = '';
+          renderJobsStack([]);
           if (jobsPollTimer) { clearInterval(jobsPollTimer); jobsPollTimer = null; }
           return;
         }
         let hasRunning = false;
         let runningJob = null;
-        const nowSec = Date.now() / 1000;
+        for (const job of jobs) {
+          if (job.status === 'running') { hasRunning = true; if (!runningJob) runningJob = job; }
+        }
         // Un style vient d'être créé depuis une vidéo d'exemple : on recharge la liste des styles
         const styleJobsDone = jobs.filter(j => (j.kind === 'style_only' || j.kind === 'style_ref') && j.status === 'done').map(j => j.id).join(',');
         if (styleJobsDone && styleJobsDone !== (window.__lastStyleJobsDone || '')) {
@@ -3788,74 +3911,7 @@
             }
           }).catch(() => {});
         }
-        stack.innerHTML = jobs.map(job => {
-          if (job.status === 'running') { hasRunning = true; if (!runningJob) runningJob = job; }
-          const cls = job.status === 'done' ? 'done' : (job.status === 'error' ? 'error' : '');
-          const p = job.progress || 0;
-          const totalElapsed = Math.max(0, Math.floor(nowSec - (job.created_at || nowSec)));
-          const stepElapsed = Math.max(0, Math.floor(nowSec - (job.updated_at || job.created_at || nowSec)));
-
-          const rightBadge = job.status === 'done'
-            ? `<span style="color:var(--ok); font-weight:700; font-size:13px;">✓ Prêt</span>`
-            : (job.status === 'paused_restart'
-              ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Reprise auto (${p}%)</span>`
-              : job.status === 'paused_quota'
-              ? `<span style="color:var(--accent); font-weight:700; font-size:13px;">Pause quota (${p}%) · reprise auto</span>`
-              : (job.status === 'error'
-                ? `<span style="color:var(--danger); font-weight:700; font-size:13px;">Erreur</span>`
-                : `<b style="color:var(--ink); font-size:13.5px;">${p}%</b>`));
-
-          const estTotal = (job.params && job.params.est_total_sec) ? Number(job.params.est_total_sec) : 90;
-          const remEst = p >= 15 && p < 98
-            ? Math.max(5, Math.round((totalElapsed / Math.max(10, p)) * (100 - p)))
-            : Math.max(5, estTotal - totalElapsed);
-          const remEstTxt = remEst >= 60
-            ? `~${Math.floor(remEst / 60)}m${String(remEst % 60).padStart(2, '0')} restant`
-            : `~${remEst}s restantes`;
-
-          const liveIndicator = job.status === 'running'
-            ? `<div style="font-size:12px; color:${stepElapsed > 75 ? 'var(--accent)' : 'var(--muted)'}; margin-top:6px;">
-                 <span class="pulse-dot"></span>${stepElapsed > 75 ? 'Étape longue (' + stepElapsed + 's)' : 'Fabrication en cours'} · ${totalElapsed}s écoulées · <b style="color:var(--ink);">${remEstTxt}</b>
-                 ${(typeof latestClaudeQuota !== 'undefined' && latestClaudeQuota && latestClaudeQuota.remaining_pct != null)
-                   ? ` · Claude <b style="color:${latestClaudeQuota.remaining_pct < 10 ? 'var(--danger)' : 'var(--ink)'};">${latestClaudeQuota.remaining_pct}% restant</b>${latestClaudeQuota.remaining_pct < 10 ? ' — si le quota s’épuise, la vidéo se met en pause et reprend toute seule' : ''}` : ''}
-               </div>
-               ${window.ClipRollMoments ? ClipRollMoments.stepsHtml(job) : ''}`
-            : '';
-
-          const warnHtml = job.status === 'done' && Array.isArray(job.warnings) && job.warnings.length
-            ? `<div style="margin-top:10px; padding:10px 12px; border-radius:10px; background:rgba(255,170,0,.12); border:1px solid rgba(255,170,0,.45); font-size:12.5px; color:var(--ink);">⚠️ ${job.warnings.map(escHtml).join('<br>⚠️ ')}</div>`
-            : '';
-          const actions = job.status === 'done' && job.session_id
-            ? `${warnHtml}<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-                 <button class="btn btn-coral btn-sm" onclick="openFinishedVideo('${job.session_id}')">Voir dans mes vidéos</button>
-                 <a class="btn btn-ghost btn-sm" href="/download/${job.session_id}" download>Télécharger</a>
-                 <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
-               </div>`
-            : (job.status === 'paused_quota'
-              ? `<div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;">
-                   <button class="btn btn-coral btn-sm" onclick="resumeJob('${job.id}')">Reprendre</button>
-                   <button class="btn btn-ghost btn-sm" onclick="showView('reglages')">Connexions</button>
-                   <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
-                 </div>`
-              : (job.status !== 'running'
-                ? `<div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                     ${job.kind && ['make','clone'].includes(job.kind) ? `<button class="btn btn-ghost btn-sm" onclick="resumeJob('${job.id}')">Reprendre</button>` : ''}
-                     ${job.status === 'error' && /^inc_[a-f0-9]+$/.test(job.incident_id || '') ? `<button class="btn btn-ghost btn-sm" onclick="window.ClipoaSupport && ClipoaSupport.open({incidentId:'${job.incident_id}'})">Envoyer le rapport</button>` : ''}
-                     <button class="btn btn-danger btn-sm" onclick="dismissJob('${job.id}')">Fermer</button>
-                   </div>`
-                : ''));
-
-          // Titre propre : titre de la vidéo (sinon le libellé sans emoji ni préfixe technique)
-          const cleanTitle = cleanJobTitle(job);
-          return `<div class="job-card ${cls}">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <b style="color:var(--ink); font-size:14px;">${escHtml(cleanTitle)}</b>${job.status === 'done' ? '' : rightBadge}
-            </div>
-            ${job.status === 'done' ? '' : `<div style="font-size:12.5px; color:var(--muted); margin-top:4px;">${escHtml(stripEmoji(job.step || ''))}</div>`}
-            ${job.status === 'running' ? `<div class="progress-track"><div class="progress-fill" style="width:${p || 5}%;"></div></div>${liveIndicator}` : ''}
-            ${actions}
-          </div>`;
-        }).join('');
+        renderJobsStack(jobs);
 
         // Met aussi à jour la plaquette 9:16 "En fabrication" sur l'Accueil
         if (homeLive && runningJob) {
