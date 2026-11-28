@@ -18,7 +18,9 @@ Modèle :
 ## 2026-11-28 — Claude — Corrections du moteur vidéo (sous-titres, plans, voix)
 - Branche / PR : claude/project-thread-rmd7lj (brouillon)
 - Fait : sous-titres = mots du script calés sur Whisper (`core/script_align.py`, branché dans `VideoComposer._extract_word_list`) ; découpe des plans longs selon min/max du style (`production_method.align_shots`, cause du plan de 13,6 s) ; caméras Blender `tilt`, `pov`, chute et assis recadrées (`scene_kit_bpy.py`) ; ElevenLabs : plus d'ajout de voix de la bibliothèque sans le réglage `elevenlabs.add_library_voices`, voix de bibliothèque exclues sur compte gratuit, avertissement « voix de secours » dans la carte de la tâche (`warnings`).
-- Prochaine étape : refaire les exemples Parabole et Fête en folie avec ce moteur (PR #19 et #20 à remplacer).
+- Exemples refaits (28/11 12:05) : `storage/_exemples_corriges/` (parabole 62,6 s, max_shot 6,36 s ; fête 20,9 s, max_shot 2,82 s ; sous-titres parlés = 100 % des mots du script ; `el_voice_added.json` inchangé, 3 voix).
+- Prochaine étape : casting voix qui choisit encore « ClipRoll · Anatole » (voix de bibliothèque déjà sur le compte, refusée en gratuit → Edge-TTS) ; cartons : emoji ❤️/💔 non rendus, « 10 M » coupé en « 10\NM » ; plans Fête en folie à 9-10 s presque vides (ciel rose, héros hors cadre).
+- Attention : le serveur 8080 tourne depuis le worktree `../cliproll-claude-rmd7lj` (cette branche) avec `CLIPOA_DATA_DIR` = dossier principal ; le relancer depuis `main` une fois la PR fusionnée.
 - Attention : 3 voix déjà ajoutées au compte ElevenLabs de Brice (Tenko, Guillaume, Léo) ; ClipRoll ne les supprime pas.
 
 ## 2026-11-28 11:58 — Antigravity — Fusion des 6 lots sur `main` (base commune Claude ↔ Antigravity)
