@@ -9,11 +9,13 @@ CREATE TABLE IF NOT EXISTS licenses (
   period_end INTEGER,                  -- fin de période payée (epoch s)
   created_at INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_licenses_subscription ON licenses(subscription_id);
 CREATE TABLE IF NOT EXISTS devices (
   key TEXT NOT NULL,
   device TEXT NOT NULL,                -- empreinte hachée envoyée par l'app
   name TEXT,
   last_seen INTEGER,
-  PRIMARY KEY (key, device)
+  PRIMARY KEY (key, device),
+  FOREIGN KEY (key) REFERENCES licenses(key) ON DELETE CASCADE
 );
 CREATE TABLE IF NOT EXISTS stripe_events (id TEXT PRIMARY KEY, at INTEGER);

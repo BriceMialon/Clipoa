@@ -48,7 +48,7 @@ from core.security import (
     is_allowed_host_header,
 )
 from core import edition as _edition
-from core.license import LicenseManager, LICENSED_PREFIXES
+from core.license import LicenseManager, LICENSED_PREFIXES, requires_license
 from core.scraper import CompetitorScraper
 from core.pipeline import ShortCrewPipeline
 from core.claude_bridge import ClaudeBridge, ClaudeQuotaExceededError
@@ -147,7 +147,19 @@ _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 
 def _is_safe_id(val: str) -> bool:
-    return bool(val and _SAFE_ID_RE.match(val) and ".." not in val)
+    if not val or val in (".", "..") or val.startswith("."):
+        return False
+    return bool(_SAFE_ID_RE.match(val) and ".." not in val)
+
+
+def _safe_render_dir(render_id: str):
+    if not _is_safe_id(render_id):
+        return None
+    root = RENDERS_DIR.resolve()
+    target = (root / render_id).resolve()
+    if target.parent != root or target == root:
+        return None
+    return target
 
 
 def _client_ip() -> str:
@@ -230,7 +242,99 @@ def api_license_link():
 
 @app.route("/api/license/deactivate", methods=["POST"])
 def api_license_deactivate():
-    return jsonify(LICENSE.deactivate())
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(LICENSE.deactivate(force=bool(body.get("force"))))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 503
+
+
+@app.route("/api/personality", methods=["GET", "POST"])
+def api_personality():
+    from core import personality as _pers
+    if request.method == "GET":
+        prof = _pers.get_personality()
+        return jsonify({
+            "personality": prof,
+            "angles": _pers.suggest_active_angles(prof),
+            "examples": _pers.BUSINESS_EXAMPLES,
+            "custom_personalities": _pers.list_custom_personalities(),
+            "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+        })
+    body = request.get_json(silent=True) or {}
+    prof = _pers.save_personality(body)
+    return jsonify({
+        "ok": True,
+        "personality": prof,
+        "angles": _pers.suggest_active_angles(prof),
+        "examples": _pers.BUSINESS_EXAMPLES,
+        "custom_personalities": _pers.list_custom_personalities(),
+        "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+    })
+
+
+@app.route("/api/personalities", methods=["GET", "POST"])
+def api_custom_personalities():
+    from core import personality as _pers
+    if request.method == "GET":
+        return jsonify({"custom_personalities": _pers.list_custom_personalities()})
+    body = request.get_json(silent=True) or {}
+    try:
+        entry = _pers.save_custom_personality(body, activate=bool(body.get("activate", True)))
+        prof = _pers.get_personality()
+        return jsonify({
+            "ok": True,
+            "item": entry,
+            "personality": prof,
+            "angles": _pers.suggest_active_angles(prof),
+            "custom_personalities": _pers.list_custom_personalities(),
+            "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+        })
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+
+
+@app.route("/api/personalities/<pid>", methods=["DELETE"])
+def api_delete_custom_personality(pid):
+    from core import personality as _pers
+    ok = _pers.delete_custom_personality(pid)
+    prof = _pers.get_personality()
+    return jsonify({
+        "ok": ok,
+        "personality": prof,
+        "angles": _pers.suggest_active_angles(prof),
+        "custom_personalities": _pers.list_custom_personalities(),
+        "active_custom": _pers.get_custom_personality(prof.get("active_custom_id", "")),
+    }), (200 if ok else 404)
+
+
+@app.route("/api/competitors", methods=["GET", "POST"])
+def api_competitors():
+    from core import personality as _pers
+    if request.method == "GET":
+        return jsonify({"competitors": _pers.list_competitors(), "max": _pers.MAX_COMPETITORS})
+    body = request.get_json(silent=True) or {}
+    saved = _pers.save_competitors(body.get("competitors") or [])
+    return jsonify({"ok": True, "competitors": saved, "max": _pers.MAX_COMPETITORS})
+
+
+@app.route("/api/competitors/scan", methods=["POST"])
+def api_competitors_scan():
+    from core import personality as _pers
+    body = request.get_json(silent=True) or {}
+    if isinstance(body.get("competitors"), list):
+        _pers.save_competitors(body.get("competitors"))
+    try:
+        threshold = max(1.2, min(20.0, float(body.get("threshold", 2.0))))
+        limit = max(5, min(40, int(body.get("limit", 20))))
+    except (TypeError, ValueError):
+        threshold, limit = 2.0, 20
+    try:
+        return jsonify(_pers.scan_competitors(threshold=threshold, limit=limit))
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.context_processor
@@ -240,14 +344,6 @@ def _edition_ctx():
 
 @app.before_request
 def _security_guard():
-    # Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
-    if _edition.is_blocked_path(request.path):
-        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de ClipRoll."}), 403
-    # Version publique : fabrication réservée aux abonnés (lecture seule sinon, rien n'est supprimé)
-    if (_edition.is_public() and request.method == "POST"
-            and request.path.startswith(LICENSED_PREFIXES) and not LICENSE.can_fabricate()):
-        return jsonify({"error": "Abonnement inactif : activez votre licence ClipRoll pour fabriquer des vidéos.",
-                        "license_required": True}), 402
     # 0. Anti-DNS-Rebinding guard (blocks malicious domains pointing to 127.0.0.1)
     lan_ip_allowed = get_lan_ip() if CLIPOA_ALLOW_LAN else ""
     if not is_allowed_host_header(request.host, allow_lan=CLIPOA_ALLOW_LAN, lan_ip=lan_ip_allowed):
@@ -267,7 +363,9 @@ def _security_guard():
         return jsonify({"error": "Requête cross-site bloquée (protection des données)."}), 403
 
     # 2. LAN access guard: if server is exposed beyond loopback, require pairing token
-    if _LAN_ACCESS_TOKEN and not _is_loopback_ip(ip) and not path.startswith("/oauth/"):
+    # Exempt only OAuth callbacks/relay-done (which carry a signed nonce), NOT /oauth/*/start.
+    is_oauth_return = path.startswith("/oauth/") and (path.endswith("/callback") or path.endswith("/relay-done"))
+    if _LAN_ACCESS_TOKEN and not _is_loopback_ip(ip) and not is_oauth_return:
         import hmac
         provided = (
             request.args.get("token")
@@ -302,19 +400,30 @@ def _security_guard():
             if not ok:
                 return _rate_limited_response("Limite de requêtes atteinte, réessaie dans une minute.", retry)
 
-    # 4. Same-origin CSRF guard for state-changing API routes
+    # 4. Same-origin CSRF guard for state-changing API routes (blocks Origin: null and empty/mismatched Referer)
     if request.method in ("POST", "PUT", "PATCH", "DELETE") and path.startswith("/api/"):
-        origin = request.headers.get("Origin") or ""
-        referer = request.headers.get("Referer") or ""
+        origin = (request.headers.get("Origin") or "").strip()
+        referer = (request.headers.get("Referer") or "").strip()
         req_host = (request.host or "").lower()
         if origin:
+            if origin.lower() == "null":
+                return jsonify({"error": "Origine non autorisée"}), 403
             orig_host = (urlparse(origin).netloc or "").lower()
-            if orig_host and orig_host != req_host:
+            if not orig_host or orig_host != req_host:
                 return jsonify({"error": "Origine non autorisée"}), 403
         elif referer:
             ref_host = (urlparse(referer).netloc or "").lower()
-            if ref_host and ref_host != req_host:
+            if not ref_host or ref_host != req_host:
                 return jsonify({"error": "Referer non autorisé"}), 403
+
+    # 5. Version publique : fonctions hors offre refusées côté serveur (voir core/edition.py)
+    if _edition.is_blocked_path(path):
+        return jsonify({"error": "Cette fonction n'est pas disponible dans cette version de ClipRoll."}), 403
+    # Version publique : fabrication / IA / publication réservées aux abonnés (lecture seule sinon)
+    if (_edition.is_public() and request.method == "POST"
+            and requires_license(path) and not LICENSE.can_fabricate()):
+        return jsonify({"error": "Abonnement inactif : activez votre licence ClipRoll pour fabriquer des vidéos.",
+                        "license_required": True}), 402
 
 
 @app.after_request
@@ -833,9 +942,10 @@ def pwa_icon():
 
 @app.route("/stream/<render_id>")
 def stream_video(render_id):
-    if not _is_safe_id(render_id):
+    target = _safe_render_dir(render_id)
+    if not target:
         return "Invalid ID", 400
-    video_path = RENDERS_DIR / render_id / "final_short.mp4"
+    video_path = target / "final_short.mp4"
     if not video_path.exists():
         return "Video not found", 404
     return send_file(str(video_path), mimetype="video/mp4", conditional=True)
@@ -843,9 +953,10 @@ def stream_video(render_id):
 
 @app.route("/download/<render_id>")
 def download_video(render_id):
-    if not _is_safe_id(render_id):
+    target = _safe_render_dir(render_id)
+    if not target:
         return "Invalid ID", 400
-    video_path = RENDERS_DIR / render_id / "final_short.mp4"
+    video_path = target / "final_short.mp4"
     if not video_path.exists():
         return "Video not found", 404
     return send_file(str(video_path), mimetype="video/mp4", as_attachment=True, download_name=f"cliproll_{render_id}.mp4")
@@ -1184,7 +1295,10 @@ def api_drive_sync():
 @app.route("/api/plugins", methods=["GET", "POST"])
 def api_plugins():
     if request.method == "GET":
-        return jsonify({"plugins": StylePluginStore.list_plugins(include_script_body=False)})
+        plugins = StylePluginStore.list_plugins(include_script_body=False)
+        if _edition.is_public():
+            plugins = [p for p in plugins if not p.get("heavy")]
+        return jsonify({"plugins": plugins})
     # Les utilisateurs ne créent plus leurs propres styles : seuls les styles livrés sont proposés
     return jsonify({"error": "La création de styles n'est pas disponible."}), 403
     data = request.json or {}
@@ -1266,7 +1380,11 @@ def api_plugin_sheet_item(plugin_id, filename):
         fpath = StylePluginStore.get_sheet_path(plugin_id, filename)
         if not fpath:
             return "Sheet not found", 404
-        return send_file(str(fpath), conditional=True)
+        is_svg = str(fpath).lower().endswith(".svg")
+        resp = send_file(str(fpath), conditional=not is_svg, as_attachment=is_svg)
+        if is_svg:
+            resp.headers["Content-Security-Policy"] = "sandbox"
+        return resp
     locked = _builtin_style_locked(plugin_id)
     if locked:
         return locked
@@ -1423,6 +1541,9 @@ def api_social_accounts():
 def api_social_connect():
     data = request.json or {}
     platform = data.get("platform")
+    tok = str(data.get("access_token") or "")
+    if _edition.is_public() and tok.startswith("browser_session:"):
+        return jsonify({"error": "Connexion navigateur désactivée dans cette version — utilise l'OAuth officiel."}), 403
     try:
         updated = FreeSocialPublisher.save_account(platform, data)
         return jsonify({"account": updated})
@@ -1560,10 +1681,10 @@ def oauth_start(provider):
         return _oauth_return_redirect(return_view, oauth_error=str(e))
 
 
-@app.route("/oauth/<provider>/relay-done", methods=["GET", "POST"])
+@app.route("/oauth/<provider>/relay-done", methods=["POST"])
 def oauth_relay_done(provider):
-    """Réceptionne le retour 1-clic sécurisé (POST/GET) du relais OAuth ClipRoll et enregistre le compte."""
-    src = request.form if request.method == "POST" else request.args
+    """Réceptionne le retour 1-clic sécurisé (POST uniquement) du relais OAuth ClipRoll et enregistre le compte."""
+    src = request.form
     nonce = (src.get("nonce") or "").strip()
     state_entry = FreeSocialPublisher.consume_oauth_state(nonce) if nonce else None
     return_view = (state_entry or {}).get("return_view", "auto")
@@ -1574,6 +1695,9 @@ def oauth_relay_done(provider):
         return _oauth_return_redirect(return_view, oauth_error=error)
     if not state_entry:
         return _oauth_return_redirect(return_view, oauth_error="Session OAuth expirée — reclique sur Se connecter.")
+    expected_prov = (state_entry or {}).get("provider")
+    if expected_prov and expected_prov != provider:
+        return _oauth_return_redirect(return_view, oauth_error="Session OAuth invalide (provider incohérent).")
 
     try:
         res = FreeSocialPublisher.handle_relay_done(provider, dict(src), target=target)
@@ -1617,19 +1741,31 @@ def api_thumb_proxy():
     allowed_suffixes = ("ytimg.com", "cdninstagram.com", "fbcdn.net", "muscdn.com", "tiktokcdn.com", "tiktokcdn-us.com", "tiktokcdn-eu.com", "ibyteimg.com")
     if not any(host == suf or host.endswith("." + suf) for suf in allowed_suffixes):
         return "Forbidden host", 403
+    allowed_mimes = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"}
+    max_bytes = 5 * 1024 * 1024
     try:
-        r = _req.get(
+        with _req.get(
             img_url,
             headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"},
             timeout=10,
             allow_redirects=False,
-        )
-        if r.status_code != 200 or len(r.content) > 5 * 1024 * 1024:
-            return "Not found", 404
-        ctype = r.headers.get("Content-Type", "image/jpeg").split(";")[0].strip().lower()
-        if not ctype.startswith("image/"):
-            return "Invalid content type", 400
-        return Response(r.content, mimetype=ctype, headers={"Cache-Control": "public, max-age=86400"})
+            stream=True,
+        ) as r:
+            if r.status_code != 200:
+                return "Not found", 404
+            ctype = (r.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+            if ctype not in allowed_mimes:
+                return "Invalid content type", 400
+            chunks = []
+            total = 0
+            for chunk in r.iter_content(chunk_size=65536):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > max_bytes:
+                    return "Too large", 413
+                chunks.append(chunk)
+            return Response(b"".join(chunks), mimetype=ctype, headers={"Cache-Control": "public, max-age=86400"})
     except Exception:
         return "Error", 502
 
@@ -2246,9 +2382,9 @@ def api_upload_short_video():
 
 @app.route("/api/videos/<render_id>", methods=["DELETE"])
 def api_delete_video(render_id):
-    if not _is_safe_id(render_id):
+    target = _safe_render_dir(render_id)
+    if not target:
         return jsonify({"error": "ID invalide"}), 400
-    target = RENDERS_DIR / render_id
     if not target.exists():
         return jsonify({"error": "Vidéo introuvable"}), 404
     shutil.rmtree(target)
@@ -2257,9 +2393,9 @@ def api_delete_video(render_id):
 
 @app.route("/api/videos/<render_id>/validate", methods=["POST"])
 def api_validate_video(render_id):
-    if not _is_safe_id(render_id):
+    target = _safe_render_dir(render_id)
+    if not target:
         return jsonify({"error": "ID invalide"}), 400
-    target = RENDERS_DIR / render_id
     video_file = target / "final_short.mp4"
     if not video_file.exists():
         return jsonify({"error": "Vidéo introuvable"}), 404
@@ -2508,6 +2644,9 @@ def api_script_lab_from_competitors():
 def api_script_lab_generate():
     """Agent Expert Script (Claude ou Gemini) : part de 0, applique un Plugin DA, ou s'inspire d'un concurrent."""
     data = request.json or {}
+    if _edition.is_public() and (data.get("competitor_url") or "").strip():
+        return jsonify({"error": "L'analyse d'un lien concurrent n'est pas disponible dans cette version."}), 403
+    engine = "claude" if _edition.is_public() else (data.get("engine") or "claude").strip().lower()
     try:
         try:
             target_dur = max(15, min(180, int(data.get("target_duration_sec") or 60)))
@@ -2516,12 +2655,12 @@ def api_script_lab_generate():
         res = ScriptExpertAgent.generate(
             topic=data.get("topic", ""),
             niche=data.get("niche", ""),
-            competitor_url=data.get("competitor_url", ""),
+            competitor_url="" if _edition.is_public() else data.get("competitor_url", ""),
             plugin_id=(data.get("plugin_id") or "").strip() or None,
             target_duration_sec=target_dur,
-            engine=(data.get("engine") or "claude").strip().lower(),
+            engine=engine,
         )
-        return jsonify({"engine": data.get("engine", "claude"), "data": res})
+        return jsonify({"engine": engine, "data": res})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

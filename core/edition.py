@@ -25,11 +25,15 @@ PUBLIC_BLOCKED_PREFIXES = (
     "/api/plugins/from-reference",
     "/api/clone",
     "/api/scan",
+    "/api/analyze-short",
     "/api/script-lab/from-competitors",
     "/api/analytics/external",
+    "/api/analytics/internal",
+    "/api/drive",
     "/api/social/portal-login/",
     "/api/agent-team/",
     "/api/channel-stats/tiktok-handle",
+    "/api/competitors",
 )
 
 PUBLIC_DISABLED_ENGINES = ("gemini",)

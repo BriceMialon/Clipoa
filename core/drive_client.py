@@ -175,19 +175,66 @@ class DriveClient:
 
     @classmethod
     def sync_from_local_folder(cls, source_folder: str) -> Dict[str, Any]:
-        """Copies relevant guides/models/JSON/CSV from a local Drive folder into drive_sync."""
+        """Copies relevant guides/models/JSON/CSV from a confined local Drive folder into drive_sync."""
+        from config import BASE_DIR, DATA_DIR, STORAGE_DIR
         src = Path(source_folder).expanduser().resolve()
         if not src.exists() or not src.is_dir():
             raise FileNotFoundError(f"Dossier introuvable : {source_folder}")
 
-        dest = cls.get_sync_dir()
+        home = Path.home().resolve()
+        allowed_roots = [
+            STORAGE_DIR.resolve(),
+            DATA_DIR.resolve(),
+            BASE_DIR.resolve(),
+            (home / "Documents").resolve(),
+            (home / "Desktop").resolve(),
+            (home / "Downloads").resolve(),
+            (home / "Library" / "CloudStorage").resolve(),
+            (home / "Google Drive").resolve(),
+        ]
+        # Never allow syncing filesystem root, home root itself, or hidden/config/secret directories
+        in_allowed = False
+        for root in allowed_roots:
+            try:
+                src.relative_to(root)
+                in_allowed = True
+                break
+            except ValueError:
+                continue
+        if not in_allowed or src == home or any(part.startswith(".") for part in src.parts[len(home.parts):] if src.parts[:len(home.parts)] == home.parts):
+            raise ValueError("Dossier non autorisé : choisis un dossier dans Documents, Bureau, Téléchargements, CloudStorage ou le stockage ClipRoll.")
+
+        dest = cls.get_sync_dir().resolve()
         copied = 0
+        total_bytes = 0
+        max_files = 500
+        max_total_bytes = 500 * 1024 * 1024
+        max_depth = 5
         allowed_ext = {".md", ".txt", ".json", ".csv", ".glb", ".fbx", ".blend", ".mp3", ".m4a", ".wav"}
+        base_depth = len(src.parts)
         for item in src.rglob("*"):
-            if item.is_file() and item.suffix.lower() in allowed_ext and item.stat().st_size < 150 * 1024 * 1024:
-                target = dest / item.name
-                shutil.copy2(item, target)
-                copied += 1
+            if copied >= max_files:
+                break
+            if len(item.parts) - base_depth > max_depth:
+                continue
+            if item.is_symlink():
+                continue
+            try:
+                resolved = item.resolve()
+                resolved.relative_to(src)
+            except (OSError, ValueError):
+                continue
+            if not resolved.is_file() or resolved.suffix.lower() not in allowed_ext:
+                continue
+            size = resolved.stat().st_size
+            if size >= 150 * 1024 * 1024 or total_bytes + size > max_total_bytes:
+                continue
+            target = (dest / resolved.name).resolve()
+            if target == resolved:
+                continue
+            shutil.copy2(resolved, target)
+            copied += 1
+            total_bytes += size
 
         ts = time.strftime("%Y-%m-%d %H:%M")
         save_settings({"drive": {"local_sync_dir": str(dest), "last_sync": ts}})

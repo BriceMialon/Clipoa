@@ -60,6 +60,12 @@ def _is_private_ip_literal(host: str) -> bool:
     try:
         return _is_private_or_reserved_ip(host)
     except ValueError:
+        pass
+    # Catch non-canonical IPv4 encodings (decimal 2130706433, hex 0x7f000001, octal 0177.0.0.1, shorthand 127.1)
+    try:
+        packed = socket.inet_aton(host)
+        return _is_private_or_reserved_ip(socket.inet_ntoa(packed))
+    except OSError:
         return False
 
 
@@ -127,6 +133,8 @@ def validate_relay_url(raw_url: str) -> str:
     if not host or parsed.username or parsed.password:
         raise ValueError("URL du relais OAuth invalide.")
     if parsed.scheme == "https":
+        if host.endswith(".local") or host.endswith(".internal") or host == "metadata.google.internal":
+            raise ValueError("Le relais OAuth ne peut pas pointer vers une adresse interne.")
         if host in ("localhost", "127.0.0.1") or not _is_private_ip_literal(host):
             return url
         raise ValueError("Le relais OAuth ne peut pas pointer vers une IP privée.")
@@ -191,8 +199,9 @@ class BoundedRateLimiter:
         cutoff = now - window_sec
         with self._lock:
             # Periodic pruning if bucket count grows large
+            prune_age = max(300, int(window_sec))
             if len(self._buckets) > self._max_buckets or (now - self._last_prune > 300):
-                stale_keys = [k for k, dq in self._buckets.items() if not dq or dq[-1] < now - 300]
+                stale_keys = [k for k, dq in self._buckets.items() if not dq or dq[-1] < now - prune_age]
                 for k in stale_keys:
                     del self._buckets[k]
                 # Hard eviction if still over max_buckets
@@ -283,6 +292,9 @@ def harden_sensitive_files(storage_dir: Path) -> Dict[str, str]:
         "gemini_usage.json",
         "jobs_history.json",
         "publish_queue.json",
+        "license.json",
+        "night_factory.json",
+        "support/incidents.json",
     )
     for fname in sensitive_files:
         fpath = storage_dir / fname
@@ -377,13 +389,13 @@ _REDACT_PATTERNS = (
     # Query / JSON key=value secrets
     (
         re.compile(
-            r'((?:access_token|refresh_token|client_secret|api_key|authorization|proxy_password|password|token)["\']?\s*[:=]\s*["\']?)([A-Za-z0-9._\-~+/=]{8,})',
+            r'((?:access_token|refresh_token|client_secret|api_key|x-api-key|x-clipoa-token|x-clipoa-license|authorization|proxy_password|password|token)["\']?\s*[:=]\s*["\']?)([A-Za-z0-9._\-~+/=]{8,})',
             re.IGNORECASE,
         ),
         r"\1[REDACTED]",
     ),
-    # Well-known API / OAuth token prefixes (Anthropic, OpenAI, Google API, Google OAuth)
-    (re.compile(r"\b(?:sk-ant-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{20,}|ya29\.[0-9A-Za-z._-]{20,})\b"), "[REDACTED_KEY]"),
+    # Well-known API / OAuth / License token prefixes (Anthropic, OpenAI, ElevenLabs sk_, Google API, Google OAuth, ClipRoll license)
+    (re.compile(r"\b(?:sk-ant-[A-Za-z0-9_-]{12,}|sk-[A-Za-z0-9_-]{20,}|sk_[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{20,}|ya29\.[0-9A-Za-z._-]{20,}|(?!CLIPOA-XXXX-XXXX-XXXX)CLIPOA(?:-[A-Z0-9]{4}){3,4})\b"), "[REDACTED_KEY]"),
     # User home directories (/Users/name/ or /home/name/ or C:\Users\name\)
     (re.compile(r"(/Users/|/home/)[^/\s\"']+", re.IGNORECASE), r"\1[USER]"),
     (re.compile(r"([A-Za-z]:\\Users\\)[^\\\s\"']+", re.IGNORECASE), r"\1[USER]"),
@@ -419,6 +431,8 @@ class RedactingLogFilter(logging.Filter):
             if redacted != msg:
                 record.msg = redacted
                 record.args = ()
+            if record.exc_text:
+                record.exc_text = redact_sensitive_text(record.exc_text, mask_ips=True)
         except Exception:
             pass
         return True
@@ -431,7 +445,7 @@ def is_allowed_host_header(host_header: str, allow_lan: bool = False, lan_ip: st
     """
     raw = (host_header or "").strip().lower()
     if not raw:
-        return True
+        return False
     if raw.startswith("["):
         host = raw.split("]", 1)[0] + "]"
     else:

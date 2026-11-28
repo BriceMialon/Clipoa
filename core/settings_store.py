@@ -136,6 +136,11 @@ def _load_settings_unlocked() -> Dict[str, Any]:
         return json.loads(json.dumps(DEFAULT_SETTINGS))
 
 
+def _write_settings_unlocked(data: Dict[str, Any]) -> None:
+    """Always encrypt sensitive API keys before persisting settings.json."""
+    _atomic_write_json(SETTINGS_FILE, encrypt_sensitive_fields(data))
+
+
 def load_settings() -> Dict[str, Any]:
     with _LOCK:
         return _load_settings_unlocked()
@@ -145,7 +150,7 @@ def save_settings(updates: Dict[str, Any]) -> Dict[str, Any]:
     with _LOCK:
         current = _load_settings_unlocked()
         merged = _deep_merge(current, updates)
-        _atomic_write_json(SETTINGS_FILE, encrypt_sensitive_fields(merged))
+        _write_settings_unlocked(merged)
         return merged
 
 
@@ -305,20 +310,26 @@ def reset_claude_quota_counter():
         _atomic_write_json(CLAUDE_USAGE_FILE, [])
         current = _load_settings_unlocked()
         current.setdefault("claude", {})["live_quota"] = {}
-        _atomic_write_json(SETTINGS_FILE, current)
+        _write_settings_unlocked(current)
 
 
 def list_presets() -> List[Dict[str, Any]]:
+    from core import edition as _edition
     custom = load_settings().get("presets") or []
-    return list(BUILTIN_PRESETS) + [p for p in custom if isinstance(p, dict) and p.get("id")]
+    presets = list(BUILTIN_PRESETS) + [p for p in custom if isinstance(p, dict) and p.get("id")]
+    if _edition.is_public():
+        return [_edition.restrict_engine_params(p) for p in presets]
+    return presets
 
 
 def save_custom_preset(preset: Dict[str, Any]) -> Dict[str, Any]:
+    from core import edition as _edition
     pid = str(preset.get("id") or f"preset_{int(time.time())}")
+    req_engine = "gemini" if preset.get("engine") == "gemini" and not _edition.is_public() else "claude"
     clean = {
         "id": pid,
         "label": str(preset.get("label") or "Mon Preset")[:40],
-        "engine": "gemini" if preset.get("engine") == "gemini" else "claude",
+        "engine": req_engine,
         "render": preset.get("render") if preset.get("render") in ("motion", "broll", "ai_video", "blender3d") else "motion",
         "plugin_id": str(preset.get("plugin_id") or "")[:64],
         "voice_provider": "el" if preset.get("voice_provider") == "el" else "free",
@@ -333,7 +344,7 @@ def save_custom_preset(preset: Dict[str, Any]) -> Dict[str, Any]:
         presets = [p for p in (current.get("presets") or []) if isinstance(p, dict) and p.get("id") != pid]
         presets.append(clean)
         current["presets"] = presets[:12]
-        _atomic_write_json(SETTINGS_FILE, current)
+        _write_settings_unlocked(current)
     return clean
 
 
@@ -345,5 +356,5 @@ def delete_custom_preset(preset_id: str) -> bool:
         if len(new_presets) == len(presets):
             return False
         current["presets"] = new_presets
-        _atomic_write_json(SETTINGS_FILE, current)
+        _write_settings_unlocked(current)
     return True

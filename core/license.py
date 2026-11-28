@@ -34,9 +34,26 @@ DEFAULT_LICENSE_SERVER = "https://clipoa-license.clipoa-studio.workers.dev"
 DEFAULT_PUBKEY_HEX = ""
 
 KEY_RE = re.compile(r"^CLIPOA(-[A-Z0-9]{4}){3,4}$")
-# Routes de fabrication (POST) réservées aux abonnés en édition publique.
-LICENSED_PREFIXES = ("/api/make", "/api/fabrique/")
+# Routes de fabrication / IA / publication (POST) réservées aux abonnés en édition publique.
+LICENSED_PREFIXES = (
+    "/api/make",
+    "/api/fabrique/",
+    "/api/week",
+    "/api/cut",
+    "/api/revise",
+    "/api/script-lab/",
+    "/api/script/",
+    "/api/channel-stats/audit",
+    "/api/voice/preview",
+    "/api/social/publish",
+)
+LICENSED_SUFFIXES = ("/resume", "/publish-now", "/remake")
 REFRESH_AFTER_S = 12 * 3600  # renouvellement en ligne au plus toutes les 12 h
+
+
+def requires_license(path: str) -> bool:
+    p = path or ""
+    return p.startswith(LICENSED_PREFIXES) or (p.startswith("/api/") and p.endswith(LICENSED_SUFFIXES))
 
 
 # ---------------------------------------------------------------------------
@@ -195,6 +212,10 @@ class LicenseManager:
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         os.replace(tmp, self.path)
+        try:
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
 
     def device_id(self) -> str:
         if getattr(self, "_dev", None):
@@ -281,14 +302,15 @@ class LicenseManager:
             pass  # hors ligne : le jeton en cache reste valable jusqu'à son expiration
         return self.status()
 
-    def deactivate(self) -> Dict[str, Any]:
+    def deactivate(self, force: bool = False) -> Dict[str, Any]:
         """Libère cet appareil (pour activer la licence sur un autre)."""
         data = self._load()
         if data.get("key"):
             try:
                 self._post("/license/deactivate", {"key": data["key"], "device": self.device_id()})
-            except Exception:
-                pass
+            except Exception as e:
+                if not force:
+                    raise RuntimeError(f"Impossible de joindre le serveur de licence pour libérer cet ordinateur : {e}")
         with self._lock:
             data = self._load()
             for k in ("key", "token", "checked_at"):
