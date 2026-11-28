@@ -4,6 +4,10 @@
 
 Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste court. Chercher ici (grep) avant de modifier une fonction ; ajouter les nouveautés ici, pas dans CLAUDE.md.
 
+## Pub fictive dans les scripts (28/11/2026)
+- Cause : un clic sur un exemple de la fiche Entreprise (« Coiffeur » = « Atelier Nuance ») l'enregistrait comme personnalité active, puis chaque script finissait en pub pour ce commerce fictif.
+- Correctif : `build_personality_prompt_block` et le brief concurrents ignorent une fiche vide ou dont le nom est celui d'un exemple (`is_example_profile`) ; les exemples remplissent le formulaire sans l'enregistrer (nom laissé vide).
+
 ## Style « Carte animée » (géographie) (28/11/2026)
 - Starter `carte_geo`, `visual_style: geo_map`, moteur `core/geo_engine.py`. Inspiré du kit public « Geo Kit » de Caesar (@caesarscales), github.com/Caesarscales/Geography-Map-Style-Animations, **licence MIT** (crédit à garder). Données : NASA Blue Marble + Natural Earth (domaine public), drapeaux flag-icons (MIT), polices OFL.
 - Le code du kit n'est pas copié dans le dépôt : au premier rendu, ClipRoll télécharge ~55 Mo (moteur JS de la carte, carte du monde déjà construite, drapeaux, polices, bibliothèque chibi, LICENSE, CREDITS.md) au commit figé de `core/geo_kit_manifest.json`, avec contrôle SHA-256 de chaque fichier, dans `storage/geo_runtime/kit`. Les ~400 Mo de données sources du kit (gros plans régionaux) ne sont PAS téléchargés : zoom jusqu'à ~25 px/degré de détail natif (assez pour pays et régions, flou en très gros plan).

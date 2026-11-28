@@ -26,7 +26,7 @@ class TestPersonalitiesAndCompetitors(unittest.TestCase):
 
                 r = self.client.post("/api/personality", json={
                     "mode": "business",
-                    "company_name": "Optique Lumière",
+                    "company_name": "Optique du Marché",
                     "industry": "Opticien",
                     "offer": "Réglage gratuit",
                     "cta": "Passe en boutique",
@@ -36,7 +36,7 @@ class TestPersonalitiesAndCompetitors(unittest.TestCase):
                 self.assertEqual(data["personality"]["mode"], "business")
                 self.assertEqual(len(data["angles"]), 4)
                 block = personality.build_personality_prompt_block()
-                self.assertIn("Optique Lumière", block)
+                self.assertIn("Optique du Marché", block)
                 self.assertIn("STRUCTURE ENTREPRISE EN 3 TEMPS", block)
 
                 # Save 5 competitors max (6th ignored)
@@ -48,12 +48,24 @@ class TestPersonalitiesAndCompetitors(unittest.TestCase):
 
                 brief = personality.build_recipe_inspiration_brief({"title": "Test Viral", "ratio": 3.5, "competitor": "@c1"})
                 self.assertIn("INTERDICTION ABSOLUE", brief)
-                self.assertIn("Optique Lumière", brief)
+                self.assertIn("Optique du Marché", brief)
 
                 with patch.object(edition, "EDITION", "public"):
                     self.assertEqual(self.client.get("/api/personality").status_code, 200)
                     self.assertEqual(self.client.get("/api/competitors").status_code, 403)
                     self.assertEqual(self.client.post("/api/competitors/scan", json={}).status_code, 403)
+
+    def test_example_or_empty_business_profile_never_becomes_an_ad(self):
+        # une fiche restée sur un exemple fictif (« Atelier Nuance ») ou vide ne pousse aucune pub dans les scripts
+        for ex in personality.BUSINESS_EXAMPLES:
+            prof = dict(ex, mode="business")
+            self.assertTrue(personality.is_example_profile(prof))
+            self.assertEqual(personality.build_personality_prompt_block(prof), "")
+            brief = personality.build_recipe_inspiration_brief({"title": "T", "ratio": 3, "competitor": "@c"}, prof)
+            self.assertNotIn(ex["company_name"], brief)
+        self.assertEqual(personality.build_personality_prompt_block({"mode": "business", "company_name": " ", "offer": ""}), "")
+        self.assertIn("Salon Lila", personality.build_personality_prompt_block(
+            {"mode": "business", "company_name": "Salon Lila", "offer": "Coupe offerte"}))
 
     def test_custom_personalities_crud_and_private_owner_hidden_in_public(self):
         with tempfile.TemporaryDirectory() as td:

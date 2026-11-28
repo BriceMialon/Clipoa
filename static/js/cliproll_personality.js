@@ -303,15 +303,14 @@
       b.onclick = function () {
         var ex = _state.examples[parseInt(b.dataset.ex, 10)];
         if (!ex) return;
-        savePersonality({
-          mode: "business",
-          company_name: ex.company_name,
-          industry: ex.industry,
-          offer: ex.offer,
-          audience: ex.audience,
-          cta: ex.cta,
-          tone: ex.tone,
-        }).then(function () { say("Exemple « " + ex.label + " » chargé."); });
+        // un exemple sert de modèle à adapter : il remplit le formulaire sans l'enregistrer
+        // (une entreprise fictive enregistrée finissait en pub dans toutes les vidéos)
+        var set = function (id, v) { var el = host.querySelector(id); if (el) el.value = v || ""; };
+        set("#cr-p-name", "");
+        set("#cr-p-ind", ex.industry);
+        set("#cr-p-offer", ex.offer);
+        set("#cr-p-cta", ex.cta);
+        say("Exemple « " + ex.label + " » : mets le nom de ton entreprise, adapte puis « Enregistrer la fiche ».");
       };
     });
 

@@ -289,10 +289,23 @@ def suggest_business_angles(profile: Dict[str, Any]) -> List[Dict[str, str]]:
     ]
 
 
+_EXAMPLE_COMPANIES = {e["company_name"].strip().lower() for e in BUSINESS_EXAMPLES}
+
+
+def is_example_profile(profile: Dict[str, Any]) -> bool:
+    """Fiche Entreprise remplie avec une entreprise d'EXEMPLE (fictive) : jamais promue dans un script."""
+    return str((profile or {}).get("company_name") or "").strip().lower() in _EXAMPLE_COMPANIES
+
+
 def build_personality_prompt_block(profile: Dict[str, Any] = None) -> str:
-    """Retourne le bloc d'instructions IA pour la personnalité Entreprise ou Personnalisée active, sinon ''."""
+    """Retourne le bloc d'instructions IA pour la personnalité Entreprise ou Personnalisée active, sinon ''.
+    Pas de bloc pour une fiche Entreprise vide ou restée sur un exemple fictif (« Atelier Nuance »…) :
+    sinon l'IA glisse une pub pour un commerce qui n'existe pas dans toutes les vidéos."""
     p = profile if isinstance(profile, dict) else get_personality()
     mode = p.get("mode")
+    if mode == "business" and (is_example_profile(p) or not (str(p.get("company_name") or "").strip()
+                                                          or str(p.get("offer") or "").strip())):
+        return ""
     if mode == "custom":
         cp = get_custom_personality(p.get("active_custom_id", ""))
         if not cp:
@@ -418,7 +431,7 @@ def build_recipe_inspiration_brief(outlier: Dict[str, Any], profile: Dict[str, A
         cp = get_custom_personality(p.get("active_custom_id", ""))
         if cp:
             target_ctx = f" Adapte cette recette à ma personnalité « {cp['name']} » ({cp.get('mission') or ''})."
-    elif p.get("mode") == "business" and (p.get("company_name") or p.get("industry")):
+    elif p.get("mode") == "business" and not is_example_profile(p) and (p.get("company_name") or p.get("industry")):
         target_ctx = (
             f" Adapte cette recette à mon entreprise {p.get('company_name') or ''} "
             f"({p.get('industry') or ''}) avec mon offre : {p.get('offer') or 'notre service'}."
