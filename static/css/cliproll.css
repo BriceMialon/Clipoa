@@ -575,6 +575,13 @@ html[data-theme="light"] {
 .brand-mark-svg { border-radius: 9px; box-shadow: 0 6px 16px -6px rgba(0, 0, 0, 0.5); }
 .plugin-card.on { border-color: rgba(0, 229, 255, 0.38); }
 
+/* Tiroir Équipe IA / Aide compact */
+.ai-drawer-compact { max-width: 560px; }
+.ai-drawer-compact .ai-drawer-head { padding: 8px 12px; }
+.ai-drawer-compact .ai-drawer-body { max-height: 220px; padding: 8px 12px; }
+.ai-drawer-compact .ai-drawer-body:empty { display: none; }
+.ai-drawer-compact .ai-quick-row { padding: 8px 12px; gap: 6px; }
+
 /* Carrousel fluide « À valider » (Accueil) avec fondu élégant sur les bords */
 .home-strip-marquee {
   position: relative;
