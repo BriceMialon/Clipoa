@@ -4,6 +4,12 @@
 
 Détail des fonctions, déplacé de CLAUDE.md le 26/11/2026 pour qu'il reste court. Chercher ici (grep) avant de modifier une fonction ; ajouter les nouveautés ici, pas dans CLAUDE.md.
 
+## Style « Carte animée » (géographie) (28/11/2026)
+- Starter `carte_geo`, `visual_style: geo_map`, moteur `core/geo_engine.py`. Inspiré du kit public « Geo Kit » de Caesar (@caesarscales), github.com/Caesarscales/Geography-Map-Style-Animations, **licence MIT** (crédit à garder). Données : NASA Blue Marble + Natural Earth (domaine public), drapeaux flag-icons (MIT), polices OFL.
+- Le code du kit n'est pas copié dans le dépôt : au premier rendu, ClipRoll télécharge ~55 Mo (moteur JS de la carte, carte du monde déjà construite, drapeaux, polices, bibliothèque chibi, LICENSE, CREDITS.md) au commit figé de `core/geo_kit_manifest.json`, avec contrôle SHA-256 de chaque fichier, dans `storage/geo_runtime/kit`. Les ~400 Mo de données sources du kit (gros plans régionaux) ne sont PAS téléchargés : zoom jusqu'à ~25 px/degré de détail natif (assez pour pays et régions, flou en très gros plan).
+- Exclus volontairement : `studies/` et `reference/` (images des vidéos de la chaîne imitée, pas couvertes par la licence MIT), Node.js (rendu par Playwright Python), les outils voix/mix/QA du kit (ClipRoll fait voix, musique, bruitages, sous-titres).
+- Claude écrit la liste de « beats » (format `docs/BEATS.md` du kit) ; `sanitize` ne garde que les types connus, des temps valides (mots de la voix) et des lieux trouvés dans la carte (codes ISO3 / noms anglais), retire images importées et chemins ; repli « tour du monde » si l'IA échoue. Rendu ~10 images/s (60 s ≈ 3 min).
+
 ## Moteur vidéo corrigé après les rendus de test (28/11/2026)
 - Sous-titres : on affiche les mots du script et Whisper ne sert qu'au calage (`core/script_align.py`, alignement difflib sur mots normalisés ; si moins de 30 % de mots communs, on garde Whisper). Fini « UN MAÎTRE DIX » pour « un mètre dix ».
 - Plans trop longs : `align_shots` découpait avec un pas fixe de 3,2 s, refusé par le minimum de Parabole (3 s) → plan de 13,6 s. Le pas suit maintenant min/max du style, et un plan court n'est plus fusionné au-delà du maximum.

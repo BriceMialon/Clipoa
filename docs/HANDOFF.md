@@ -15,6 +15,13 @@ Modèle :
 
 ---
 
+## 2026-11-28 13:10 — Claude — Style « Carte animée » (géographie)
+- Branche / PR : claude/project-thread-u5zcp0 (brouillon)
+- En cours : nouveau style `carte_geo` (moteur Geo Kit MIT téléchargé au premier usage, voir HISTORIQUE). Rendu d'exemple sur le Mac dans le worktree `../cliproll-claude-geo`.
+- Fichiers touchés : core/geo_engine.py, core/geo_kit_manifest.json, core/style_plugins.py, core/pipeline.py, core/production_method.py, tests/test_geo_map.py, assets/style_covers/carte_geo.jpg, assets/style_refs/carte_geo.mp4
+- Prochaine étape : avis de Brice sur l'exemple ; choix Haute qualité/Rapide pas encore proposé dans la Fabrique pour ce style (index.html non touché).
+- Attention : le test « chaque style livré a un exemple » échoue tant que assets/style_refs/carte_geo.mp4 n'est pas commité.
+
 ## 2026-11-28 12:40 — Claude — Écran de publication TikTok conforme à la revue + script de démo
 - Branche / PR : claude/project-thread-b80lyc — #22 (fusionnée)
 - En cours : panneau TikTok dans « Publier » (compte via creator_info, visibilité sans défaut, interactions, contenu commercial, consentement musique), route `GET /api/social/tiktok/creator-info`, `tiktok_options` transmis jusqu'à `_publish_tiktok`. Script d'enregistrement : `docs/TIKTOK_REVIEW_DEMO.md`.
